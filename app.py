@@ -45,7 +45,6 @@ st.set_page_config(
 # ======================================================
 
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1O-HNa1c4ppF0-ND7BUqKA2OzZDc1O0kTxZOMVDeA-GY/edit?gid=0#gid=0"
-
 HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 
 
@@ -127,11 +126,17 @@ ESTADOS_REVISION = [
 # ======================================================
 
 COLOR_AZUL = "#003366"
-COLOR_AZUL_CLARO = "#0B4F71"
+COLOR_AZUL_MEDIO = "#005B96"
+COLOR_AZUL_CLARO = "#0B84C6"
 COLOR_VERDE = "#1B7F3A"
 COLOR_VERDE_CLARO = "#2EAD5F"
-COLOR_ROJO = "#B22222"
+COLOR_VERDE_SUAVE = "#DDF6E7"
 COLOR_DORADO = "#C9A227"
+COLOR_DORADO_SUAVE = "#FFF4CC"
+COLOR_ROJO = "#B22222"
+COLOR_ROJO_SUAVE = "#FDE2E2"
+COLOR_NARANJA = "#F28C28"
+COLOR_CELESTE = "#E4F3FB"
 COLOR_GRIS = "#F4F6F8"
 COLOR_GRIS_OSCURO = "#2F3542"
 COLOR_BLANCO = "#FFFFFF"
@@ -146,105 +151,181 @@ st.markdown(
     <style>
 
     .stApp {{
-        background: linear-gradient(180deg, #F4F6F8 0%, #EAF2F8 100%);
+        background:
+            radial-gradient(circle at top left, #DFF3FF 0, transparent 32%),
+            radial-gradient(circle at top right, #E4F8EA 0, transparent 28%),
+            linear-gradient(180deg, #F4F8FB 0%, #EAF2F8 45%, #F7FAFC 100%);
     }}
 
     section[data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, #FFFFFF 0%, #E8F0F5 100%);
-        border-right: 4px solid {COLOR_AZUL};
+        background: linear-gradient(180deg, #FFFFFF 0%, #EAF4FB 45%, #E6F5EC 100%);
+        border-right: 5px solid {COLOR_AZUL};
+        box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
+    }}
+
+    section[data-testid="stSidebar"] h2 {{
+        color: {COLOR_AZUL};
+        text-align: center;
+        font-weight: 900;
+        padding-top: 8px;
     }}
 
     .titulo-principal {{
-        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE});
-        padding: 35px;
-        border-radius: 18px;
+        background:
+            linear-gradient(135deg, rgba(0,51,102,0.98), rgba(27,127,58,0.96)),
+            linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE});
+        padding: 38px;
+        border-radius: 22px;
         text-align: center;
         color: white;
         margin-bottom: 30px;
-        box-shadow: 0px 4px 14px rgba(0,0,0,0.25);
+        box-shadow: 0px 8px 22px rgba(0,0,0,0.28);
+        border: 2px solid rgba(255,255,255,0.35);
     }}
 
     .titulo-principal h1 {{
-        font-size: 48px;
+        font-size: 52px;
         margin-bottom: 8px;
-        font-weight: 800;
-        letter-spacing: 1px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+        text-shadow: 1px 2px 5px rgba(0,0,0,0.35);
     }}
 
     .titulo-principal h3 {{
-        font-size: 26px;
+        font-size: 27px;
         margin-top: 8px;
         font-weight: 600;
+        color: #F4FFF8;
     }}
 
     .card-pumi {{
-        background-color: white;
-        padding: 22px;
-        border-radius: 16px;
-        box-shadow: 0px 3px 10px rgba(0,0,0,0.12);
-        border-left: 7px solid {COLOR_VERDE};
-        margin-bottom: 18px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #F0FAF4 100%);
+        padding: 24px;
+        border-radius: 20px;
+        box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
+        border-left: 9px solid {COLOR_VERDE};
+        border-top: 1px solid #FFFFFF;
+        margin-bottom: 20px;
     }}
 
     .card-azul {{
-        background-color: white;
-        padding: 22px;
-        border-radius: 16px;
-        box-shadow: 0px 3px 10px rgba(0,0,0,0.12);
-        border-left: 7px solid {COLOR_AZUL};
-        margin-bottom: 18px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #EEF7FF 100%);
+        padding: 24px;
+        border-radius: 20px;
+        box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
+        border-left: 9px solid {COLOR_AZUL};
+        margin-bottom: 20px;
     }}
 
     .card-dorado {{
-        background-color: white;
-        padding: 22px;
-        border-radius: 16px;
-        box-shadow: 0px 3px 10px rgba(0,0,0,0.12);
-        border-left: 7px solid {COLOR_DORADO};
-        margin-bottom: 18px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8DC 100%);
+        padding: 24px;
+        border-radius: 20px;
+        box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
+        border-left: 9px solid {COLOR_DORADO};
+        margin-bottom: 20px;
     }}
 
     .subtitulo-pumi {{
         color: {COLOR_AZUL};
-        font-weight: 800;
-        font-size: 28px;
-        margin-bottom: 15px;
+        font-weight: 900;
+        font-size: 30px;
+        margin-bottom: 12px;
     }}
 
     .texto-pumi {{
         color: {COLOR_GRIS_OSCURO};
         font-size: 17px;
-        line-height: 1.6;
+        line-height: 1.7;
     }}
 
     div[data-testid="stMetric"] {{
-        background-color: white;
-        padding: 18px;
-        border-radius: 16px;
-        box-shadow: 0px 3px 10px rgba(0,0,0,0.10);
-        border-bottom: 5px solid {COLOR_VERDE};
+        background: linear-gradient(145deg, #FFFFFF 0%, #F0F7FB 100%);
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0px 5px 15px rgba(0,0,0,0.13);
+        border-bottom: 6px solid {COLOR_VERDE};
+        border-top: 1px solid white;
+    }}
+
+    div[data-testid="stMetric"] label {{
+        color: {COLOR_AZUL};
+        font-weight: 800;
+    }}
+
+    div[data-testid="stMetric"] div {{
+        color: {COLOR_GRIS_OSCURO};
+        font-weight: 900;
     }}
 
     .stButton > button {{
         background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE});
         color: white;
-        border-radius: 10px;
+        border-radius: 12px;
         border: none;
-        font-weight: 700;
-        padding: 0.6rem 1rem;
+        font-weight: 800;
+        padding: 0.7rem 1.2rem;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.18);
+    }}
+
+    .stButton > button:hover {{
+        background: linear-gradient(90deg, {COLOR_VERDE}, {COLOR_AZUL});
+        color: white;
+        transform: translateY(-1px);
     }}
 
     .stDownloadButton > button {{
         background: linear-gradient(90deg, {COLOR_VERDE}, {COLOR_AZUL});
         color: white;
-        border-radius: 10px;
+        border-radius: 12px;
         border: none;
-        font-weight: 700;
-        padding: 0.6rem 1rem;
+        font-weight: 800;
+        padding: 0.7rem 1.2rem;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.18);
+    }}
+
+    .stDownloadButton > button:hover {{
+        background: linear-gradient(90deg, {COLOR_AZUL_CLARO}, {COLOR_VERDE_CLARO});
+        color: white;
+        transform: translateY(-1px);
+    }}
+
+    div[data-baseweb="select"] > div {{
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        border: 1.5px solid #C9D6DF;
+    }}
+
+    input, textarea {{
+        border-radius: 12px !important;
+    }}
+
+    .stDateInput input {{
+        border-radius: 12px !important;
+    }}
+
+    div[data-testid="stDataFrame"] {{
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0px 5px 16px rgba(0,0,0,0.13);
+        background-color: white;
     }}
 
     hr {{
-        border: 1px solid #D0D7DE;
+        border: none;
+        height: 2px;
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE}, {COLOR_DORADO});
+        margin-top: 25px;
+        margin-bottom: 25px;
+    }}
+
+    h1, h2, h3 {{
+        color: {COLOR_AZUL};
+        font-weight: 900;
+    }}
+
+    .stAlert {{
+        border-radius: 15px;
     }}
 
     </style>
