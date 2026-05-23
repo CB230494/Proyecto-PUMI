@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+gspread
+google-auth
+openpyxl
+Pillow
+plotly
+xlsxwriter
+reportlab
