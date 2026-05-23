@@ -23,8 +23,59 @@ HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 COLOR_AZUL = "#003366"
 COLOR_VERDE = "#1B7F3A"
 COLOR_GRIS = "#F4F6F8"
-COLOR_DORADO = "#C9A227"
 
+ENCABEZADOS = [
+    "ID",
+    "Fecha Registro",
+    "Dirección Regional",
+    "Delegación",
+    "Programa",
+    "Actividad",
+    "Provincia",
+    "Cantón",
+    "Distrito",
+    "Lugar / Centro Educativo",
+    "Responsable",
+    "Cantidad Participantes",
+    "Instituciones Participantes",
+    "Plan Estratégico Relacionado",
+    "Evidencia",
+    "Observaciones",
+    "Estado Revisión",
+    "Usuario Registra"
+]
+
+PROGRAMAS = [
+    "PSCC",
+    "Política Local",
+    "VIF",
+    "DARE",
+    "GREAT",
+    "MPAS",
+    "GREAT CAMP"
+]
+
+REGIONES = [
+    "R1 San José Central",
+    "R2 San José Norte",
+    "R3 San José Sur",
+    "R4 Alajuela",
+    "R5 Cartago",
+    "R6 Heredia",
+    "R7 Chorotega",
+    "R8 Puntarenas",
+    "R9 Limón",
+    "R10 Brunca",
+    "R11 Chorotega Norte",
+    "R6 Heredia"
+]
+
+ESTADOS_REVISION = [
+    "Pendiente de revisión",
+    "Aprobado",
+    "Con observaciones",
+    "Rechazado"
+]
 
 # ======================================================
 # ESTILOS
@@ -45,25 +96,10 @@ st.markdown(
         color: white;
         margin-bottom: 25px;
     }}
-
-    .card {{
-        background-color: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0px 2px 8px rgba(0,0,0,0.12);
-        margin-bottom: 15px;
-    }}
-
-    .subtitulo {{
-        color: {COLOR_AZUL};
-        font-weight: bold;
-        font-size: 22px;
-    }}
     </style>
     """,
     unsafe_allow_html=True
 )
-
 
 # ======================================================
 # CONEXIÓN GOOGLE SHEETS
@@ -92,51 +128,63 @@ def obtener_hoja(nombre_hoja):
     try:
         return spreadsheet.worksheet(nombre_hoja)
     except gspread.WorksheetNotFound:
-        hoja = spreadsheet.add_worksheet(title=nombre_hoja, rows=2000, cols=30)
-        return hoja
+        return spreadsheet.add_worksheet(title=nombre_hoja, rows=3000, cols=30)
 
 
 def inicializar_hoja():
     hoja = obtener_hoja(HOJA_REGISTRO)
     datos = hoja.get_all_values()
 
-    encabezados = [
-        "ID",
-        "Fecha Registro",
-        "Dirección Regional",
-        "Delegación",
-        "Programa",
-        "Actividad",
-        "Provincia",
-        "Cantón",
-        "Distrito",
-        "Lugar / Centro Educativo",
-        "Responsable",
-        "Cantidad Participantes",
-        "Instituciones Participantes",
-        "Plan Estratégico Relacionado",
-        "Evidencia",
-        "Observaciones",
-        "Estado Revisión",
-        "Usuario Registra"
-    ]
-
     if len(datos) == 0:
-        hoja.append_row(encabezados)
+        hoja.append_row(ENCABEZADOS)
+    else:
+        primera_fila = datos[0]
+
+        if primera_fila != ENCABEZADOS:
+            hoja.insert_row(ENCABEZADOS, index=1)
 
     return hoja
 
 
 def cargar_datos():
     hoja = inicializar_hoja()
-    registros = hoja.get_all_records()
-    return pd.DataFrame(registros)
+    datos = hoja.get_all_values()
+
+    if len(datos) <= 1:
+        return pd.DataFrame(columns=ENCABEZADOS)
+
+    df = pd.DataFrame(datos[1:], columns=ENCABEZADOS)
+    return df
 
 
 def guardar_registro(registro):
     hoja = inicializar_hoja()
-    hoja.append_row(list(registro.values()))
+    hoja.append_row([registro.get(col, "") for col in ENCABEZADOS])
 
+
+def actualizar_registro_por_id(id_registro, nuevos_datos):
+    hoja = inicializar_hoja()
+    datos = hoja.get_all_values()
+
+    for i, fila in enumerate(datos[1:], start=2):
+        if str(fila[0]) == str(id_registro):
+            nueva_fila = [nuevos_datos.get(col, "") for col in ENCABEZADOS]
+            hoja.update(f"A{i}:R{i}", [nueva_fila])
+            return True
+
+    return False
+
+
+def eliminar_registro_por_id(id_registro):
+    hoja = inicializar_hoja()
+    datos = hoja.get_all_values()
+
+    for i, fila in enumerate(datos[1:], start=2):
+        if str(fila[0]) == str(id_registro):
+            hoja.delete_rows(i)
+            return True
+
+    return False
 
 # ======================================================
 # FUNCIONES AUXILIARES
@@ -157,45 +205,14 @@ def mostrar_logo():
     if os.path.exists("logo_pumi.jpeg"):
         logo = Image.open("logo_pumi.jpeg")
         st.sidebar.image(logo, use_container_width=True)
+    elif os.path.exists("logo_pumi.jpg"):
+        logo = Image.open("logo_pumi.jpg")
+        st.sidebar.image(logo, use_container_width=True)
+    elif os.path.exists("logo_pumi.png"):
+        logo = Image.open("logo_pumi.png")
+        st.sidebar.image(logo, use_container_width=True)
     else:
-        st.sidebar.warning("Logo PUMI no encontrado. Guardá el archivo como logo_pumi.jpeg")
-
-
-# ======================================================
-# LISTAS BASE
-# ======================================================
-
-PROGRAMAS = [
-    "PSCC",
-    "Política Local",
-    "VIF",
-    "DARE",
-    "GREAT",
-    "MPAS",
-    "GREAT CAMP"
-]
-
-REGIONES = [
-    "R1 San José Central",
-    "R2 San José Norte",
-    "R3 San José Sur",
-    "R4 Alajuela",
-    "R5 Cartago",
-    "R6 Heredia",
-    "R7 Chorotega",
-    "R8 Puntarenas",
-    "R9 Limón",
-    "R10 Brunca",
-    "R11 Chorotega Norte"
-]
-
-ESTADOS_REVISION = [
-    "Pendiente de revisión",
-    "Aprobado",
-    "Con observaciones",
-    "Rechazado"
-]
-
+        st.sidebar.warning("Logo PUMI no encontrado.")
 
 # ======================================================
 # INTERFAZ PRINCIPAL
@@ -204,12 +221,13 @@ ESTADOS_REVISION = [
 mostrar_logo()
 
 st.sidebar.markdown("## Sistema PUMI 2026")
+
 menu = st.sidebar.radio(
     "Menú principal",
     [
         "Inicio",
         "Registrar actividad",
-        "Consultar registros",
+        "Consultar / editar registros",
         "Dashboard básico",
         "Configuración"
     ]
@@ -225,19 +243,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
 # ======================================================
 # INICIO
 # ======================================================
 
 if menu == "Inicio":
-    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### Bienvenido al sistema PUMI 2026")
-    st.write(
-        "Esta aplicación permite registrar, consultar y consolidar las actividades "
-        "de los Programas Policiales Preventivos, utilizando Google Sheets como base de datos."
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
 
     try:
         df = cargar_datos()
@@ -248,18 +259,18 @@ if menu == "Inicio":
         col2.metric("Programas", df["Programa"].nunique() if not df.empty else 0)
         col3.metric("Delegaciones", df["Delegación"].nunique() if not df.empty else 0)
 
-        if not df.empty and "Cantidad Participantes" in df.columns:
-            participantes = pd.to_numeric(df["Cantidad Participantes"], errors="coerce").fillna(0).sum()
-            col4.metric("Participantes", int(participantes))
-        else:
-            col4.metric("Participantes", 0)
+        participantes = pd.to_numeric(
+            df["Cantidad Participantes"],
+            errors="coerce"
+        ).fillna(0).sum() if not df.empty else 0
+
+        col4.metric("Participantes", int(participantes))
 
         st.success("Conexión con Google Sheets activa.")
 
     except Exception as e:
         st.error("No se pudo conectar con Google Sheets.")
         st.exception(e)
-
 
 # ======================================================
 # REGISTRAR ACTIVIDAD
@@ -319,15 +330,14 @@ elif menu == "Registrar actividad":
                 }
 
                 guardar_registro(registro)
-                st.success("Registro guardado correctamente en Google Sheets.")
-
+                st.success("Registro guardado correctamente.")
 
 # ======================================================
-# CONSULTAR REGISTROS
+# CONSULTAR / EDITAR / ELIMINAR
 # ======================================================
 
-elif menu == "Consultar registros":
-    st.markdown("### Consulta de registros PUMI")
+elif menu == "Consultar / editar registros":
+    st.markdown("### Consulta, edición y eliminación de registros PUMI")
 
     df = cargar_datos()
 
@@ -367,18 +377,127 @@ elif menu == "Consultar registros":
 
         st.dataframe(df_filtrado, use_container_width=True)
 
+        st.markdown("---")
+        st.markdown("### Editar o eliminar registro")
+
+        ids = df_filtrado["ID"].astype(str).tolist()
+
+        id_seleccionado = st.selectbox(
+            "Seleccione el ID del registro",
+            ids
+        )
+
+        registro_actual = df[df["ID"].astype(str) == str(id_seleccionado)].iloc[0].to_dict()
+
+        accion = st.radio(
+            "Acción a realizar",
+            ["Editar registro", "Eliminar registro"],
+            horizontal=True
+        )
+
+        if accion == "Editar registro":
+            with st.form("form_editar_registro"):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    nueva_fecha = st.text_input("Fecha Registro", registro_actual["Fecha Registro"])
+                    nueva_region = st.selectbox(
+                        "Dirección Regional",
+                        REGIONES,
+                        index=REGIONES.index(registro_actual["Dirección Regional"]) if registro_actual["Dirección Regional"] in REGIONES else 0
+                    )
+                    nueva_delegacion = st.text_input("Delegación", registro_actual["Delegación"])
+                    nuevo_programa = st.selectbox(
+                        "Programa",
+                        PROGRAMAS,
+                        index=PROGRAMAS.index(registro_actual["Programa"]) if registro_actual["Programa"] in PROGRAMAS else 0
+                    )
+                    nueva_actividad = st.text_input("Actividad realizada", registro_actual["Actividad"])
+                    nueva_provincia = st.text_input("Provincia", registro_actual["Provincia"])
+                    nuevo_canton = st.text_input("Cantón", registro_actual["Cantón"])
+                    nuevo_distrito = st.text_input("Distrito", registro_actual["Distrito"])
+
+                with col2:
+                    nuevo_lugar = st.text_input("Lugar / Centro Educativo", registro_actual["Lugar / Centro Educativo"])
+                    nuevo_responsable = st.text_input("Responsable", registro_actual["Responsable"])
+                    nueva_cantidad = st.number_input(
+                        "Cantidad Participantes",
+                        min_value=0,
+                        step=1,
+                        value=int(float(registro_actual["Cantidad Participantes"])) if str(registro_actual["Cantidad Participantes"]).strip() else 0
+                    )
+                    nuevas_instituciones = st.text_area("Instituciones Participantes", registro_actual["Instituciones Participantes"])
+                    nuevo_plan = st.text_input("Plan Estratégico Relacionado", registro_actual["Plan Estratégico Relacionado"])
+                    nueva_evidencia = st.text_input("Evidencia", registro_actual["Evidencia"])
+                    nuevo_estado = st.selectbox(
+                        "Estado Revisión",
+                        ESTADOS_REVISION,
+                        index=ESTADOS_REVISION.index(registro_actual["Estado Revisión"]) if registro_actual["Estado Revisión"] in ESTADOS_REVISION else 0
+                    )
+                    nuevo_usuario = st.text_input("Usuario Registra", registro_actual["Usuario Registra"])
+
+                nuevas_observaciones = st.text_area("Observaciones", registro_actual["Observaciones"])
+
+                actualizar = st.form_submit_button("Guardar cambios")
+
+                if actualizar:
+                    nuevos_datos = {
+                        "ID": registro_actual["ID"],
+                        "Fecha Registro": nueva_fecha,
+                        "Dirección Regional": nueva_region,
+                        "Delegación": nueva_delegacion,
+                        "Programa": nuevo_programa,
+                        "Actividad": nueva_actividad,
+                        "Provincia": nueva_provincia,
+                        "Cantón": nuevo_canton,
+                        "Distrito": nuevo_distrito,
+                        "Lugar / Centro Educativo": nuevo_lugar,
+                        "Responsable": nuevo_responsable,
+                        "Cantidad Participantes": nueva_cantidad,
+                        "Instituciones Participantes": nuevas_instituciones,
+                        "Plan Estratégico Relacionado": nuevo_plan,
+                        "Evidencia": nueva_evidencia,
+                        "Observaciones": nuevas_observaciones,
+                        "Estado Revisión": nuevo_estado,
+                        "Usuario Registra": nuevo_usuario
+                    }
+
+                    actualizado = actualizar_registro_por_id(id_seleccionado, nuevos_datos)
+
+                    if actualizado:
+                        st.success("Registro actualizado correctamente.")
+                        st.rerun()
+                    else:
+                        st.error("No se encontró el registro para actualizar.")
+
+        else:
+            st.warning("Esta acción eliminará el registro seleccionado de forma permanente.")
+
+            confirmar = st.checkbox("Confirmo que deseo eliminar este registro")
+
+            if st.button("Eliminar registro"):
+                if confirmar:
+                    eliminado = eliminar_registro_por_id(id_seleccionado)
+
+                    if eliminado:
+                        st.success("Registro eliminado correctamente.")
+                        st.rerun()
+                    else:
+                        st.error("No se encontró el registro para eliminar.")
+                else:
+                    st.warning("Debe marcar la confirmación antes de eliminar.")
+
         excel = convertir_excel(df_filtrado)
 
         st.download_button(
-            label="Descargar registros en Excel",
+            label="Descargar registros filtrados en Excel",
             data=excel,
             file_name="registro_pumi_2026.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-
 # ======================================================
-# DASHBOARD BÁSICO
+# DASHBOARD
 # ======================================================
 
 elif menu == "Dashboard básico":
@@ -389,28 +508,23 @@ elif menu == "Dashboard básico":
     if df.empty:
         st.info("Aún no hay datos para graficar.")
     else:
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("#### Actividades por programa")
-            conteo_programas = df["Programa"].value_counts()
-            st.bar_chart(conteo_programas)
-
-        with col2:
-            st.markdown("#### Actividades por región")
-            conteo_region = df["Dirección Regional"].value_counts()
-            st.bar_chart(conteo_region)
-
-        st.markdown("#### Participantes por programa")
-
         df["Cantidad Participantes"] = pd.to_numeric(
             df["Cantidad Participantes"],
             errors="coerce"
         ).fillna(0)
 
-        participantes_programa = df.groupby("Programa")["Cantidad Participantes"].sum()
-        st.bar_chart(participantes_programa)
+        col1, col2 = st.columns(2)
 
+        with col1:
+            st.markdown("#### Actividades por programa")
+            st.bar_chart(df["Programa"].value_counts())
+
+        with col2:
+            st.markdown("#### Actividades por región")
+            st.bar_chart(df["Dirección Regional"].value_counts())
+
+        st.markdown("#### Participantes por programa")
+        st.bar_chart(df.groupby("Programa")["Cantidad Participantes"].sum())
 
 # ======================================================
 # CONFIGURACIÓN
@@ -419,26 +533,18 @@ elif menu == "Dashboard básico":
 elif menu == "Configuración":
     st.markdown("### Configuración inicial")
 
-    st.info("Verificación de conexión con Google Sheets.")
-
     try:
         spreadsheet = conectar_google_sheets()
+        hoja = inicializar_hoja()
+
         st.success("Conexión exitosa.")
         st.write("Base conectada:", spreadsheet.title)
-        st.write("Hoja de registro:", HOJA_REGISTRO)
-
-        hoja = inicializar_hoja()
-        st.success("Hoja REGISTRO_PUMI_2026 lista para trabajar.")
+        st.write("Hoja activa:", HOJA_REGISTRO)
+        st.write("Encabezados configurados correctamente.")
 
     except Exception as e:
         st.error("Error de conexión.")
         st.exception(e)
-
-
-
-
-
-
 
 
 
