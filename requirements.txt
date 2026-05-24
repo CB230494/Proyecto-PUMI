@@ -8,3 +8,7 @@ Pillow
 plotly
 xlsxwriter
 reportlab
+folium
+streamlit-folium
+geopy
+streamlit-js-eval
