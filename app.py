@@ -8,6 +8,13 @@ import pandas as pd
 import gspread
 import plotly.express as px
 import unicodedata
+import os
+
+import folium
+from streamlit_folium import st_folium
+from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
+from streamlit_js_eval import get_geolocation
 
 from google.oauth2.service_account import Credentials
 from datetime import datetime, date
@@ -21,7 +28,6 @@ from reportlab.platypus import (
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
-import os
 
 
 # ======================================================
@@ -77,6 +83,9 @@ ENCABEZADOS = [
     "Tipo Lugar",
     "Lugar",
     "Centro Educativo",
+    "Dirección Mapa",
+    "Latitud",
+    "Longitud",
     "Responsable",
     "Cantidad Participantes",
     "Instituciones Participantes",
@@ -133,6 +142,16 @@ ESTADOS_REVISION = [
     "Con observaciones",
     "Rechazado"
 ]
+
+COLORES_PROGRAMA = {
+    "PSCC": "blue",
+    "Política Local": "green",
+    "VIF": "red",
+    "DARE": "purple",
+    "GREAT": "orange",
+    "MPAS": "darkblue",
+    "GREAT CAMP": "cadetblue"
+}
 
 
 # ======================================================
@@ -248,6 +267,14 @@ st.markdown(
         margin-bottom: 18px;
     }}
 
+    .bloque-mapa {{
+        background: linear-gradient(135deg, #EAF7FF 0%, #FFFFFF 100%);
+        padding: 18px;
+        border-radius: 18px;
+        border-left: 7px solid {COLOR_AZUL_CLARO};
+        margin-bottom: 18px;
+    }}
+
     .subtitulo-pumi {{
         color: {COLOR_AZUL};
         font-weight: 900;
@@ -314,6 +341,11 @@ st.markdown(
         background-color: white;
     }}
 
+    iframe {{
+        border-radius: 18px !important;
+        box-shadow: 0px 5px 16px rgba(0,0,0,0.13);
+    }}
+
     hr {{
         border: none;
         height: 2px;
@@ -354,7 +386,7 @@ def mostrar_logo():
         st.sidebar.warning("Logo PUMI no encontrado.")
 # ======================================================
 # PARTE 2 DE 5
-# CONEXIÓN GOOGLE SHEETS, BASES AUXILIARES Y FUNCIONES CRUD
+# CONEXIÓN GOOGLE SHEETS, BASES AUXILIARES, CRUD, MAPA Y GEOREFERENCIA
 # ======================================================
 
 @st.cache_resource
@@ -386,11 +418,6 @@ def conectar_google_sheets():
 
 
 def obtener_hoja(nombre_hoja):
-    """
-    Obtiene una hoja específica del archivo de Google Sheets.
-    Si no existe, la crea automáticamente.
-    """
-
     try:
         spreadsheet = conectar_google_sheets()
 
@@ -407,23 +434,14 @@ def obtener_hoja(nombre_hoja):
     except Exception as e:
         st.error("Error al conectar con la hoja de Google Sheets.")
         st.warning(
-            "Revise lo siguiente: "
-            "1) La hoja está compartida con el correo del service account. "
-            "2) La pestaña se llama REGISTRO_PUMI_2026. "
-            "3) Google Sheets API y Google Drive API están activas. "
-            "4) El service account tiene permiso de Editor."
+            "Revise: permisos del service account, nombre de pestaña, "
+            "Google Sheets API y Google Drive API."
         )
         st.exception(e)
         st.stop()
 
 
 def inicializar_hoja():
-    """
-    Verifica que la hoja principal tenga encabezados correctos.
-    Si está vacía, agrega encabezados.
-    Si los encabezados son distintos, intenta corregir la estructura.
-    """
-
     hoja = obtener_hoja(HOJA_REGISTRO)
 
     try:
@@ -559,13 +577,165 @@ def obtener_centros_por_provincia(provincia):
     return centros
 
 
-def cargar_datos():
+# ======================================================
+# FUNCIONES DE GEOREFERENCIA Y MAPA
+# ======================================================
+
+@st.cache_data(show_spinner=False)
+def georreferenciar_direccion(direccion):
     """
-    Carga todos los datos desde Google Sheets.
-    Corrige filas incompletas y elimina encabezados duplicados
-    que hayan quedado guardados como registros.
+    Convierte un nombre de lugar o dirección en coordenadas.
+    Usa Nominatim/OpenStreetMap.
     """
 
+    if not direccion or str(direccion).strip() == "":
+        return None, None, ""
+
+    try:
+        geolocator = Nominatim(user_agent="pumi_2026_streamlit_app")
+        geocode = RateLimiter(
+            geolocator.geocode,
+            min_delay_seconds=1,
+            max_retries=2,
+            error_wait_seconds=2
+        )
+
+        consulta = f"{direccion}, Costa Rica"
+        location = geocode(consulta)
+
+        if location:
+            return location.latitude, location.longitude, location.address
+
+        return None, None, ""
+
+    except Exception:
+        return None, None, ""
+
+
+def limpiar_coordenada(valor):
+    """
+    Convierte una coordenada a número.
+    Si no es válida devuelve None.
+    """
+
+    try:
+        if valor is None or str(valor).strip() == "":
+            return None
+
+        return float(str(valor).replace(",", ".").strip())
+
+    except Exception:
+        return None
+
+
+def obtener_color_programa(programa):
+    """
+    Devuelve color de marcador según programa.
+    """
+
+    return COLORES_PROGRAMA.get(programa, "gray")
+
+
+def preparar_dataframe_mapa(df):
+    """
+    Limpia latitud y longitud para mostrar registros en el mapa.
+    """
+
+    df_mapa = df.copy()
+
+    if "Latitud" not in df_mapa.columns:
+        df_mapa["Latitud"] = ""
+
+    if "Longitud" not in df_mapa.columns:
+        df_mapa["Longitud"] = ""
+
+    df_mapa["Latitud_Num"] = df_mapa["Latitud"].apply(limpiar_coordenada)
+    df_mapa["Longitud_Num"] = df_mapa["Longitud"].apply(limpiar_coordenada)
+
+    df_mapa = df_mapa.dropna(subset=["Latitud_Num", "Longitud_Num"])
+
+    return df_mapa
+
+
+def crear_mapa_registros(df, zoom_start=8):
+    """
+    Crea mapa Folium con todos los registros que tengan coordenadas.
+    Cada programa se muestra con color diferente.
+    """
+
+    df_mapa = preparar_dataframe_mapa(df)
+
+    if df_mapa.empty:
+        mapa = folium.Map(
+            location=[9.7489, -83.7534],
+            zoom_start=7,
+            tiles="OpenStreetMap"
+        )
+        return mapa
+
+    centro_lat = df_mapa["Latitud_Num"].mean()
+    centro_lon = df_mapa["Longitud_Num"].mean()
+
+    mapa = folium.Map(
+        location=[centro_lat, centro_lon],
+        zoom_start=zoom_start,
+        tiles="OpenStreetMap"
+    )
+
+    for _, row in df_mapa.iterrows():
+        programa = str(row.get("Programa", ""))
+        color = obtener_color_programa(programa)
+
+        popup_html = f"""
+        <div style="font-family: Arial; width: 260px;">
+            <h4 style="color:#003366; margin-bottom:6px;">Registro PUMI #{row.get("ID", "")}</h4>
+            <b>Fecha:</b> {row.get("Fecha Actividad", "")}<br>
+            <b>Delegación:</b> {row.get("Delegación", "")}<br>
+            <b>Programa:</b> {row.get("Programa", "")}<br>
+            <b>Actividad:</b> {row.get("Actividad", "")}<br>
+            <b>Provincia:</b> {row.get("Provincia", "")}<br>
+            <b>Distrito:</b> {row.get("Distrito", "")}<br>
+            <b>Lugar:</b> {row.get("Lugar", "")}<br>
+            <b>Estado:</b> {row.get("Estado Revisión", "")}<br>
+            <b>Observación revisión:</b> {row.get("Observación de Revisión", "")}
+        </div>
+        """
+
+        folium.Marker(
+            location=[row["Latitud_Num"], row["Longitud_Num"]],
+            popup=folium.Popup(popup_html, max_width=320),
+            tooltip=f'{row.get("Programa", "")} - {row.get("Delegación", "")}',
+            icon=folium.Icon(color=color, icon="info-sign")
+        ).add_to(mapa)
+
+    return mapa
+
+
+def mostrar_mapa_registros(df, height=520, key="mapa_registros"):
+    """
+    Muestra el mapa en Streamlit.
+    """
+
+    df_mapa = preparar_dataframe_mapa(df)
+
+    if df_mapa.empty:
+        st.info("No hay registros con coordenadas para mostrar en el mapa.")
+
+    mapa = crear_mapa_registros(df)
+
+    st_folium(
+        mapa,
+        width=None,
+        height=height,
+        key=key
+    )
+
+
+# ======================================================
+# DATOS PRINCIPALES
+# ======================================================
+
+def cargar_datos():
     hoja = inicializar_hoja()
 
     try:
@@ -711,10 +881,16 @@ def limpiar_dataframe_para_metricas(df):
             dayfirst=True
         )
 
+    if "Latitud" in df.columns:
+        df["Latitud"] = df["Latitud"].astype(str)
+
+    if "Longitud" in df.columns:
+        df["Longitud"] = df["Longitud"].astype(str)
+
     return df
 # ======================================================
 # PARTE 3 DE 5
-# INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO Y SEGUIMIENTO
+# INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO, GPS Y SEGUIMIENTO
 # ======================================================
 
 mostrar_logo()
@@ -856,8 +1032,9 @@ elif menu == "Registrar actividad":
         <div class="card-azul">
             <div class="texto-pumi">
                 Complete la información de la actividad preventiva realizada.
-                El sistema asignará automáticamente un ID consecutivo simple:
-                1, 2, 3, 4...
+                El sistema asignará automáticamente un ID consecutivo simple.
+                Además, puede registrar la ubicación por GPS, coordenadas manuales
+                o búsqueda por nombre del lugar.
             </div>
         </div>
         """,
@@ -999,6 +1176,135 @@ elif menu == "Registrar actividad":
 
         st.markdown(
             """
+            <div class="bloque-mapa">
+                <b>Georreferencia del lugar</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        direccion_mapa = st.text_input(
+            "Dirección o referencia para ubicar en mapa",
+            value=f"{lugar}, {distrito}, {canton}, {provincia}, Costa Rica"
+        )
+
+        metodo_ubicacion = st.radio(
+            "Método para registrar ubicación",
+            [
+                "Buscar por nombre del lugar",
+                "Usar GPS del dispositivo",
+                "Ingresar coordenadas manualmente",
+                "No registrar ubicación"
+            ],
+            horizontal=False
+        )
+
+        latitud = ""
+        longitud = ""
+
+        if metodo_ubicacion == "Buscar por nombre del lugar":
+            lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(direccion_mapa)
+
+            if lat_busqueda and lon_busqueda:
+                latitud = str(lat_busqueda)
+                longitud = str(lon_busqueda)
+                st.success("Ubicación encontrada automáticamente.")
+                st.caption(direccion_encontrada)
+
+                mapa_preview = folium.Map(
+                    location=[lat_busqueda, lon_busqueda],
+                    zoom_start=15
+                )
+
+                folium.Marker(
+                    location=[lat_busqueda, lon_busqueda],
+                    popup="Ubicación encontrada",
+                    icon=folium.Icon(color=obtener_color_programa(programa), icon="info-sign")
+                ).add_to(mapa_preview)
+
+                st_folium(
+                    mapa_preview,
+                    height=350,
+                    key="mapa_preview_busqueda"
+                )
+
+            else:
+                st.warning("No se logró ubicar el lugar automáticamente. Puede ingresar coordenadas manualmente.")
+
+        elif metodo_ubicacion == "Usar GPS del dispositivo":
+            st.info("El navegador puede solicitar permiso para acceder a la ubicación del dispositivo.")
+
+            ubicacion_gps = get_geolocation()
+
+            if ubicacion_gps and "coords" in ubicacion_gps:
+                latitud = str(ubicacion_gps["coords"].get("latitude", ""))
+                longitud = str(ubicacion_gps["coords"].get("longitude", ""))
+
+                if latitud and longitud:
+                    st.success("Ubicación GPS obtenida correctamente.")
+
+                    mapa_preview = folium.Map(
+                        location=[float(latitud), float(longitud)],
+                        zoom_start=16
+                    )
+
+                    folium.Marker(
+                        location=[float(latitud), float(longitud)],
+                        popup="Ubicación GPS del dispositivo",
+                        icon=folium.Icon(color=obtener_color_programa(programa), icon="info-sign")
+                    ).add_to(mapa_preview)
+
+                    st_folium(
+                        mapa_preview,
+                        height=350,
+                        key="mapa_preview_gps"
+                    )
+                else:
+                    st.warning("No se recibieron coordenadas válidas desde el GPS.")
+            else:
+                st.warning("No se obtuvo ubicación GPS. Revise permisos del navegador o use otro método.")
+
+        elif metodo_ubicacion == "Ingresar coordenadas manualmente":
+            col_lat, col_lon = st.columns(2)
+
+            with col_lat:
+                latitud = st.text_input(
+                    "Latitud",
+                    placeholder="Ejemplo: 9.9281"
+                )
+
+            with col_lon:
+                longitud = st.text_input(
+                    "Longitud",
+                    placeholder="Ejemplo: -84.0907"
+                )
+
+            lat_num = limpiar_coordenada(latitud)
+            lon_num = limpiar_coordenada(longitud)
+
+            if lat_num is not None and lon_num is not None:
+                mapa_preview = folium.Map(
+                    location=[lat_num, lon_num],
+                    zoom_start=15
+                )
+
+                folium.Marker(
+                    location=[lat_num, lon_num],
+                    popup="Ubicación manual",
+                    icon=folium.Icon(color=obtener_color_programa(programa), icon="info-sign")
+                ).add_to(mapa_preview)
+
+                st_folium(
+                    mapa_preview,
+                    height=350,
+                    key="mapa_preview_manual"
+                )
+
+        else:
+            st.info("El registro se guardará sin coordenadas de mapa.")
+
+        st.markdown(
+            """
             <div class="bloque-datos">
                 <b>Información complementaria</b>
             </div>
@@ -1050,6 +1356,9 @@ elif menu == "Registrar actividad":
                     "Tipo Lugar": tipo_lugar,
                     "Lugar": lugar,
                     "Centro Educativo": centro_educativo,
+                    "Dirección Mapa": direccion_mapa,
+                    "Latitud": latitud,
+                    "Longitud": longitud,
                     "Responsable": responsable,
                     "Cantidad Participantes": cantidad,
                     "Instituciones Participantes": instituciones,
@@ -1082,8 +1391,8 @@ elif menu == "Seguimiento de registros":
         <div class="card-dorado">
             <div class="texto-pumi">
                 En esta sección puede consultar el estado de revisión de los registros
-                ingresados. También podrá visualizar las observaciones emitidas por la
-                administración cuando un registro sea aprobado, rechazado o enviado con observaciones.
+                ingresados, visualizar observaciones administrativas y ver el mapa general
+                de actividades registradas.
             </div>
         </div>
         """,
@@ -1103,9 +1412,7 @@ elif menu == "Seguimiento de registros":
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            filtro_id = st.text_input(
-                "Buscar por ID"
-            )
+            filtro_id = st.text_input("Buscar por ID")
 
             filtro_delegacion = st.selectbox(
                 "Delegación",
@@ -1124,6 +1431,11 @@ elif menu == "Seguimiento de registros":
             )
 
         with col3:
+            filtro_provincia = st.selectbox(
+                "Provincia",
+                ["Todas"] + sorted(df_seguimiento["Provincia"].dropna().astype(str).unique().tolist())
+            )
+
             usar_fechas_seg = st.checkbox(
                 "Filtrar por rango de fechas",
                 key="fechas_seguimiento"
@@ -1141,19 +1453,16 @@ elif menu == "Seguimiento de registros":
             ]
 
         if filtro_delegacion != "Todas":
-            df_usuario = df_usuario[
-                df_usuario["Delegación"] == filtro_delegacion
-            ]
+            df_usuario = df_usuario[df_usuario["Delegación"] == filtro_delegacion]
 
         if filtro_programa != "Todos":
-            df_usuario = df_usuario[
-                df_usuario["Programa"] == filtro_programa
-            ]
+            df_usuario = df_usuario[df_usuario["Programa"] == filtro_programa]
 
         if filtro_estado != "Todos":
-            df_usuario = df_usuario[
-                df_usuario["Estado Revisión"] == filtro_estado
-            ]
+            df_usuario = df_usuario[df_usuario["Estado Revisión"] == filtro_estado]
+
+        if filtro_provincia != "Todas":
+            df_usuario = df_usuario[df_usuario["Provincia"] == filtro_provincia]
 
         if usar_fechas_seg:
 
@@ -1198,6 +1507,14 @@ elif menu == "Seguimiento de registros":
         colm3.metric("Con observaciones", len(df_usuario[df_usuario["Estado Revisión"] == "Con observaciones"]))
         colm4.metric("Rechazados", len(df_usuario[df_usuario["Estado Revisión"] == "Rechazado"]))
 
+        st.markdown("### Mapa general de actividades")
+
+        mostrar_mapa_registros(
+            df_usuario,
+            height=520,
+            key="mapa_seguimiento_usuarios"
+        )
+
         st.markdown("### Estado de los registros")
 
         df_mostrar_usuario = df_usuario.copy()
@@ -1213,6 +1530,7 @@ elif menu == "Seguimiento de registros":
             "Actividad",
             "Provincia",
             "Distrito",
+            "Lugar",
             "Estado Revisión",
             "Observación de Revisión"
         ]
@@ -1238,7 +1556,7 @@ elif menu == "Seguimiento de registros":
         )
 # ======================================================
 # PARTE 4 DE 5
-# CONSULTA, EDICIÓN ADMINISTRATIVA, REVISIÓN Y ELIMINACIÓN
+# CONSULTA, EDICIÓN ADMINISTRATIVA, REVISIÓN, MAPA Y ELIMINACIÓN
 # ======================================================
 
 elif menu == "Consulta / edición administrativa":
@@ -1264,33 +1582,19 @@ elif menu == "Consulta / edición administrativa":
             """
             <div class="card-dorado">
                 <div class="texto-pumi">
-                    Esta sección es de uso administrativo. Permite consultar, editar,
-                    eliminar y actualizar el estado de revisión de cada registro.
-                    Las observaciones de revisión serán visibles para los usuarios
-                    en la pestaña de seguimiento.
+                    Esta sección permite consultar, editar, eliminar, revisar y corregir
+                    la ubicación geográfica de los registros.
                 </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        # ======================================================
-        # LIMPIEZA DE ENCABEZADOS DUPLICADOS
-        # ======================================================
-
         with st.expander("Herramientas de limpieza de base de datos"):
-            st.write(
-                "Use esta opción solo si observa que los encabezados aparecen como registros."
-            )
-
             if st.button("Eliminar encabezados duplicados de la hoja"):
                 eliminados = limpiar_encabezados_duplicados_en_sheet()
                 st.success(f"Filas de encabezado duplicadas eliminadas: {eliminados}")
                 st.rerun()
-
-        # ======================================================
-        # FILTROS ADMINISTRATIVOS
-        # ======================================================
 
         st.markdown("### Filtros administrativos")
 
@@ -1342,11 +1646,7 @@ elif menu == "Consulta / edición administrativa":
 
         if filtro_id_admin:
             df_filtrado = df_filtrado[
-                df_filtrado["ID"].astype(str).str.contains(
-                    filtro_id_admin,
-                    case=False,
-                    na=False
-                )
+                df_filtrado["ID"].astype(str).str.contains(filtro_id_admin, case=False, na=False)
             ]
 
         if filtro_programa != "Todos":
@@ -1375,7 +1675,6 @@ elif menu == "Consulta / edición administrativa":
 
             if fechas_validas.empty:
                 st.warning("No hay fechas válidas para aplicar el filtro.")
-
             else:
                 fecha_min = fechas_validas.min().date()
                 fecha_max = fechas_validas.max().date()
@@ -1403,10 +1702,6 @@ elif menu == "Consulta / edición administrativa":
                     (df_filtrado["Fecha Actividad"].dt.date <= fecha_fin)
                 ]
 
-        # ======================================================
-        # MÉTRICAS
-        # ======================================================
-
         st.markdown("### Resumen administrativo")
 
         colm1, colm2, colm3, colm4 = st.columns(4)
@@ -1416,9 +1711,13 @@ elif menu == "Consulta / edición administrativa":
         colm3.metric("Con observaciones", len(df_filtrado[df_filtrado["Estado Revisión"] == "Con observaciones"]))
         colm4.metric("Rechazados", len(df_filtrado[df_filtrado["Estado Revisión"] == "Rechazado"]))
 
-        # ======================================================
-        # TABLA ADMINISTRATIVA
-        # ======================================================
+        st.markdown("### Mapa administrativo de registros filtrados")
+
+        mostrar_mapa_registros(
+            df_filtrado,
+            height=520,
+            key="mapa_admin_registros"
+        )
 
         st.markdown("### Registros encontrados")
 
@@ -1444,11 +1743,7 @@ elif menu == "Consulta / edición administrativa":
 
         st.markdown("---")
 
-        # ======================================================
-        # EDICIÓN / REVISIÓN / ELIMINACIÓN
-        # ======================================================
-
-        st.markdown("## Editar, revisar o eliminar registro")
+        st.markdown("## Editar, revisar, georreferenciar o eliminar registro")
 
         if df_filtrado.empty:
             st.info("No hay registros filtrados para editar, revisar o eliminar.")
@@ -1470,14 +1765,11 @@ elif menu == "Consulta / edición administrativa":
                 [
                     "Editar registro completo",
                     "Actualizar revisión",
+                    "Corregir ubicación en mapa",
                     "Eliminar registro"
                 ],
                 horizontal=True
             )
-
-            # ==================================================
-            # ACTUALIZAR SOLO REVISIÓN
-            # ==================================================
 
             if accion == "Actualizar revisión":
 
@@ -1509,7 +1801,7 @@ elif menu == "Consulta / edición administrativa":
                     observacion_revision = st.text_area(
                         "Observación de Revisión",
                         value=registro_actual.get("Observación de Revisión", ""),
-                        help="Esta observación será visible para el usuario en la pestaña Seguimiento de registros."
+                        help="Esta observación será visible para el usuario."
                     )
 
                     guardar_revision = st.form_submit_button("Guardar revisión")
@@ -1520,10 +1812,7 @@ elif menu == "Consulta / edición administrativa":
                         nuevos_datos["Estado Revisión"] = nuevo_estado
                         nuevos_datos["Observación de Revisión"] = observacion_revision
 
-                        actualizado = actualizar_registro_por_id(
-                            id_seleccionado,
-                            nuevos_datos
-                        )
+                        actualizado = actualizar_registro_por_id(id_seleccionado, nuevos_datos)
 
                         if actualizado:
                             st.success("Revisión actualizada correctamente.")
@@ -1531,9 +1820,133 @@ elif menu == "Consulta / edición administrativa":
                         else:
                             st.error("No se encontró el registro para actualizar.")
 
-            # ==================================================
-            # EDITAR REGISTRO COMPLETO
-            # ==================================================
+            elif accion == "Corregir ubicación en mapa":
+
+                st.markdown(
+                    """
+                    <div class="bloque-mapa">
+                        <b>Corrección de ubicación geográfica</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                st.info(
+                    "Puede buscar nuevamente por dirección, usar GPS del dispositivo "
+                    "o ingresar coordenadas manualmente."
+                )
+
+                direccion_actual = registro_actual.get("Dirección Mapa", "")
+
+                direccion_mapa_admin = st.text_input(
+                    "Dirección o referencia para ubicar en mapa",
+                    value=direccion_actual if direccion_actual else f'{registro_actual.get("Lugar", "")}, {registro_actual.get("Distrito", "")}, {registro_actual.get("Cantón", "")}, {registro_actual.get("Provincia", "")}, Costa Rica'
+                )
+
+                metodo_admin = st.radio(
+                    "Método para corregir ubicación",
+                    [
+                        "Buscar por nombre del lugar",
+                        "Usar GPS del dispositivo",
+                        "Ingresar coordenadas manualmente"
+                    ],
+                    horizontal=False
+                )
+
+                latitud_nueva = registro_actual.get("Latitud", "")
+                longitud_nueva = registro_actual.get("Longitud", "")
+
+                if metodo_admin == "Buscar por nombre del lugar":
+
+                    if st.button("Buscar ubicación"):
+                        lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(direccion_mapa_admin)
+
+                        if lat_busqueda and lon_busqueda:
+                            st.session_state["lat_admin"] = str(lat_busqueda)
+                            st.session_state["lon_admin"] = str(lon_busqueda)
+                            st.session_state["dir_admin"] = direccion_encontrada
+                            st.success("Ubicación encontrada.")
+                        else:
+                            st.warning("No se logró ubicar el lugar automáticamente.")
+
+                    latitud_nueva = st.session_state.get("lat_admin", latitud_nueva)
+                    longitud_nueva = st.session_state.get("lon_admin", longitud_nueva)
+
+                    if st.session_state.get("dir_admin", ""):
+                        st.caption(st.session_state["dir_admin"])
+
+                elif metodo_admin == "Usar GPS del dispositivo":
+
+                    st.info("El navegador puede solicitar permiso para acceder a la ubicación.")
+
+                    ubicacion_gps = get_geolocation()
+
+                    if ubicacion_gps and "coords" in ubicacion_gps:
+                        latitud_nueva = str(ubicacion_gps["coords"].get("latitude", ""))
+                        longitud_nueva = str(ubicacion_gps["coords"].get("longitude", ""))
+                        st.success("Ubicación GPS obtenida correctamente.")
+                    else:
+                        st.warning("No se obtuvo ubicación GPS.")
+
+                else:
+                    col_lat, col_lon = st.columns(2)
+
+                    with col_lat:
+                        latitud_nueva = st.text_input(
+                            "Latitud",
+                            value=str(latitud_nueva)
+                        )
+
+                    with col_lon:
+                        longitud_nueva = st.text_input(
+                            "Longitud",
+                            value=str(longitud_nueva)
+                        )
+
+                lat_num = limpiar_coordenada(latitud_nueva)
+                lon_num = limpiar_coordenada(longitud_nueva)
+
+                if lat_num is not None and lon_num is not None:
+                    mapa_preview_admin = folium.Map(
+                        location=[lat_num, lon_num],
+                        zoom_start=15
+                    )
+
+                    folium.Marker(
+                        location=[lat_num, lon_num],
+                        popup=f"Registro PUMI #{registro_actual.get('ID', '')}",
+                        icon=folium.Icon(
+                            color=obtener_color_programa(registro_actual.get("Programa", "")),
+                            icon="info-sign"
+                        )
+                    ).add_to(mapa_preview_admin)
+
+                    st_folium(
+                        mapa_preview_admin,
+                        height=400,
+                        key="mapa_correccion_admin"
+                    )
+
+                if st.button("Guardar ubicación corregida"):
+
+                    if lat_num is None or lon_num is None:
+                        st.warning("Debe indicar coordenadas válidas antes de guardar.")
+                    else:
+                        nuevos_datos = registro_actual.copy()
+                        nuevos_datos["Dirección Mapa"] = direccion_mapa_admin
+                        nuevos_datos["Latitud"] = str(lat_num)
+                        nuevos_datos["Longitud"] = str(lon_num)
+
+                        actualizado = actualizar_registro_por_id(
+                            id_seleccionado,
+                            nuevos_datos
+                        )
+
+                        if actualizado:
+                            st.success("Ubicación actualizada correctamente.")
+                            st.rerun()
+                        else:
+                            st.error("No se encontró el registro para actualizar.")
 
             elif accion == "Editar registro completo":
 
@@ -1730,6 +2143,30 @@ elif menu == "Consulta / edición administrativa":
 
                     st.markdown(
                         """
+                        <div class="bloque-mapa">
+                            <b>Datos de georreferencia</b>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    nueva_direccion_mapa = st.text_input(
+                        "Dirección Mapa",
+                        registro_actual.get("Dirección Mapa", "")
+                    )
+
+                    nueva_latitud = st.text_input(
+                        "Latitud",
+                        registro_actual.get("Latitud", "")
+                    )
+
+                    nueva_longitud = st.text_input(
+                        "Longitud",
+                        registro_actual.get("Longitud", "")
+                    )
+
+                    st.markdown(
+                        """
                         <div class="bloque-datos">
                             <b>Información complementaria y revisión</b>
                         </div>
@@ -1786,6 +2223,9 @@ elif menu == "Consulta / edición administrativa":
                             "Tipo Lugar": tipo_lugar_editado,
                             "Lugar": lugar_editado,
                             "Centro Educativo": centro_editado,
+                            "Dirección Mapa": nueva_direccion_mapa,
+                            "Latitud": nueva_latitud,
+                            "Longitud": nueva_longitud,
                             "Responsable": nuevo_responsable,
                             "Cantidad Participantes": nueva_cantidad,
                             "Instituciones Participantes": nuevas_instituciones,
@@ -1808,10 +2248,6 @@ elif menu == "Consulta / edición administrativa":
                         else:
                             st.error("No se encontró el registro para actualizar.")
 
-            # ==================================================
-            # ELIMINAR REGISTRO
-            # ==================================================
-
             else:
                 st.warning("Esta acción eliminará el registro seleccionado de forma permanente.")
 
@@ -1832,7 +2268,7 @@ elif menu == "Consulta / edición administrativa":
                         st.warning("Debe marcar la confirmación antes de eliminar.")
 # ======================================================
 # PARTE 5 DE 5
-# DASHBOARD PROFESIONAL, INFORME PDF Y CONFIGURACIÓN
+# DASHBOARD PROFESIONAL, MAPA ADMINISTRATIVO, INFORME PDF Y CONFIGURACIÓN
 # ======================================================
 
 elif menu == "Dashboard profesional":
@@ -1856,7 +2292,8 @@ elif menu == "Dashboard profesional":
             <div class="card-azul">
                 <div class="texto-pumi">
                     Panel administrativo para analizar registros por programa, delegación,
-                    provincia, estado de revisión, participantes y comportamiento mensual.
+                    provincia, estado de revisión, participantes, comportamiento mensual
+                    y ubicación geográfica de las actividades registradas.
                 </div>
             </div>
             """,
@@ -1986,6 +2423,20 @@ elif menu == "Dashboard profesional":
         else:
 
             # ======================================================
+            # MAPA GENERAL
+            # ======================================================
+
+            st.markdown("### Mapa general de actividades filtradas")
+
+            mostrar_mapa_registros(
+                df_filtrado,
+                height=560,
+                key="mapa_dashboard_admin"
+            )
+
+            st.markdown("---")
+
+            # ======================================================
             # GRÁFICOS
             # ======================================================
 
@@ -2094,6 +2545,7 @@ elif menu == "Dashboard profesional":
                         hole=0.35,
                         template="plotly_white"
                     )
+
                     st.plotly_chart(fig_tipo_lugar, use_container_width=True)
                 else:
                     st.info("No existe la columna Tipo Lugar.")
@@ -2120,6 +2572,10 @@ elif menu == "Dashboard profesional":
                 st.plotly_chart(fig_mensual, use_container_width=True)
             else:
                 st.info("No hay fechas válidas para generar evolución mensual.")
+
+            # ======================================================
+            # TABLA DE REGISTROS
+            # ======================================================
 
             st.markdown("### Registros analizados")
 
@@ -2197,7 +2653,7 @@ elif menu == "Dashboard profesional":
                 correspondiente a las actividades preventivas desarrolladas por los Programas
                 Policiales Preventivos. La información permite observar cantidad de registros,
                 programas atendidos, delegaciones participantes, población alcanzada, estado de
-                revisión y observaciones administrativas.
+                revisión, observaciones administrativas y ubicación geográfica registrada.
                 """
 
                 elementos.append(Paragraph(introduccion, texto))
@@ -2211,6 +2667,7 @@ elif menu == "Dashboard profesional":
                 total_pendientes = len(df_pdf[df_pdf["Estado Revisión"] == "Pendiente de revisión"])
                 total_observaciones = len(df_pdf[df_pdf["Estado Revisión"] == "Con observaciones"])
                 total_rechazados = len(df_pdf[df_pdf["Estado Revisión"] == "Rechazado"])
+                total_georreferenciados = len(preparar_dataframe_mapa(df_pdf))
 
                 resumen = [
                     ["Indicador", "Resultado"],
@@ -2218,6 +2675,7 @@ elif menu == "Dashboard profesional":
                     ["Programas registrados", total_programas],
                     ["Delegaciones registradas", total_delegaciones],
                     ["Participantes atendidos", total_participantes],
+                    ["Registros georreferenciados", total_georreferenciados],
                     ["Registros aprobados", total_aprobados],
                     ["Pendientes de revisión", total_pendientes],
                     ["Con observaciones", total_observaciones],
@@ -2274,6 +2732,8 @@ elif menu == "Dashboard profesional":
                     "Delegación",
                     "Programa",
                     "Provincia",
+                    "Distrito",
+                    "Lugar",
                     "Cantidad Participantes",
                     "Estado Revisión",
                     "Observación de Revisión"
@@ -2346,8 +2806,8 @@ elif menu == "Configuración":
         <div class="card-pumi">
             <div class="texto-pumi">
                 En este apartado se verifica la conexión con Google Sheets,
-                la existencia de la hoja principal, la estructura de encabezados
-                y la disponibilidad de las bases auxiliares.
+                la existencia de la hoja principal, la estructura de encabezados,
+                la disponibilidad de las bases auxiliares y los campos de georreferencia.
             </div>
         </div>
         """,
@@ -2371,6 +2831,15 @@ elif menu == "Configuración":
         st.write("Registros base MEP:", len(df_mep))
         st.write("Registros base delegaciones/distritos:", len(df_delegaciones))
 
+        st.markdown("### Georreferencia")
+
+        df_config = cargar_datos()
+        df_mapa_config = preparar_dataframe_mapa(df_config)
+
+        st.write("Registros totales:", len(df_config))
+        st.write("Registros con coordenadas válidas:", len(df_mapa_config))
+        st.write("Registros sin coordenadas:", len(df_config) - len(df_mapa_config))
+
         st.markdown("### Limpieza de encabezados duplicados")
 
         if st.button("Eliminar encabezados duplicados"):
@@ -2378,9 +2847,8 @@ elif menu == "Configuración":
             st.success(f"Filas eliminadas: {eliminados}")
             st.rerun()
 
-        df_config = cargar_datos()
-
         st.markdown("### Vista previa de la base de datos")
+
         st.dataframe(
             df_config.head(10),
             use_container_width=True,
@@ -2389,4 +2857,5 @@ elif menu == "Configuración":
 
     except Exception as e:
         st.error("Error en la conexión o configuración.")
+        st.exception(e)n o configuración.")
         st.exception(e)
