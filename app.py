@@ -893,100 +893,55 @@ def limpiar_dataframe_para_metricas(df):
 # INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO, GPS, MAPA Y SEGUIMIENTO
 # ======================================================
 
-# ======================================================
-# FUNCIÓN AUXILIAR PARA TIPOS DE MAPA
-# ======================================================
-
 def crear_mapa_base(centro, zoom, tipo_mapa):
-    mapa = folium.Map(
-        location=centro,
-        zoom_start=zoom,
-        tiles=None
-    )
+    mapa = folium.Map(location=centro, zoom_start=zoom, tiles=None)
 
     if tipo_mapa == "OpenStreetMap":
-        folium.TileLayer(
-            tiles="OpenStreetMap",
-            name="OpenStreetMap"
-        ).add_to(mapa)
+        folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(mapa)
 
     elif tipo_mapa == "Mapa claro":
-        folium.TileLayer(
-            tiles="CartoDB positron",
-            name="Mapa claro"
-        ).add_to(mapa)
+        folium.TileLayer("CartoDB positron", name="Mapa claro").add_to(mapa)
 
     elif tipo_mapa == "Mapa oscuro":
-        folium.TileLayer(
-            tiles="CartoDB dark_matter",
-            name="Mapa oscuro"
-        ).add_to(mapa)
+        folium.TileLayer("CartoDB dark_matter", name="Mapa oscuro").add_to(mapa)
 
     elif tipo_mapa == "Topográfico":
-        folium.TileLayer(
-            tiles="OpenTopoMap",
-            name="Topográfico"
-        ).add_to(mapa)
+        folium.TileLayer("OpenTopoMap", name="Topográfico").add_to(mapa)
 
     elif tipo_mapa == "Satélite":
         folium.TileLayer(
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/"
-                  "World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
             attr="Esri World Imagery",
             name="Satélite"
         ).add_to(mapa)
 
     folium.LayerControl().add_to(mapa)
-
     return mapa
 
 
-# ======================================================
-# LOGO Y MENÚ
-# ======================================================
-
 mostrar_logo()
-
 st.sidebar.markdown("## Sistema PUMI 2026")
-
-
-# ======================================================
-# ACCESO ADMINISTRATIVO
-# ======================================================
 
 if "admin_autenticado" not in st.session_state:
     st.session_state.admin_autenticado = False
 
 with st.sidebar.expander("🔒 Acceso Administrativo"):
-
     if not st.session_state.admin_autenticado:
-
-        clave_ingresada = st.text_input(
-            "Clave administrativa",
-            type="password"
-        )
+        clave_ingresada = st.text_input("Clave administrativa", type="password")
 
         if st.button("Ingresar como administrador"):
-
             if clave_ingresada == CLAVE_ADMIN:
                 st.session_state.admin_autenticado = True
                 st.success("Acceso concedido.")
                 st.rerun()
-
             else:
                 st.error("Clave incorrecta.")
-
     else:
         st.success("Administrador autenticado")
-
         if st.button("Cerrar sesión administrativa"):
             st.session_state.admin_autenticado = False
             st.rerun()
 
-
-# ======================================================
-# MENÚ PRINCIPAL
-# ======================================================
 
 opciones_menu = [
     "Inicio",
@@ -1001,15 +956,7 @@ if st.session_state.admin_autenticado:
         "Configuración"
     ])
 
-menu = st.sidebar.radio(
-    "Menú principal",
-    opciones_menu
-)
-
-
-# ======================================================
-# ENCABEZADO PRINCIPAL
-# ======================================================
+menu = st.sidebar.radio("Menú principal", opciones_menu)
 
 st.markdown(
     """
@@ -1023,7 +970,7 @@ st.markdown(
 
 
 # ======================================================
-# PANTALLA DE INICIO
+# INICIO
 # ======================================================
 
 if menu == "Inicio":
@@ -1035,44 +982,31 @@ if menu == "Inicio":
             <div class="texto-pumi">
                 Esta aplicación permite registrar, consultar y dar seguimiento a las
                 actividades desarrolladas dentro del Proceso Unificado para el Manejo
-                de la Información. La información se almacena en Google Sheets como
-                base de datos institucional.
+                de la Información.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    try:
-        df = cargar_datos()
-        df_metricas = limpiar_dataframe_para_metricas(df)
+    df = cargar_datos()
+    df_metricas = limpiar_dataframe_para_metricas(df)
 
-        total_registros = len(df_metricas)
-        total_programas = df_metricas["Programa"].nunique() if not df_metricas.empty else 0
-        total_delegaciones = df_metricas["Delegación"].nunique() if not df_metricas.empty else 0
-        total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if not df_metricas.empty else 0
+    col1, col2, col3, col4 = st.columns(4)
 
-        col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Registros", len(df_metricas))
+    col2.metric("Programas", df_metricas["Programa"].nunique() if not df_metricas.empty else 0)
+    col3.metric("Delegaciones", df_metricas["Delegación"].nunique() if not df_metricas.empty else 0)
+    col4.metric(
+        "Participantes",
+        int(df_metricas["Cantidad Participantes"].sum()) if not df_metricas.empty else 0
+    )
 
-        col1.metric("Registros", total_registros)
-        col2.metric("Programas", total_programas)
-        col3.metric("Delegaciones", total_delegaciones)
-        col4.metric("Participantes", total_participantes)
-
-        st.success("Conexión con Google Sheets activa.")
-
-        if st.session_state.admin_autenticado:
-            st.info("Modo administrador activo.")
-        else:
-            st.info("Modo usuario activo. Puede registrar actividades y consultar el seguimiento.")
-
-    except Exception as e:
-        st.error("No se pudo conectar con Google Sheets.")
-        st.exception(e)
+    st.success("Conexión con Google Sheets activa.")
 
 
 # ======================================================
-# FORMULARIO DE REGISTRO
+# REGISTRAR ACTIVIDAD
 # ======================================================
 
 elif menu == "Registrar actividad":
@@ -1083,331 +1017,286 @@ elif menu == "Registrar actividad":
         """
         <div class="card-azul">
             <div class="texto-pumi">
-                Complete la información de la actividad preventiva realizada.
-                El sistema asignará automáticamente un ID consecutivo simple.
-                Además, puede registrar la ubicación mediante búsqueda, GPS,
-                coordenadas manuales o seleccionando directamente el punto en el mapa.
+                Complete la información de la actividad. Puede registrar la ubicación
+                mediante búsqueda, GPS, coordenadas manuales o marcando directamente
+                el punto en el mapa.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    if "latitud_registro" not in st.session_state:
+        st.session_state.latitud_registro = ""
+
+    if "longitud_registro" not in st.session_state:
+        st.session_state.longitud_registro = ""
+
     delegaciones_lista = obtener_delegaciones_unicas()
     distritos_lista = obtener_distritos_unicos()
 
-    if not delegaciones_lista:
-        st.warning("No se encontró la base DELEGACIONES Y DISTRITOS.xlsx o no contiene la columna Delegacion.")
+    st.markdown(
+        """
+        <div class="bloque-datos">
+            <b>Datos generales del registro</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    if not distritos_lista:
-        st.warning("No se encontró la base DELEGACIONES Y DISTRITOS.xlsx o no contiene la columna Distrito.")
+    col1, col2 = st.columns(2)
 
-    with st.form("form_registro_pumi"):
+    with col1:
+        fecha_actividad = st.date_input("Fecha de la actividad", value=date.today(), format="DD/MM/YYYY")
+        direccion_regional = st.selectbox("Dirección Regional", REGIONES)
+        delegacion = st.selectbox("Delegación", delegaciones_lista if delegaciones_lista else ["Sin datos disponibles"])
+        programa = st.selectbox("Programa", PROGRAMAS)
 
-        st.markdown(
-            """
-            <div class="bloque-datos">
-                <b>Datos generales del registro</b>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    with col2:
+        actividad = st.text_input("Actividad realizada")
+        responsable = st.text_input("Funcionario responsable")
+        usuario = st.text_input("Usuario que registra")
+        cantidad = st.number_input("Cantidad de participantes", min_value=0, step=1)
 
-        col1, col2 = st.columns(2)
+    st.markdown(
+        """
+        <div class="bloque-territorio">
+            <b>Ubicación territorial</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-        with col1:
-            fecha_actividad = st.date_input(
-                "Fecha de la actividad",
-                value=date.today(),
-                format="DD/MM/YYYY"
-            )
+    col3, col4, col5 = st.columns(3)
 
-            direccion_regional = st.selectbox(
-                "Dirección Regional",
-                REGIONES
-            )
+    with col3:
+        provincia = st.selectbox("Provincia", PROVINCIAS)
 
-            delegacion = st.selectbox(
-                "Delegación",
-                delegaciones_lista if delegaciones_lista else ["Sin datos disponibles"]
-            )
+    with col4:
+        canton = st.text_input("Cantón")
 
-            programa = st.selectbox(
-                "Programa",
-                PROGRAMAS
-            )
+    with col5:
+        distrito = st.selectbox("Distrito", distritos_lista if distritos_lista else ["Sin datos disponibles"])
 
-        with col2:
-            actividad = st.text_input("Actividad realizada")
-            responsable = st.text_input("Funcionario responsable")
-            usuario = st.text_input("Usuario que registra")
+    st.markdown(
+        """
+        <div class="bloque-actividad">
+            <b>Lugar de realización de la actividad</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-            cantidad = st.number_input(
-                "Cantidad de participantes",
-                min_value=0,
-                step=1
-            )
+    tipo_lugar = st.radio(
+        "Seleccione el tipo de lugar",
+        ["Centro educativo", "Otro lugar"],
+        horizontal=True
+    )
 
-        st.markdown(
-            """
-            <div class="bloque-territorio">
-                <b>Ubicación territorial</b>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    lugar = ""
+    centro_educativo = ""
 
-        col3, col4, col5 = st.columns(3)
+    if tipo_lugar == "Centro educativo":
+        centros = obtener_centros_por_provincia(provincia)
 
-        with col3:
-            provincia = st.selectbox(
-                "Provincia",
-                PROVINCIAS
-            )
-
-        with col4:
-            canton = st.text_input("Cantón")
-
-        with col5:
-            distrito = st.selectbox(
-                "Distrito",
-                distritos_lista if distritos_lista else ["Sin datos disponibles"]
-            )
-
-        st.markdown(
-            """
-            <div class="bloque-actividad">
-                <b>Lugar de realización de la actividad</b>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        tipo_lugar = st.radio(
-            "Seleccione el tipo de lugar",
-            ["Centro educativo", "Otro lugar"],
-            horizontal=True
-        )
-
-        lugar = ""
+        if centros:
+            centro_educativo = st.selectbox("Centro educativo según base MEP 2025", centros)
+            lugar = centro_educativo
+        else:
+            st.warning("No se encontraron centros educativos para la provincia seleccionada.")
+            centro_educativo = st.text_input("Digite el centro educativo manualmente")
+            lugar = centro_educativo
+    else:
+        lugar = st.text_input("Lugar donde se realizó la actividad")
         centro_educativo = ""
 
-        if tipo_lugar == "Centro educativo":
+    st.markdown(
+        """
+        <div class="bloque-mapa">
+            <b>Georreferencia del lugar</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-            centros = obtener_centros_por_provincia(provincia)
+    tipo_mapa_registro = st.selectbox(
+        "Tipo de mapa",
+        ["OpenStreetMap", "Mapa claro", "Mapa oscuro", "Topográfico", "Satélite"],
+        key="tipo_mapa_registro"
+    )
 
-            if centros:
-                centro_educativo = st.selectbox(
-                    "Centro educativo según base MEP 2025",
-                    centros
-                )
-                lugar = centro_educativo
+    direccion_mapa = st.text_input(
+        "Dirección o referencia para ubicar en mapa",
+        value=f"{lugar}, {distrito}, {canton}, {provincia}, Costa Rica"
+    )
 
-            else:
-                st.warning("No se encontraron centros educativos para la provincia seleccionada.")
-                centro_educativo = st.text_input(
-                    "Digite el centro educativo manualmente"
-                )
-                lugar = centro_educativo
+    metodo_ubicacion = st.radio(
+        "Método para registrar ubicación",
+        [
+            "Buscar por nombre del lugar",
+            "Usar GPS del dispositivo",
+            "Ingresar coordenadas manualmente",
+            "Marcar punto en el mapa",
+            "No registrar ubicación"
+        ],
+        horizontal=False
+    )
 
-        else:
-            lugar = st.text_input(
-                "Lugar donde se realizó la actividad"
-            )
-            centro_educativo = ""
-
-        st.markdown(
-            """
-            <div class="bloque-mapa">
-                <b>Georreferencia del lugar</b>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        tipo_mapa_registro = st.selectbox(
-            "Tipo de mapa",
-            [
-                "OpenStreetMap",
-                "Mapa claro",
-                "Mapa oscuro",
-                "Topográfico",
-                "Satélite"
-            ],
-            key="tipo_mapa_registro"
-        )
-
-        direccion_mapa = st.text_input(
-            "Dirección o referencia para ubicar en mapa",
-            value=f"{lugar}, {distrito}, {canton}, {provincia}, Costa Rica"
-        )
-
-        metodo_ubicacion = st.radio(
-            "Método para registrar ubicación",
-            [
-                "Buscar por nombre del lugar",
-                "Usar GPS del dispositivo",
-                "Ingresar coordenadas manualmente",
-                "Marcar punto en el mapa",
-                "No registrar ubicación"
-            ],
-            horizontal=False
-        )
-
-        latitud = ""
-        longitud = ""
-
-        if metodo_ubicacion == "Buscar por nombre del lugar":
+    if metodo_ubicacion == "Buscar por nombre del lugar":
+        if st.button("Buscar ubicación en el mapa"):
             lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(direccion_mapa)
 
             if lat_busqueda and lon_busqueda:
-                latitud = str(lat_busqueda)
-                longitud = str(lon_busqueda)
+                st.session_state.latitud_registro = str(lat_busqueda)
+                st.session_state.longitud_registro = str(lon_busqueda)
                 st.success("Ubicación encontrada automáticamente.")
                 st.caption(direccion_encontrada)
             else:
-                st.warning("No se logró ubicar el lugar automáticamente. Puede marcar el punto en el mapa.")
+                st.warning("No se logró ubicar el lugar automáticamente. Puede usar la opción Marcar punto en el mapa.")
 
-        elif metodo_ubicacion == "Usar GPS del dispositivo":
-            st.info("El navegador puede solicitar permiso para acceder a la ubicación del dispositivo.")
+    elif metodo_ubicacion == "Usar GPS del dispositivo":
+        st.info("El navegador puede solicitar permiso para acceder a la ubicación del dispositivo.")
 
-            ubicacion_gps = get_geolocation()
+        ubicacion_gps = get_geolocation()
 
-            if ubicacion_gps and "coords" in ubicacion_gps:
-                latitud = str(ubicacion_gps["coords"].get("latitude", ""))
-                longitud = str(ubicacion_gps["coords"].get("longitude", ""))
+        if ubicacion_gps and "coords" in ubicacion_gps:
+            lat_gps = ubicacion_gps["coords"].get("latitude", "")
+            lon_gps = ubicacion_gps["coords"].get("longitude", "")
 
-                if latitud and longitud:
-                    st.success("Ubicación GPS obtenida correctamente.")
-                else:
-                    st.warning("No se recibieron coordenadas válidas desde el GPS.")
+            if lat_gps and lon_gps:
+                st.session_state.latitud_registro = str(lat_gps)
+                st.session_state.longitud_registro = str(lon_gps)
+                st.success("Ubicación GPS obtenida correctamente.")
             else:
-                st.warning("No se obtuvo ubicación GPS. Puede marcar el punto en el mapa.")
+                st.warning("No se recibieron coordenadas válidas desde el GPS.")
+        else:
+            st.warning("No se obtuvo ubicación GPS. Puede usar la opción Marcar punto en el mapa.")
 
-        elif metodo_ubicacion == "Ingresar coordenadas manualmente":
-            col_lat, col_lon = st.columns(2)
+    elif metodo_ubicacion == "Ingresar coordenadas manualmente":
+        col_lat, col_lon = st.columns(2)
 
-            with col_lat:
-                latitud = st.text_input(
-                    "Latitud",
-                    placeholder="Ejemplo: 9.9281"
-                )
+        with col_lat:
+            st.session_state.latitud_registro = st.text_input(
+                "Latitud",
+                value=st.session_state.latitud_registro,
+                placeholder="Ejemplo: 9.9281"
+            )
 
-            with col_lon:
-                longitud = st.text_input(
-                    "Longitud",
-                    placeholder="Ejemplo: -84.0907"
-                )
+        with col_lon:
+            st.session_state.longitud_registro = st.text_input(
+                "Longitud",
+                value=st.session_state.longitud_registro,
+                placeholder="Ejemplo: -84.0907"
+            )
 
-        elif metodo_ubicacion == "Marcar punto en el mapa":
-            st.info("Haga clic sobre el mapa para seleccionar la ubicación de la actividad.")
+    elif metodo_ubicacion == "Marcar punto en el mapa":
+        st.info("Haga clic sobre el mapa para seleccionar la ubicación de la actividad.")
+
+    elif metodo_ubicacion == "No registrar ubicación":
+        st.session_state.latitud_registro = ""
+        st.session_state.longitud_registro = ""
+        st.info("El registro se guardará sin coordenadas.")
+
+    lat_num = limpiar_coordenada(st.session_state.latitud_registro)
+    lon_num = limpiar_coordenada(st.session_state.longitud_registro)
+
+    if lat_num is not None and lon_num is not None:
+        centro_mapa = [lat_num, lon_num]
+        zoom_mapa = 15
+    else:
+        centro_mapa = [9.7489, -83.7534]
+        zoom_mapa = 7
+
+    mapa_seleccion = crear_mapa_base(
+        centro=centro_mapa,
+        zoom=zoom_mapa,
+        tipo_mapa=tipo_mapa_registro
+    )
+
+    if lat_num is not None and lon_num is not None:
+        folium.Marker(
+            location=[lat_num, lon_num],
+            popup="Ubicación seleccionada",
+            icon=folium.Icon(
+                color=obtener_color_programa(programa),
+                icon="info-sign"
+            )
+        ).add_to(mapa_seleccion)
+
+    resultado_mapa = st_folium(
+        mapa_seleccion,
+        width=1100,
+        height=560,
+        key=f"mapa_registro_{tipo_mapa_registro}_{metodo_ubicacion}"
+    )
+
+    if resultado_mapa and resultado_mapa.get("last_clicked"):
+        lat_click = resultado_mapa["last_clicked"]["lat"]
+        lon_click = resultado_mapa["last_clicked"]["lng"]
+
+        st.session_state.latitud_registro = str(lat_click)
+        st.session_state.longitud_registro = str(lon_click)
+
+        st.success("Punto seleccionado en el mapa.")
+        st.write("Latitud:", st.session_state.latitud_registro)
+        st.write("Longitud:", st.session_state.longitud_registro)
+
+    st.markdown(
+        """
+        <div class="bloque-datos">
+            <b>Información complementaria</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    instituciones = st.text_area("Instituciones participantes")
+    plan = st.text_input("Plan estratégico relacionado")
+    evidencia = st.text_input("Enlace de evidencia")
+    observaciones = st.text_area("Observaciones")
+
+    if st.button("Guardar registro"):
+
+        if not delegacion or delegacion == "Sin datos disponibles" or not actividad or not responsable:
+            st.warning("Debe completar al menos Delegación, Actividad realizada y Funcionario responsable.")
 
         else:
-            st.info("El registro se guardará sin coordenadas de mapa.")
+            nuevo_id = generar_id_consecutivo()
 
-        lat_num = limpiar_coordenada(latitud)
-        lon_num = limpiar_coordenada(longitud)
+            registro = {
+                "ID": nuevo_id,
+                "Fecha Registro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Fecha Actividad": fecha_actividad.strftime("%d/%m/%Y"),
+                "Dirección Regional": direccion_regional,
+                "Delegación": delegacion,
+                "Programa": programa,
+                "Actividad": actividad,
+                "Provincia": provincia,
+                "Cantón": canton,
+                "Distrito": distrito,
+                "Tipo Lugar": tipo_lugar,
+                "Lugar": lugar,
+                "Centro Educativo": centro_educativo,
+                "Dirección Mapa": direccion_mapa,
+                "Latitud": st.session_state.latitud_registro,
+                "Longitud": st.session_state.longitud_registro,
+                "Responsable": responsable,
+                "Cantidad Participantes": cantidad,
+                "Instituciones Participantes": instituciones,
+                "Plan Estratégico Relacionado": plan,
+                "Evidencia": evidencia,
+                "Observaciones": observaciones,
+                "Estado Revisión": "Pendiente de revisión",
+                "Observación de Revisión": "",
+                "Usuario Registra": usuario
+            }
 
-        if lat_num is not None and lon_num is not None:
-            centro_mapa = [lat_num, lon_num]
-            zoom_mapa = 15
-        else:
-            centro_mapa = [9.7489, -83.7534]
-            zoom_mapa = 7
+            guardar_registro(registro)
 
-        mapa_seleccion = crear_mapa_base(
-            centro=centro_mapa,
-            zoom=zoom_mapa,
-            tipo_mapa=tipo_mapa_registro
-        )
+            st.session_state.latitud_registro = ""
+            st.session_state.longitud_registro = ""
 
-        if lat_num is not None and lon_num is not None:
-            folium.Marker(
-                location=[lat_num, lon_num],
-                popup="Ubicación seleccionada",
-                icon=folium.Icon(
-                    color=obtener_color_programa(programa),
-                    icon="info-sign"
-                )
-            ).add_to(mapa_seleccion)
-
-        resultado_mapa = st_folium(
-            mapa_seleccion,
-            width=1000,
-            height=520,
-            key=f"mapa_seleccion_registro_{tipo_mapa_registro}_{metodo_ubicacion}"
-        )
-
-        if resultado_mapa and resultado_mapa.get("last_clicked"):
-            lat_click = resultado_mapa["last_clicked"]["lat"]
-            lon_click = resultado_mapa["last_clicked"]["lng"]
-
-            latitud = str(lat_click)
-            longitud = str(lon_click)
-
-            st.success("Punto seleccionado en el mapa.")
-            st.write("Latitud:", latitud)
-            st.write("Longitud:", longitud)
-
-        st.markdown(
-            """
-            <div class="bloque-datos">
-                <b>Información complementaria</b>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        instituciones = st.text_area("Instituciones participantes")
-        plan = st.text_input("Plan estratégico relacionado")
-        evidencia = st.text_input("Enlace de evidencia")
-        observaciones = st.text_area("Observaciones")
-
-        guardar = st.form_submit_button("Guardar registro")
-
-        if guardar:
-
-            if not delegacion or delegacion == "Sin datos disponibles" or not actividad or not responsable:
-                st.warning(
-                    "Debe completar al menos Delegación, Actividad realizada y Funcionario responsable."
-                )
-
-            else:
-                nuevo_id = generar_id_consecutivo()
-
-                registro = {
-                    "ID": nuevo_id,
-                    "Fecha Registro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                    "Fecha Actividad": fecha_actividad.strftime("%d/%m/%Y"),
-                    "Dirección Regional": direccion_regional,
-                    "Delegación": delegacion,
-                    "Programa": programa,
-                    "Actividad": actividad,
-                    "Provincia": provincia,
-                    "Cantón": canton,
-                    "Distrito": distrito,
-                    "Tipo Lugar": tipo_lugar,
-                    "Lugar": lugar,
-                    "Centro Educativo": centro_educativo,
-                    "Dirección Mapa": direccion_mapa,
-                    "Latitud": latitud,
-                    "Longitud": longitud,
-                    "Responsable": responsable,
-                    "Cantidad Participantes": cantidad,
-                    "Instituciones Participantes": instituciones,
-                    "Plan Estratégico Relacionado": plan,
-                    "Evidencia": evidencia,
-                    "Observaciones": observaciones,
-                    "Estado Revisión": "Pendiente de revisión",
-                    "Observación de Revisión": "",
-                    "Usuario Registra": usuario
-                }
-
-                guardar_registro(registro)
-
-                st.success(
-                    f"Registro guardado correctamente con el ID #{nuevo_id}."
-                )
+            st.success(f"Registro guardado correctamente con el ID #{nuevo_id}.")
 
 
 # ======================================================
@@ -1418,19 +1307,6 @@ elif menu == "Registrar actividad":
 elif menu == "Seguimiento de registros":
 
     st.markdown("## Seguimiento de registros")
-
-    st.markdown(
-        """
-        <div class="card-dorado">
-            <div class="texto-pumi">
-                En esta sección puede consultar el estado de revisión de los registros
-                ingresados, visualizar observaciones administrativas y ver el mapa general
-                de actividades registradas.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
     df = cargar_datos()
 
@@ -1469,20 +1345,13 @@ elif menu == "Seguimiento de registros":
                 ["Todas"] + sorted(df_seguimiento["Provincia"].dropna().astype(str).unique().tolist())
             )
 
-            usar_fechas_seg = st.checkbox(
-                "Filtrar por rango de fechas",
-                key="fechas_seguimiento"
-            )
+            usar_fechas_seg = st.checkbox("Filtrar por rango de fechas", key="fechas_seguimiento")
 
         df_usuario = df_seguimiento.copy()
 
         if filtro_id:
             df_usuario = df_usuario[
-                df_usuario["ID"].astype(str).str.contains(
-                    filtro_id,
-                    case=False,
-                    na=False
-                )
+                df_usuario["ID"].astype(str).str.contains(filtro_id, case=False, na=False)
             ]
 
         if filtro_delegacion != "Todas":
@@ -1498,13 +1367,9 @@ elif menu == "Seguimiento de registros":
             df_usuario = df_usuario[df_usuario["Provincia"] == filtro_provincia]
 
         if usar_fechas_seg:
-
             fechas_validas = df_usuario["Fecha Actividad"].dropna()
 
-            if fechas_validas.empty:
-                st.warning("No hay fechas válidas para aplicar el filtro.")
-
-            else:
+            if not fechas_validas.empty:
                 fecha_min = fechas_validas.min().date()
                 fecha_max = fechas_validas.max().date()
 
