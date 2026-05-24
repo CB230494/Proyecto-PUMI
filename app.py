@@ -2855,7 +2855,6 @@ elif menu == "Configuración":
             hide_index=True
         )
 
-    except Exception as e:
+       except Exception as e:
         st.error("Error en la conexión o configuración.")
-        st.exception(e)n o configuración.")
         st.exception(e)
