@@ -890,7 +890,7 @@ def limpiar_dataframe_para_metricas(df):
     return df
 # ======================================================
 # PARTE 3 DE 5
-# INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO, GPS Y SEGUIMIENTO
+# INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO, GPS, MAPA Y SEGUIMIENTO
 # ======================================================
 
 mostrar_logo()
@@ -1033,8 +1033,8 @@ elif menu == "Registrar actividad":
             <div class="texto-pumi">
                 Complete la información de la actividad preventiva realizada.
                 El sistema asignará automáticamente un ID consecutivo simple.
-                Además, puede registrar la ubicación por GPS, coordenadas manuales
-                o búsqueda por nombre del lugar.
+                Además, puede registrar la ubicación mediante búsqueda, GPS,
+                coordenadas manuales o seleccionando directamente el punto en el mapa.
             </div>
         </div>
         """,
@@ -1194,6 +1194,7 @@ elif menu == "Registrar actividad":
                 "Buscar por nombre del lugar",
                 "Usar GPS del dispositivo",
                 "Ingresar coordenadas manualmente",
+                "Marcar punto en el mapa",
                 "No registrar ubicación"
             ],
             horizontal=False
@@ -1210,26 +1211,8 @@ elif menu == "Registrar actividad":
                 longitud = str(lon_busqueda)
                 st.success("Ubicación encontrada automáticamente.")
                 st.caption(direccion_encontrada)
-
-                mapa_preview = folium.Map(
-                    location=[lat_busqueda, lon_busqueda],
-                    zoom_start=15
-                )
-
-                folium.Marker(
-                    location=[lat_busqueda, lon_busqueda],
-                    popup="Ubicación encontrada",
-                    icon=folium.Icon(color=obtener_color_programa(programa), icon="info-sign")
-                ).add_to(mapa_preview)
-
-                st_folium(
-                    mapa_preview,
-                    height=350,
-                    key="mapa_preview_busqueda"
-                )
-
             else:
-                st.warning("No se logró ubicar el lugar automáticamente. Puede ingresar coordenadas manualmente.")
+                st.warning("No se logró ubicar el lugar automáticamente. Puede marcar el punto en el mapa.")
 
         elif metodo_ubicacion == "Usar GPS del dispositivo":
             st.info("El navegador puede solicitar permiso para acceder a la ubicación del dispositivo.")
@@ -1242,27 +1225,10 @@ elif menu == "Registrar actividad":
 
                 if latitud and longitud:
                     st.success("Ubicación GPS obtenida correctamente.")
-
-                    mapa_preview = folium.Map(
-                        location=[float(latitud), float(longitud)],
-                        zoom_start=16
-                    )
-
-                    folium.Marker(
-                        location=[float(latitud), float(longitud)],
-                        popup="Ubicación GPS del dispositivo",
-                        icon=folium.Icon(color=obtener_color_programa(programa), icon="info-sign")
-                    ).add_to(mapa_preview)
-
-                    st_folium(
-                        mapa_preview,
-                        height=350,
-                        key="mapa_preview_gps"
-                    )
                 else:
                     st.warning("No se recibieron coordenadas válidas desde el GPS.")
             else:
-                st.warning("No se obtuvo ubicación GPS. Revise permisos del navegador o use otro método.")
+                st.warning("No se obtuvo ubicación GPS. Puede marcar el punto en el mapa.")
 
         elif metodo_ubicacion == "Ingresar coordenadas manualmente":
             col_lat, col_lon = st.columns(2)
@@ -1279,29 +1245,54 @@ elif menu == "Registrar actividad":
                     placeholder="Ejemplo: -84.0907"
                 )
 
-            lat_num = limpiar_coordenada(latitud)
-            lon_num = limpiar_coordenada(longitud)
-
-            if lat_num is not None and lon_num is not None:
-                mapa_preview = folium.Map(
-                    location=[lat_num, lon_num],
-                    zoom_start=15
-                )
-
-                folium.Marker(
-                    location=[lat_num, lon_num],
-                    popup="Ubicación manual",
-                    icon=folium.Icon(color=obtener_color_programa(programa), icon="info-sign")
-                ).add_to(mapa_preview)
-
-                st_folium(
-                    mapa_preview,
-                    height=350,
-                    key="mapa_preview_manual"
-                )
+        elif metodo_ubicacion == "Marcar punto en el mapa":
+            st.info("Haga clic sobre el mapa para seleccionar la ubicación de la actividad.")
 
         else:
             st.info("El registro se guardará sin coordenadas de mapa.")
+
+        lat_num = limpiar_coordenada(latitud)
+        lon_num = limpiar_coordenada(longitud)
+
+        if lat_num is not None and lon_num is not None:
+            centro_mapa = [lat_num, lon_num]
+            zoom_mapa = 15
+        else:
+            centro_mapa = [9.7489, -83.7534]
+            zoom_mapa = 7
+
+        mapa_seleccion = folium.Map(
+            location=centro_mapa,
+            zoom_start=zoom_mapa,
+            tiles="OpenStreetMap"
+        )
+
+        if lat_num is not None and lon_num is not None:
+            folium.Marker(
+                location=[lat_num, lon_num],
+                popup="Ubicación seleccionada",
+                icon=folium.Icon(
+                    color=obtener_color_programa(programa),
+                    icon="info-sign"
+                )
+            ).add_to(mapa_seleccion)
+
+        resultado_mapa = st_folium(
+            mapa_seleccion,
+            height=420,
+            key="mapa_seleccion_registro"
+        )
+
+        if resultado_mapa and resultado_mapa.get("last_clicked"):
+            lat_click = resultado_mapa["last_clicked"]["lat"]
+            lon_click = resultado_mapa["last_clicked"]["lng"]
+
+            latitud = str(lat_click)
+            longitud = str(lon_click)
+
+            st.success("Punto seleccionado en el mapa.")
+            st.write("Latitud:", latitud)
+            st.write("Longitud:", longitud)
 
         st.markdown(
             """
