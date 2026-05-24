@@ -364,34 +364,74 @@ def conectar_google_sheets():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=scopes
-    )
+    try:
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=scopes
+        )
 
-    client = gspread.authorize(creds)
-    spreadsheet = client.open_by_url(SPREADSHEET_URL)
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_url(SPREADSHEET_URL)
 
-    return spreadsheet
+        return spreadsheet
+
+    except Exception as e:
+        st.error("No se pudo conectar con Google Sheets.")
+        st.warning(
+            "Revise que el archivo secrets.toml esté correctamente configurado "
+            "y que la hoja esté compartida con el correo del service account."
+        )
+        st.exception(e)
+        st.stop()
 
 
 def obtener_hoja(nombre_hoja):
-    spreadsheet = conectar_google_sheets()
+    """
+    Obtiene una hoja específica del archivo de Google Sheets.
+    Si no existe, la crea automáticamente.
+    """
 
     try:
-        return spreadsheet.worksheet(nombre_hoja)
+        spreadsheet = conectar_google_sheets()
 
-    except gspread.WorksheetNotFound:
-        return spreadsheet.add_worksheet(
-            title=nombre_hoja,
-            rows=5000,
-            cols=len(ENCABEZADOS)
+        try:
+            return spreadsheet.worksheet(nombre_hoja)
+
+        except gspread.WorksheetNotFound:
+            return spreadsheet.add_worksheet(
+                title=nombre_hoja,
+                rows=5000,
+                cols=len(ENCABEZADOS)
+            )
+
+    except Exception as e:
+        st.error("Error al conectar con la hoja de Google Sheets.")
+        st.warning(
+            "Revise lo siguiente: "
+            "1) La hoja está compartida con el correo del service account. "
+            "2) La pestaña se llama REGISTRO_PUMI_2026. "
+            "3) Google Sheets API y Google Drive API están activas. "
+            "4) El service account tiene permiso de Editor."
         )
+        st.exception(e)
+        st.stop()
 
 
 def inicializar_hoja():
+    """
+    Verifica que la hoja principal tenga encabezados correctos.
+    Si está vacía, agrega encabezados.
+    Si los encabezados son distintos, intenta corregir la estructura.
+    """
+
     hoja = obtener_hoja(HOJA_REGISTRO)
-    datos = hoja.get_all_values()
+
+    try:
+        datos = hoja.get_all_values()
+    except Exception as e:
+        st.error("No se pudieron leer los datos de la hoja.")
+        st.exception(e)
+        st.stop()
 
     if len(datos) == 0:
         hoja.append_row(ENCABEZADOS)
@@ -527,7 +567,13 @@ def cargar_datos():
     """
 
     hoja = inicializar_hoja()
-    datos = hoja.get_all_values()
+
+    try:
+        datos = hoja.get_all_values()
+    except Exception as e:
+        st.error("No se pudieron cargar los datos desde Google Sheets.")
+        st.exception(e)
+        st.stop()
 
     if len(datos) <= 1:
         return pd.DataFrame(columns=ENCABEZADOS)
@@ -541,11 +587,9 @@ def cargar_datos():
         while len(fila_ajustada) < len(ENCABEZADOS):
             fila_ajustada.append("")
 
-        # Elimina filas vacías
         if all(str(celda).strip() == "" for celda in fila_ajustada):
             continue
 
-        # Elimina encabezados duplicados metidos como datos
         if str(fila_ajustada[0]).strip().upper() == "ID":
             continue
 
@@ -557,11 +601,6 @@ def cargar_datos():
 
 
 def limpiar_encabezados_duplicados_en_sheet():
-    """
-    Elimina físicamente de Google Sheets cualquier fila duplicada
-    donde la columna A tenga el texto ID.
-    """
-
     hoja = inicializar_hoja()
     datos = hoja.get_all_values()
 
@@ -594,7 +633,13 @@ def generar_id_consecutivo():
 def guardar_registro(registro):
     hoja = inicializar_hoja()
     fila = [registro.get(col, "") for col in ENCABEZADOS]
-    hoja.append_row(fila)
+
+    try:
+        hoja.append_row(fila)
+    except Exception as e:
+        st.error("No se pudo guardar el registro en Google Sheets.")
+        st.exception(e)
+        st.stop()
 
 
 def actualizar_registro_por_id(id_registro, nuevos_datos):
@@ -607,8 +652,14 @@ def actualizar_registro_por_id(id_registro, nuevos_datos):
         if len(fila) > 0 and str(fila[0]) == str(id_registro):
             nueva_fila = [nuevos_datos.get(col, "") for col in ENCABEZADOS]
             rango = f"A{i}:{ultima_columna}{i}"
-            hoja.update(rango, [nueva_fila])
-            return True
+
+            try:
+                hoja.update(rango, [nueva_fila])
+                return True
+            except Exception as e:
+                st.error("No se pudo actualizar el registro.")
+                st.exception(e)
+                st.stop()
 
     return False
 
@@ -619,8 +670,14 @@ def eliminar_registro_por_id(id_registro):
 
     for i, fila in enumerate(datos[1:], start=2):
         if len(fila) > 0 and str(fila[0]) == str(id_registro):
-            hoja.delete_rows(i)
-            return True
+
+            try:
+                hoja.delete_rows(i)
+                return True
+            except Exception as e:
+                st.error("No se pudo eliminar el registro.")
+                st.exception(e)
+                st.stop()
 
     return False
 
