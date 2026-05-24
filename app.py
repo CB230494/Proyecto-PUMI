@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 import plotly.express as px
+import unicodedata
 
 from google.oauth2.service_account import Credentials
 from datetime import datetime, date
@@ -14,13 +15,8 @@ from io import BytesIO
 from PIL import Image
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-    Image as RLImage,
-    PageBreak
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    Image as RLImage, PageBreak
 )
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -38,6 +34,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
+# ======================================================
+# ARCHIVOS BASE EN EL REPOSITORIO
+# ======================================================
+
+ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
+ARCHIVO_DELEGACIONES = "DELEGACIONES Y DISTRITOS.xlsx"
 
 
 # ======================================================
@@ -63,7 +67,9 @@ ENCABEZADOS = [
     "Provincia",
     "Cantón",
     "Distrito",
-    "Lugar / Centro Educativo",
+    "Tipo Lugar",
+    "Lugar",
+    "Centro Educativo",
     "Responsable",
     "Cantidad Participantes",
     "Instituciones Participantes",
@@ -130,13 +136,7 @@ COLOR_AZUL_MEDIO = "#005B96"
 COLOR_AZUL_CLARO = "#0B84C6"
 COLOR_VERDE = "#1B7F3A"
 COLOR_VERDE_CLARO = "#2EAD5F"
-COLOR_VERDE_SUAVE = "#DDF6E7"
 COLOR_DORADO = "#C9A227"
-COLOR_DORADO_SUAVE = "#FFF4CC"
-COLOR_ROJO = "#B22222"
-COLOR_ROJO_SUAVE = "#FDE2E2"
-COLOR_NARANJA = "#F28C28"
-COLOR_CELESTE = "#E4F3FB"
 COLOR_GRIS = "#F4F6F8"
 COLOR_GRIS_OSCURO = "#2F3542"
 COLOR_BLANCO = "#FFFFFF"
@@ -163,17 +163,8 @@ st.markdown(
         box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
     }}
 
-    section[data-testid="stSidebar"] h2 {{
-        color: {COLOR_AZUL};
-        text-align: center;
-        font-weight: 900;
-        padding-top: 8px;
-    }}
-
     .titulo-principal {{
-        background:
-            linear-gradient(135deg, rgba(0,51,102,0.98), rgba(27,127,58,0.96)),
-            linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE});
+        background: linear-gradient(135deg, {COLOR_AZUL}, {COLOR_VERDE});
         padding: 38px;
         border-radius: 22px;
         text-align: center;
@@ -204,7 +195,6 @@ st.markdown(
         border-radius: 20px;
         box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
         border-left: 9px solid {COLOR_VERDE};
-        border-top: 1px solid #FFFFFF;
         margin-bottom: 20px;
     }}
 
@@ -226,6 +216,30 @@ st.markdown(
         margin-bottom: 20px;
     }}
 
+    .bloque-datos {{
+        background: linear-gradient(135deg, #F0F7FF 0%, #FFFFFF 100%);
+        padding: 18px;
+        border-radius: 18px;
+        border-left: 7px solid {COLOR_AZUL};
+        margin-bottom: 18px;
+    }}
+
+    .bloque-territorio {{
+        background: linear-gradient(135deg, #EFFAF3 0%, #FFFFFF 100%);
+        padding: 18px;
+        border-radius: 18px;
+        border-left: 7px solid {COLOR_VERDE};
+        margin-bottom: 18px;
+    }}
+
+    .bloque-actividad {{
+        background: linear-gradient(135deg, #FFF8DC 0%, #FFFFFF 100%);
+        padding: 18px;
+        border-radius: 18px;
+        border-left: 7px solid {COLOR_DORADO};
+        margin-bottom: 18px;
+    }}
+
     .subtitulo-pumi {{
         color: {COLOR_AZUL};
         font-weight: 900;
@@ -245,17 +259,24 @@ st.markdown(
         border-radius: 20px;
         box-shadow: 0px 5px 15px rgba(0,0,0,0.13);
         border-bottom: 6px solid {COLOR_VERDE};
-        border-top: 1px solid white;
     }}
 
-    div[data-testid="stMetric"] label {{
-        color: {COLOR_AZUL};
-        font-weight: 800;
+    div[data-baseweb="select"] > div {{
+        background-color: #F7FBFF !important;
+        border-radius: 12px !important;
+        border: 1.8px solid #9FC5E8 !important;
     }}
 
-    div[data-testid="stMetric"] div {{
-        color: {COLOR_GRIS_OSCURO};
-        font-weight: 900;
+    input {{
+        background-color: #F8FFF9 !important;
+        border-radius: 12px !important;
+        border: 1.8px solid #A9D6B8 !important;
+    }}
+
+    textarea {{
+        background-color: #FFFDF3 !important;
+        border-radius: 12px !important;
+        border: 1.8px solid #E1C75F !important;
     }}
 
     .stButton > button {{
@@ -268,12 +289,6 @@ st.markdown(
         box-shadow: 0px 4px 10px rgba(0,0,0,0.18);
     }}
 
-    .stButton > button:hover {{
-        background: linear-gradient(90deg, {COLOR_VERDE}, {COLOR_AZUL});
-        color: white;
-        transform: translateY(-1px);
-    }}
-
     .stDownloadButton > button {{
         background: linear-gradient(90deg, {COLOR_VERDE}, {COLOR_AZUL});
         color: white;
@@ -282,26 +297,6 @@ st.markdown(
         font-weight: 800;
         padding: 0.7rem 1.2rem;
         box-shadow: 0px 4px 10px rgba(0,0,0,0.18);
-    }}
-
-    .stDownloadButton > button:hover {{
-        background: linear-gradient(90deg, {COLOR_AZUL_CLARO}, {COLOR_VERDE_CLARO});
-        color: white;
-        transform: translateY(-1px);
-    }}
-
-    div[data-baseweb="select"] > div {{
-        background-color: #FFFFFF;
-        border-radius: 12px;
-        border: 1.5px solid #C9D6DF;
-    }}
-
-    input, textarea {{
-        border-radius: 12px !important;
-    }}
-
-    .stDateInput input {{
-        border-radius: 12px !important;
     }}
 
     div[data-testid="stDataFrame"] {{
@@ -324,10 +319,6 @@ st.markdown(
         font-weight: 900;
     }}
 
-    .stAlert {{
-        border-radius: 15px;
-    }}
-
     </style>
     """,
     unsafe_allow_html=True
@@ -339,11 +330,6 @@ st.markdown(
 # ======================================================
 
 def mostrar_logo():
-    """
-    Muestra el logo institucional PUMI en la barra lateral.
-    Acepta logo_pumi.jpeg, logo_pumi.jpg o logo_pumi.png.
-    """
-
     if os.path.exists("logo_pumi.jpeg"):
         logo = Image.open("logo_pumi.jpeg")
         st.sidebar.image(logo, use_container_width=True)
@@ -358,9 +344,9 @@ def mostrar_logo():
 
     else:
         st.sidebar.warning("Logo PUMI no encontrado.")
-        # ======================================================
+# ======================================================
 # PARTE 2 DE 5
-# CONEXIÓN GOOGLE SHEETS, BASE DE DATOS Y FUNCIONES CRUD
+# CONEXIÓN GOOGLE SHEETS, BASES AUXILIARES Y FUNCIONES CRUD
 # ======================================================
 
 @st.cache_resource
@@ -427,6 +413,155 @@ def inicializar_hoja():
     return hoja
 
 
+def normalizar_texto(valor):
+    """
+    Normaliza texto para comparar correctamente:
+    - elimina tildes
+    - pasa a mayúsculas
+    - quita espacios dobles
+    """
+
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().upper()
+
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join([c for c in texto if not unicodedata.combining(c)])
+
+    texto = " ".join(texto.split())
+
+    return texto
+
+
+@st.cache_data
+def cargar_base_mep():
+    """
+    Carga la base de centros educativos MEP 2025.
+    Usa las columnas PROVINCIA y NOMBRE.
+    """
+
+    if not os.path.exists(ARCHIVO_MEP):
+        return pd.DataFrame(columns=["PROVINCIA", "NOMBRE"])
+
+    df = pd.read_excel(ARCHIVO_MEP)
+
+    df.columns = [str(c).strip().upper() for c in df.columns]
+
+    if "PROVINCIA" not in df.columns or "NOMBRE" not in df.columns:
+        return pd.DataFrame(columns=["PROVINCIA", "NOMBRE"])
+
+    df = df[["PROVINCIA", "NOMBRE"]].copy()
+    df = df.dropna(subset=["PROVINCIA", "NOMBRE"])
+
+    df["PROVINCIA_NORMALIZADA"] = df["PROVINCIA"].apply(normalizar_texto)
+    df["NOMBRE"] = df["NOMBRE"].astype(str).str.strip()
+
+    df = df.drop_duplicates(subset=["PROVINCIA_NORMALIZADA", "NOMBRE"])
+
+    return df
+
+
+@st.cache_data
+def cargar_base_delegaciones():
+    """
+    Carga la base de delegaciones y distritos.
+    Usa las columnas Delegacion y Distrito.
+    """
+
+    if not os.path.exists(ARCHIVO_DELEGACIONES):
+        return pd.DataFrame(columns=["Delegacion", "Distrito"])
+
+    df = pd.read_excel(ARCHIVO_DELEGACIONES)
+
+    columnas_originales = list(df.columns)
+
+    col_delegacion = None
+    col_distrito = None
+
+    for col in columnas_originales:
+        col_norm = normalizar_texto(col)
+
+        if col_norm == "DELEGACION":
+            col_delegacion = col
+
+        if col_norm == "DISTRITO":
+            col_distrito = col
+
+    if col_delegacion is None or col_distrito is None:
+        return pd.DataFrame(columns=["Delegacion", "Distrito"])
+
+    df = df[[col_delegacion, col_distrito]].copy()
+    df.columns = ["Delegacion", "Distrito"]
+
+    df = df.dropna(subset=["Delegacion", "Distrito"])
+
+    df["Delegacion"] = df["Delegacion"].astype(str).str.strip()
+    df["Distrito"] = df["Distrito"].astype(str).str.strip()
+
+    df["Delegacion_Normalizada"] = df["Delegacion"].apply(normalizar_texto)
+    df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
+
+    df = df.drop_duplicates(
+        subset=["Delegacion_Normalizada", "Distrito_Normalizado"]
+    )
+
+    return df
+
+
+def obtener_delegaciones_unicas():
+    """
+    Devuelve lista única de delegaciones sin repetir.
+    """
+
+    df = cargar_base_delegaciones()
+
+    if df.empty:
+        return []
+
+    df_tmp = df[["Delegacion", "Delegacion_Normalizada"]].drop_duplicates(
+        subset=["Delegacion_Normalizada"]
+    )
+
+    return sorted(df_tmp["Delegacion"].dropna().tolist())
+
+
+def obtener_distritos_unicos():
+    """
+    Devuelve lista única de distritos sin repetir.
+    """
+
+    df = cargar_base_delegaciones()
+
+    if df.empty:
+        return []
+
+    df_tmp = df[["Distrito", "Distrito_Normalizado"]].drop_duplicates(
+        subset=["Distrito_Normalizado"]
+    )
+
+    return sorted(df_tmp["Distrito"].dropna().tolist())
+
+
+def obtener_centros_por_provincia(provincia):
+    """
+    Devuelve centros educativos filtrados por provincia seleccionada.
+    """
+
+    df = cargar_base_mep()
+
+    if df.empty or not provincia:
+        return []
+
+    provincia_norm = normalizar_texto(provincia)
+
+    centros = df[
+        df["PROVINCIA_NORMALIZADA"] == provincia_norm
+    ]["NOMBRE"].dropna().astype(str).drop_duplicates().sort_values().tolist()
+
+    return centros
+
+
 def cargar_datos():
     """
     Carga todos los datos desde Google Sheets y devuelve un DataFrame.
@@ -441,6 +576,7 @@ def cargar_datos():
     filas = datos[1:]
 
     filas_limpias = []
+
     for fila in filas:
         fila_ajustada = fila[:len(ENCABEZADOS)]
 
@@ -491,10 +627,12 @@ def actualizar_registro_por_id(id_registro, nuevos_datos):
     hoja = inicializar_hoja()
     datos = hoja.get_all_values()
 
+    ultima_columna = chr(64 + len(ENCABEZADOS))
+
     for i, fila in enumerate(datos[1:], start=2):
         if len(fila) > 0 and str(fila[0]) == str(id_registro):
             nueva_fila = [nuevos_datos.get(col, "") for col in ENCABEZADOS]
-            rango = f"A{i}:S{i}"
+            rango = f"A{i}:{ultima_columna}{i}"
             hoja.update(rango, [nueva_fila])
             return True
 
@@ -536,7 +674,7 @@ def convertir_excel(df):
 
 def limpiar_dataframe_para_metricas(df):
     """
-    Limpia datos numéricos y fechas para poder generar métricas y gráficos.
+    Limpia datos numéricos y fechas para métricas y gráficos.
     """
 
     df = df.copy()
@@ -555,12 +693,11 @@ def limpiar_dataframe_para_metricas(df):
         )
 
     return df
-    # ======================================================
+# ======================================================
 # PARTE 3 DE 5
 # INTERFAZ PRINCIPAL, INICIO Y FORMULARIO DE REGISTRO
 # ======================================================
 
-# Mostrar logo en barra lateral
 mostrar_logo()
 
 st.sidebar.markdown("## Sistema PUMI 2026")
@@ -647,15 +784,34 @@ elif menu == "Registrar actividad":
         """
         <div class="card-azul">
             <div class="texto-pumi">
-                Complete la información de la actividad preventiva realizada. 
-                El sistema asignará automáticamente un ID consecutivo al registro.
+                Complete la información de la actividad preventiva realizada.
+                El sistema asignará automáticamente un ID consecutivo simple:
+                1, 2, 3, 4...
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    delegaciones_lista = obtener_delegaciones_unicas()
+    distritos_lista = obtener_distritos_unicos()
+
+    if not delegaciones_lista:
+        st.warning("No se encontró la base DELEGACIONES Y DISTRITOS.xlsx o no contiene la columna Delegacion.")
+
+    if not distritos_lista:
+        st.warning("No se encontró la base DELEGACIONES Y DISTRITOS.xlsx o no contiene la columna Distrito.")
+
     with st.form("form_registro_pumi"):
+
+        st.markdown(
+            """
+            <div class="bloque-datos">
+                <b>Datos generales del registro</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         col1, col2 = st.columns(2)
 
@@ -671,8 +827,9 @@ elif menu == "Registrar actividad":
                 REGIONES
             )
 
-            delegacion = st.text_input(
-                "Delegación"
+            delegacion = st.selectbox(
+                "Delegación",
+                delegaciones_lista if delegaciones_lista else ["Sin datos disponibles"]
             )
 
             programa = st.selectbox(
@@ -680,30 +837,17 @@ elif menu == "Registrar actividad":
                 PROGRAMAS
             )
 
+        with col2:
             actividad = st.text_input(
                 "Actividad realizada"
             )
 
-            provincia = st.selectbox(
-                "Provincia",
-                PROVINCIAS
-            )
-
-            canton = st.text_input(
-                "Cantón"
-            )
-
-            distrito = st.text_input(
-                "Distrito"
-            )
-
-        with col2:
-            lugar = st.text_input(
-                "Lugar / Centro Educativo"
-            )
-
             responsable = st.text_input(
                 "Funcionario responsable"
+            )
+
+            usuario = st.text_input(
+                "Usuario que registra"
             )
 
             cantidad = st.number_input(
@@ -712,21 +856,92 @@ elif menu == "Registrar actividad":
                 step=1
             )
 
-            instituciones = st.text_area(
-                "Instituciones participantes"
+        st.markdown(
+            """
+            <div class="bloque-territorio">
+                <b>Ubicación territorial</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        col3, col4, col5 = st.columns(3)
+
+        with col3:
+            provincia = st.selectbox(
+                "Provincia",
+                PROVINCIAS
             )
 
-            plan = st.text_input(
-                "Plan estratégico relacionado"
+        with col4:
+            canton = st.text_input(
+                "Cantón"
             )
 
-            evidencia = st.text_input(
-                "Enlace de evidencia"
+        with col5:
+            distrito = st.selectbox(
+                "Distrito",
+                distritos_lista if distritos_lista else ["Sin datos disponibles"]
             )
 
-            usuario = st.text_input(
-                "Usuario que registra"
+        st.markdown(
+            """
+            <div class="bloque-actividad">
+                <b>Lugar de realización de la actividad</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        tipo_lugar = st.radio(
+            "Seleccione el tipo de lugar",
+            ["Centro educativo", "Otro lugar"],
+            horizontal=True
+        )
+
+        lugar = ""
+        centro_educativo = ""
+
+        if tipo_lugar == "Centro educativo":
+            centros = obtener_centros_por_provincia(provincia)
+
+            if centros:
+                centro_educativo = st.selectbox(
+                    "Centro educativo según base MEP 2025",
+                    centros
+                )
+                lugar = centro_educativo
+            else:
+                st.warning("No se encontraron centros educativos para la provincia seleccionada.")
+                centro_educativo = st.text_input("Digite el centro educativo manualmente")
+                lugar = centro_educativo
+
+        else:
+            lugar = st.text_input(
+                "Lugar donde se realizó la actividad"
             )
+            centro_educativo = ""
+
+        st.markdown(
+            """
+            <div class="bloque-datos">
+                <b>Información complementaria</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        instituciones = st.text_area(
+            "Instituciones participantes"
+        )
+
+        plan = st.text_input(
+            "Plan estratégico relacionado"
+        )
+
+        evidencia = st.text_input(
+            "Enlace de evidencia"
+        )
 
         observaciones = st.text_area(
             "Observaciones"
@@ -738,7 +953,7 @@ elif menu == "Registrar actividad":
 
         if guardar:
 
-            if not delegacion or not actividad or not responsable:
+            if not delegacion or delegacion == "Sin datos disponibles" or not actividad or not responsable:
                 st.warning(
                     "Debe completar al menos Delegación, Actividad realizada y Funcionario responsable."
                 )
@@ -757,7 +972,9 @@ elif menu == "Registrar actividad":
                     "Provincia": provincia,
                     "Cantón": canton,
                     "Distrito": distrito,
-                    "Lugar / Centro Educativo": lugar,
+                    "Tipo Lugar": tipo_lugar,
+                    "Lugar": lugar,
+                    "Centro Educativo": centro_educativo,
                     "Responsable": responsable,
                     "Cantidad Participantes": cantidad,
                     "Instituciones Participantes": instituciones,
@@ -773,7 +990,7 @@ elif menu == "Registrar actividad":
                 st.success(
                     f"Registro guardado correctamente con el ID #{nuevo_id}."
                 )
-                # ======================================================
+# ======================================================
 # PARTE 4 DE 5
 # CONSULTA, FILTROS, EDICIÓN, ELIMINACIÓN Y EXCEL
 # ======================================================
@@ -789,6 +1006,9 @@ elif menu == "Consultar / editar registros":
 
     else:
         df_consulta = limpiar_dataframe_para_metricas(df)
+
+        delegaciones_lista = obtener_delegaciones_unicas()
+        distritos_lista = obtener_distritos_unicos()
 
         st.markdown(
             """
@@ -962,16 +1182,25 @@ elif menu == "Consultar / editar registros":
 
                 with st.form("form_editar_registro"):
 
+                    st.markdown(
+                        """
+                        <div class="bloque-datos">
+                            <b>Datos generales del registro</b>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
                     col1, col2 = st.columns(2)
 
                     with col1:
                         fecha_registro = st.text_input(
                             "Fecha Registro",
-                            registro_actual["Fecha Registro"]
+                            registro_actual.get("Fecha Registro", "")
                         )
 
                         fecha_actividad_actual = pd.to_datetime(
-                            registro_actual["Fecha Actividad"],
+                            registro_actual.get("Fecha Actividad", ""),
                             errors="coerce",
                             dayfirst=True
                         )
@@ -990,57 +1219,49 @@ elif menu == "Consultar / editar registros":
                         nueva_region = st.selectbox(
                             "Dirección Regional",
                             REGIONES,
-                            index=REGIONES.index(registro_actual["Dirección Regional"])
-                            if registro_actual["Dirección Regional"] in REGIONES else 0
+                            index=REGIONES.index(registro_actual.get("Dirección Regional", ""))
+                            if registro_actual.get("Dirección Regional", "") in REGIONES else 0
                         )
 
-                        nueva_delegacion = st.text_input(
+                        delegacion_actual = registro_actual.get("Delegación", "")
+
+                        if delegacion_actual and delegacion_actual not in delegaciones_lista:
+                            opciones_delegacion = [delegacion_actual] + delegaciones_lista
+                        else:
+                            opciones_delegacion = delegaciones_lista if delegaciones_lista else [delegacion_actual]
+
+                        nueva_delegacion = st.selectbox(
                             "Delegación",
-                            registro_actual["Delegación"]
+                            opciones_delegacion,
+                            index=opciones_delegacion.index(delegacion_actual)
+                            if delegacion_actual in opciones_delegacion else 0
                         )
 
                         nuevo_programa = st.selectbox(
                             "Programa",
                             PROGRAMAS,
-                            index=PROGRAMAS.index(registro_actual["Programa"])
-                            if registro_actual["Programa"] in PROGRAMAS else 0
-                        )
-
-                        nueva_actividad = st.text_input(
-                            "Actividad realizada",
-                            registro_actual["Actividad"]
-                        )
-
-                        nueva_provincia = st.selectbox(
-                            "Provincia",
-                            PROVINCIAS,
-                            index=PROVINCIAS.index(registro_actual["Provincia"])
-                            if registro_actual["Provincia"] in PROVINCIAS else 0
-                        )
-
-                        nuevo_canton = st.text_input(
-                            "Cantón",
-                            registro_actual["Cantón"]
-                        )
-
-                        nuevo_distrito = st.text_input(
-                            "Distrito",
-                            registro_actual["Distrito"]
+                            index=PROGRAMAS.index(registro_actual.get("Programa", ""))
+                            if registro_actual.get("Programa", "") in PROGRAMAS else 0
                         )
 
                     with col2:
-                        nuevo_lugar = st.text_input(
-                            "Lugar / Centro Educativo",
-                            registro_actual["Lugar / Centro Educativo"]
+                        nueva_actividad = st.text_input(
+                            "Actividad realizada",
+                            registro_actual.get("Actividad", "")
                         )
 
                         nuevo_responsable = st.text_input(
                             "Responsable",
-                            registro_actual["Responsable"]
+                            registro_actual.get("Responsable", "")
+                        )
+
+                        nuevo_usuario = st.text_input(
+                            "Usuario Registra",
+                            registro_actual.get("Usuario Registra", "")
                         )
 
                         cantidad_actual = pd.to_numeric(
-                            registro_actual["Cantidad Participantes"],
+                            registro_actual.get("Cantidad Participantes", 0),
                             errors="coerce"
                         )
 
@@ -1054,43 +1275,143 @@ elif menu == "Consultar / editar registros":
                             value=int(cantidad_actual)
                         )
 
-                        nuevas_instituciones = st.text_area(
-                            "Instituciones Participantes",
-                            registro_actual["Instituciones Participantes"]
+                    st.markdown(
+                        """
+                        <div class="bloque-territorio">
+                            <b>Ubicación territorial</b>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    col3, col4, col5 = st.columns(3)
+
+                    with col3:
+                        nueva_provincia = st.selectbox(
+                            "Provincia",
+                            PROVINCIAS,
+                            index=PROVINCIAS.index(registro_actual.get("Provincia", ""))
+                            if registro_actual.get("Provincia", "") in PROVINCIAS else 0
                         )
 
-                        nuevo_plan = st.text_input(
-                            "Plan Estratégico Relacionado",
-                            registro_actual["Plan Estratégico Relacionado"]
+                    with col4:
+                        nuevo_canton = st.text_input(
+                            "Cantón",
+                            registro_actual.get("Cantón", "")
                         )
 
-                        nueva_evidencia = st.text_input(
-                            "Evidencia",
-                            registro_actual["Evidencia"]
+                    with col5:
+                        distrito_actual = registro_actual.get("Distrito", "")
+
+                        if distrito_actual and distrito_actual not in distritos_lista:
+                            opciones_distrito = [distrito_actual] + distritos_lista
+                        else:
+                            opciones_distrito = distritos_lista if distritos_lista else [distrito_actual]
+
+                        nuevo_distrito = st.selectbox(
+                            "Distrito",
+                            opciones_distrito,
+                            index=opciones_distrito.index(distrito_actual)
+                            if distrito_actual in opciones_distrito else 0
                         )
 
-                        nuevo_estado = st.selectbox(
-                            "Estado Revisión",
-                            ESTADOS_REVISION,
-                            index=ESTADOS_REVISION.index(registro_actual["Estado Revisión"])
-                            if registro_actual["Estado Revisión"] in ESTADOS_REVISION else 0
-                        )
+                    st.markdown(
+                        """
+                        <div class="bloque-actividad">
+                            <b>Lugar de realización de la actividad</b>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
-                        nuevo_usuario = st.text_input(
-                            "Usuario Registra",
-                            registro_actual["Usuario Registra"]
+                    tipo_actual = registro_actual.get("Tipo Lugar", "Otro lugar")
+
+                    if tipo_actual not in ["Centro educativo", "Otro lugar"]:
+                        tipo_actual = "Otro lugar"
+
+                    tipo_lugar_editado = st.radio(
+                        "Seleccione el tipo de lugar",
+                        ["Centro educativo", "Otro lugar"],
+                        index=["Centro educativo", "Otro lugar"].index(tipo_actual),
+                        horizontal=True
+                    )
+
+                    lugar_editado = ""
+                    centro_editado = ""
+
+                    if tipo_lugar_editado == "Centro educativo":
+                        centros = obtener_centros_por_provincia(nueva_provincia)
+
+                        centro_actual = registro_actual.get("Centro Educativo", "")
+
+                        if centros:
+                            if centro_actual and centro_actual not in centros:
+                                opciones_centros = [centro_actual] + centros
+                            else:
+                                opciones_centros = centros
+
+                            centro_editado = st.selectbox(
+                                "Centro educativo según base MEP 2025",
+                                opciones_centros,
+                                index=opciones_centros.index(centro_actual)
+                                if centro_actual in opciones_centros else 0
+                            )
+                        else:
+                            centro_editado = st.text_input(
+                                "Digite el centro educativo manualmente",
+                                centro_actual
+                            )
+
+                        lugar_editado = centro_editado
+
+                    else:
+                        lugar_editado = st.text_input(
+                            "Lugar donde se realizó la actividad",
+                            registro_actual.get("Lugar", "")
                         )
+                        centro_editado = ""
+
+                    st.markdown(
+                        """
+                        <div class="bloque-datos">
+                            <b>Información complementaria</b>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    nuevas_instituciones = st.text_area(
+                        "Instituciones Participantes",
+                        registro_actual.get("Instituciones Participantes", "")
+                    )
+
+                    nuevo_plan = st.text_input(
+                        "Plan Estratégico Relacionado",
+                        registro_actual.get("Plan Estratégico Relacionado", "")
+                    )
+
+                    nueva_evidencia = st.text_input(
+                        "Evidencia",
+                        registro_actual.get("Evidencia", "")
+                    )
 
                     nuevas_observaciones = st.text_area(
                         "Observaciones",
-                        registro_actual["Observaciones"]
+                        registro_actual.get("Observaciones", "")
+                    )
+
+                    nuevo_estado = st.selectbox(
+                        "Estado Revisión",
+                        ESTADOS_REVISION,
+                        index=ESTADOS_REVISION.index(registro_actual.get("Estado Revisión", ""))
+                        if registro_actual.get("Estado Revisión", "") in ESTADOS_REVISION else 0
                     )
 
                     actualizar = st.form_submit_button("Guardar cambios")
 
                     if actualizar:
                         nuevos_datos = {
-                            "ID": registro_actual["ID"],
+                            "ID": registro_actual.get("ID", ""),
                             "Fecha Registro": fecha_registro,
                             "Fecha Actividad": fecha_actividad_editada.strftime("%d/%m/%Y"),
                             "Dirección Regional": nueva_region,
@@ -1100,7 +1421,9 @@ elif menu == "Consultar / editar registros":
                             "Provincia": nueva_provincia,
                             "Cantón": nuevo_canton,
                             "Distrito": nuevo_distrito,
-                            "Lugar / Centro Educativo": nuevo_lugar,
+                            "Tipo Lugar": tipo_lugar_editado,
+                            "Lugar": lugar_editado,
+                            "Centro Educativo": centro_editado,
                             "Responsable": nuevo_responsable,
                             "Cantidad Participantes": nueva_cantidad,
                             "Instituciones Participantes": nuevas_instituciones,
