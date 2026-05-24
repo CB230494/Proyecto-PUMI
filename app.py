@@ -893,6 +893,58 @@ def limpiar_dataframe_para_metricas(df):
 # INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO, GPS, MAPA Y SEGUIMIENTO
 # ======================================================
 
+# ======================================================
+# FUNCIÓN AUXILIAR PARA TIPOS DE MAPA
+# ======================================================
+
+def crear_mapa_base(centro, zoom, tipo_mapa):
+    mapa = folium.Map(
+        location=centro,
+        zoom_start=zoom,
+        tiles=None
+    )
+
+    if tipo_mapa == "OpenStreetMap":
+        folium.TileLayer(
+            tiles="OpenStreetMap",
+            name="OpenStreetMap"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Mapa claro":
+        folium.TileLayer(
+            tiles="CartoDB positron",
+            name="Mapa claro"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Mapa oscuro":
+        folium.TileLayer(
+            tiles="CartoDB dark_matter",
+            name="Mapa oscuro"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Topográfico":
+        folium.TileLayer(
+            tiles="OpenTopoMap",
+            name="Topográfico"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Satélite":
+        folium.TileLayer(
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/"
+                  "World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri World Imagery",
+            name="Satélite"
+        ).add_to(mapa)
+
+    folium.LayerControl().add_to(mapa)
+
+    return mapa
+
+
+# ======================================================
+# LOGO Y MENÚ
+# ======================================================
+
 mostrar_logo()
 
 st.sidebar.markdown("## Sistema PUMI 2026")
@@ -1086,17 +1138,9 @@ elif menu == "Registrar actividad":
             )
 
         with col2:
-            actividad = st.text_input(
-                "Actividad realizada"
-            )
-
-            responsable = st.text_input(
-                "Funcionario responsable"
-            )
-
-            usuario = st.text_input(
-                "Usuario que registra"
-            )
+            actividad = st.text_input("Actividad realizada")
+            responsable = st.text_input("Funcionario responsable")
+            usuario = st.text_input("Usuario que registra")
 
             cantidad = st.number_input(
                 "Cantidad de participantes",
@@ -1122,9 +1166,7 @@ elif menu == "Registrar actividad":
             )
 
         with col4:
-            canton = st.text_input(
-                "Cantón"
-            )
+            canton = st.text_input("Cantón")
 
         with col5:
             distrito = st.selectbox(
@@ -1181,6 +1223,18 @@ elif menu == "Registrar actividad":
             </div>
             """,
             unsafe_allow_html=True
+        )
+
+        tipo_mapa_registro = st.selectbox(
+            "Tipo de mapa",
+            [
+                "OpenStreetMap",
+                "Mapa claro",
+                "Mapa oscuro",
+                "Topográfico",
+                "Satélite"
+            ],
+            key="tipo_mapa_registro"
         )
 
         direccion_mapa = st.text_input(
@@ -1261,10 +1315,10 @@ elif menu == "Registrar actividad":
             centro_mapa = [9.7489, -83.7534]
             zoom_mapa = 7
 
-        mapa_seleccion = folium.Map(
-            location=centro_mapa,
-            zoom_start=zoom_mapa,
-            tiles="OpenStreetMap"
+        mapa_seleccion = crear_mapa_base(
+            centro=centro_mapa,
+            zoom=zoom_mapa,
+            tipo_mapa=tipo_mapa_registro
         )
 
         if lat_num is not None and lon_num is not None:
@@ -1279,7 +1333,8 @@ elif menu == "Registrar actividad":
 
         resultado_mapa = st_folium(
             mapa_seleccion,
-            height=420,
+            width=1000,
+            height=520,
             key="mapa_seleccion_registro"
         )
 
@@ -1303,25 +1358,12 @@ elif menu == "Registrar actividad":
             unsafe_allow_html=True
         )
 
-        instituciones = st.text_area(
-            "Instituciones participantes"
-        )
+        instituciones = st.text_area("Instituciones participantes")
+        plan = st.text_input("Plan estratégico relacionado")
+        evidencia = st.text_input("Enlace de evidencia")
+        observaciones = st.text_area("Observaciones")
 
-        plan = st.text_input(
-            "Plan estratégico relacionado"
-        )
-
-        evidencia = st.text_input(
-            "Enlace de evidencia"
-        )
-
-        observaciones = st.text_area(
-            "Observaciones"
-        )
-
-        guardar = st.form_submit_button(
-            "Guardar registro"
-        )
+        guardar = st.form_submit_button("Guardar registro")
 
         if guardar:
 
@@ -1502,7 +1544,7 @@ elif menu == "Seguimiento de registros":
 
         mostrar_mapa_registros(
             df_usuario,
-            height=520,
+            height=560,
             key="mapa_seguimiento_usuarios"
         )
 
