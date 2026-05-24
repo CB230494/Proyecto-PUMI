@@ -1335,7 +1335,7 @@ elif menu == "Registrar actividad":
             mapa_seleccion,
             width=1000,
             height=520,
-            key="mapa_seleccion_registro"
+            key=f"mapa_seleccion_registro_{tipo_mapa_registro}_{metodo_ubicacion}"
         )
 
         if resultado_mapa and resultado_mapa.get("last_clicked"):
