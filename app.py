@@ -1455,31 +1455,8 @@ if menu == "Inicio":
     )
 
     df = cargar_datos()
-    df_metricas = limpiar_dataframe_para_metricas(df)
 
-    total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if not df_metricas.empty else 0
-    total_hombres = int(df_metricas["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_metricas.columns and not df_metricas.empty else 0
-    total_mujeres = int(df_metricas["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_metricas.columns and not df_metricas.empty else 0
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric("Registros", len(df_metricas))
-    col2.metric("Programas", df_metricas["Programa"].nunique() if not df_metricas.empty else 0)
-    col3.metric("Delegaciones", df_metricas["Delegación"].nunique() if not df_metricas.empty else 0)
-    col4.metric("Participantes", total_participantes)
-
-    col5, col6, col7, col8 = st.columns(4)
-
-    col5.metric("Hombres", f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})")
-    col6.metric("Mujeres", f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})")
-
-    if not df_metricas.empty and "Edad 10 a 18" in df_metricas.columns:
-        edad_10_18 = int(df_metricas["Edad 10 a 18"].sum())
-        col7.metric("Edad 10 a 18", f"{edad_10_18} ({porcentaje(edad_10_18, total_participantes)})")
-
-    if not df_metricas.empty and "Edad 19 a 30" in df_metricas.columns:
-        edad_19_30 = int(df_metricas["Edad 19 a 30"].sum())
-        col8.metric("Edad 19 a 30", f"{edad_19_30} ({porcentaje(edad_19_30, total_participantes)})")
+    st.metric("Total de registros", len(df))
 
     st.success("Conexión con Google Sheets activa.")
 
