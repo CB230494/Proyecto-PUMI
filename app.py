@@ -48,6 +48,7 @@ st.set_page_config(
 
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
 ARCHIVO_DELEGACIONES = "DELEGACIONES Y DISTRITOS.xlsx"
+ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 
 
 # ======================================================
@@ -99,7 +100,8 @@ ENCABEZADOS = [
 
 
 # ======================================================
-# CATÁLOGOS BASE
+# CATÁLOGOS BASE DE RESPALDO
+# Si el Excel no carga, la app usa estos valores.
 # ======================================================
 
 PROGRAMAS = [
@@ -386,7 +388,7 @@ def mostrar_logo():
         st.sidebar.warning("Logo PUMI no encontrado.")
 # ======================================================
 # PARTE 2 DE 5
-# CONEXIÓN GOOGLE SHEETS, BASES AUXILIARES, CRUD, MAPA Y GEOREFERENCIA
+# CONEXIÓN GOOGLE SHEETS, BASES AUXILIARES, CRUD, MAPA Y FILTROS
 # ======================================================
 
 @st.cache_resource
@@ -409,10 +411,6 @@ def conectar_google_sheets():
 
     except Exception as e:
         st.error("No se pudo conectar con Google Sheets.")
-        st.warning(
-            "Revise que el archivo secrets.toml esté correctamente configurado "
-            "y que la hoja esté compartida con el correo del service account."
-        )
         st.exception(e)
         st.stop()
 
@@ -433,10 +431,6 @@ def obtener_hoja(nombre_hoja):
 
     except Exception as e:
         st.error("Error al conectar con la hoja de Google Sheets.")
-        st.warning(
-            "Revise: permisos del service account, nombre de pestaña, "
-            "Google Sheets API y Google Drive API."
-        )
         st.exception(e)
         st.stop()
 
@@ -475,6 +469,174 @@ def normalizar_texto(valor):
     return texto
 
 
+def obtener_columna_por_nombre(df, posibles_nombres):
+    """
+    Busca una columna aunque venga con tildes, mayúsculas o espacios distintos.
+    """
+
+    columnas = list(df.columns)
+
+    for posible in posibles_nombres:
+        posible_norm = normalizar_texto(posible)
+
+        for col in columnas:
+            if normalizar_texto(col) == posible_norm:
+                return col
+
+    return None
+
+
+# ======================================================
+# BASE DATOS IMPORTANTES
+# ======================================================
+
+@st.cache_data
+def cargar_datos_importantes():
+    """
+    Carga Datos Importantes.xlsx.
+    Columnas esperadas:
+    Provincia, Cantón, Dirección Regional, Delegación,
+    Actividad Realizada, Programa.
+    """
+
+    columnas_base = [
+        "Provincia",
+        "Cantón",
+        "Dirección Regional",
+        "Delegación",
+        "Actividad Realizada",
+        "Programa"
+    ]
+
+    if not os.path.exists(ARCHIVO_DATOS_IMPORTANTES):
+        return pd.DataFrame(columns=columnas_base)
+
+    df = pd.read_excel(ARCHIVO_DATOS_IMPORTANTES)
+
+    col_provincia = obtener_columna_por_nombre(df, ["Provincia"])
+    col_canton = obtener_columna_por_nombre(df, ["Cantón", "Canton"])
+    col_region = obtener_columna_por_nombre(df, ["Dirección Regional", "Direccion Regional"])
+    col_delegacion = obtener_columna_por_nombre(df, ["Delegación", "Delegacion"])
+    col_actividad = obtener_columna_por_nombre(df, ["Actividad Realizada"])
+    col_programa = obtener_columna_por_nombre(df, ["Programa"])
+
+    if not all([col_provincia, col_canton, col_region, col_delegacion, col_actividad, col_programa]):
+        return pd.DataFrame(columns=columnas_base)
+
+    df = df[
+        [
+            col_provincia,
+            col_canton,
+            col_region,
+            col_delegacion,
+            col_actividad,
+            col_programa
+        ]
+    ].copy()
+
+    df.columns = columnas_base
+
+    for col in columnas_base:
+        df[col] = df[col].astype(str).str.strip()
+
+    df = df.replace("nan", "")
+    df = df.drop_duplicates()
+
+    df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
+    df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+    df["Región_Normalizada"] = df["Dirección Regional"].apply(normalizar_texto)
+    df["Delegación_Normalizada"] = df["Delegación"].apply(normalizar_texto)
+    df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(normalizar_texto)
+    df["Programa_Normalizado"] = df["Programa"].apply(normalizar_texto)
+
+    return df
+
+
+def obtener_regiones_datos():
+    df = cargar_datos_importantes()
+
+    if df.empty:
+        return REGIONES
+
+    return sorted(df["Dirección Regional"].dropna().unique().tolist())
+
+
+def obtener_delegaciones_por_region(region):
+    df = cargar_datos_importantes()
+
+    if df.empty or not region:
+        return obtener_delegaciones_unicas()
+
+    region_norm = normalizar_texto(region)
+
+    delegaciones = df[
+        df["Región_Normalizada"] == region_norm
+    ]["Delegación"].dropna().unique().tolist()
+
+    return sorted(delegaciones)
+
+
+def obtener_actividades_por_delegacion(delegacion):
+    df = cargar_datos_importantes()
+
+    if df.empty or not delegacion:
+        return []
+
+    delegacion_norm = normalizar_texto(delegacion)
+
+    actividades = df[
+        df["Delegación_Normalizada"] == delegacion_norm
+    ]["Actividad Realizada"].dropna().unique().tolist()
+
+    return sorted(actividades)
+
+
+def obtener_programas_por_actividad(actividad):
+    df = cargar_datos_importantes()
+
+    if df.empty or not actividad:
+        return PROGRAMAS
+
+    actividad_norm = normalizar_texto(actividad)
+
+    programas = df[
+        df["Actividad_Normalizada"] == actividad_norm
+    ]["Programa"].dropna().unique().tolist()
+
+    if not programas:
+        return PROGRAMAS
+
+    return sorted(programas)
+
+
+def obtener_provincias_datos():
+    df = cargar_datos_importantes()
+
+    if df.empty:
+        return PROVINCIAS
+
+    return sorted(df["Provincia"].dropna().unique().tolist())
+
+
+def obtener_cantones_por_provincia(provincia):
+    df = cargar_datos_importantes()
+
+    if df.empty or not provincia:
+        return []
+
+    provincia_norm = normalizar_texto(provincia)
+
+    cantones = df[
+        df["Provincia_Normalizada"] == provincia_norm
+    ]["Cantón"].dropna().unique().tolist()
+
+    return sorted(cantones)
+
+
+# ======================================================
+# BASE MEP
+# ======================================================
+
 @st.cache_data
 def cargar_base_mep():
     if not os.path.exists(ARCHIVO_MEP):
@@ -497,71 +659,6 @@ def cargar_base_mep():
     return df
 
 
-@st.cache_data
-def cargar_base_delegaciones():
-    if not os.path.exists(ARCHIVO_DELEGACIONES):
-        return pd.DataFrame(columns=["Delegacion", "Distrito"])
-
-    df = pd.read_excel(ARCHIVO_DELEGACIONES)
-
-    col_delegacion = None
-    col_distrito = None
-
-    for col in df.columns:
-        col_norm = normalizar_texto(col)
-
-        if col_norm == "DELEGACION":
-            col_delegacion = col
-
-        if col_norm == "DISTRITO":
-            col_distrito = col
-
-    if col_delegacion is None or col_distrito is None:
-        return pd.DataFrame(columns=["Delegacion", "Distrito"])
-
-    df = df[[col_delegacion, col_distrito]].copy()
-    df.columns = ["Delegacion", "Distrito"]
-
-    df = df.dropna(subset=["Delegacion", "Distrito"])
-    df["Delegacion"] = df["Delegacion"].astype(str).str.strip()
-    df["Distrito"] = df["Distrito"].astype(str).str.strip()
-
-    df["Delegacion_Normalizada"] = df["Delegacion"].apply(normalizar_texto)
-    df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
-
-    df = df.drop_duplicates(
-        subset=["Delegacion_Normalizada", "Distrito_Normalizado"]
-    )
-
-    return df
-
-
-def obtener_delegaciones_unicas():
-    df = cargar_base_delegaciones()
-
-    if df.empty:
-        return []
-
-    df_tmp = df[["Delegacion", "Delegacion_Normalizada"]].drop_duplicates(
-        subset=["Delegacion_Normalizada"]
-    )
-
-    return sorted(df_tmp["Delegacion"].dropna().tolist())
-
-
-def obtener_distritos_unicos():
-    df = cargar_base_delegaciones()
-
-    if df.empty:
-        return []
-
-    df_tmp = df[["Distrito", "Distrito_Normalizado"]].drop_duplicates(
-        subset=["Distrito_Normalizado"]
-    )
-
-    return sorted(df_tmp["Distrito"].dropna().tolist())
-
-
 def obtener_centros_por_provincia(provincia):
     df = cargar_base_mep()
 
@@ -578,16 +675,135 @@ def obtener_centros_por_provincia(provincia):
 
 
 # ======================================================
-# FUNCIONES DE GEOREFERENCIA Y MAPA
+# BASE DELEGACIONES Y DISTRITOS
+# ======================================================
+
+@st.cache_data
+def cargar_base_delegaciones():
+    """
+    Carga DELEGACIONES Y DISTRITOS.xlsx.
+    Si el archivo tiene Provincia/Cantón/Distrito, permite filtrar distrito por cantón.
+    Si solo tiene Delegacion/Distrito, se usa como lista única.
+    """
+
+    if not os.path.exists(ARCHIVO_DELEGACIONES):
+        return pd.DataFrame(columns=["Delegacion", "Distrito"])
+
+    df_original = pd.read_excel(ARCHIVO_DELEGACIONES)
+
+    col_delegacion = obtener_columna_por_nombre(df_original, ["Delegacion", "Delegación"])
+    col_distrito = obtener_columna_por_nombre(df_original, ["Distrito"])
+    col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
+    col_canton = obtener_columna_por_nombre(df_original, ["Canton", "Cantón"])
+
+    columnas = {}
+    if col_delegacion:
+        columnas[col_delegacion] = "Delegacion"
+    if col_distrito:
+        columnas[col_distrito] = "Distrito"
+    if col_provincia:
+        columnas[col_provincia] = "Provincia"
+    if col_canton:
+        columnas[col_canton] = "Cantón"
+
+    if not col_distrito:
+        return pd.DataFrame(columns=["Delegacion", "Distrito", "Provincia", "Cantón"])
+
+    df = df_original[list(columnas.keys())].copy()
+    df = df.rename(columns=columnas)
+
+    for col in ["Delegacion", "Distrito", "Provincia", "Cantón"]:
+        if col not in df.columns:
+            df[col] = ""
+
+        df[col] = df[col].astype(str).str.strip()
+
+    df = df.replace("nan", "")
+    df = df.dropna(subset=["Distrito"])
+
+    df["Delegacion_Normalizada"] = df["Delegacion"].apply(normalizar_texto)
+    df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
+    df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
+    df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+
+    df = df.drop_duplicates(
+        subset=[
+            "Delegacion_Normalizada",
+            "Distrito_Normalizado",
+            "Provincia_Normalizada",
+            "Cantón_Normalizado"
+        ]
+    )
+
+    return df
+
+
+def obtener_delegaciones_unicas():
+    df = cargar_base_delegaciones()
+
+    if df.empty or "Delegacion" not in df.columns:
+        return []
+
+    df_tmp = df[["Delegacion", "Delegacion_Normalizada"]].drop_duplicates(
+        subset=["Delegacion_Normalizada"]
+    )
+
+    return sorted([x for x in df_tmp["Delegacion"].dropna().tolist() if x.strip() != ""])
+
+
+def obtener_distritos_unicos():
+    df = cargar_base_delegaciones()
+
+    if df.empty:
+        return []
+
+    df_tmp = df[["Distrito", "Distrito_Normalizado"]].drop_duplicates(
+        subset=["Distrito_Normalizado"]
+    )
+
+    return sorted([x for x in df_tmp["Distrito"].dropna().tolist() if x.strip() != ""])
+
+
+def obtener_distritos_por_provincia_canton(provincia, canton):
+    """
+    Filtra distritos por provincia y cantón si la base los trae.
+    Si no existen esas columnas con datos, devuelve lista general.
+    """
+
+    df = cargar_base_delegaciones()
+
+    if df.empty:
+        return []
+
+    provincia_norm = normalizar_texto(provincia)
+    canton_norm = normalizar_texto(canton)
+
+    df_filtrado = df.copy()
+
+    if provincia_norm and df_filtrado["Provincia_Normalizada"].str.strip().ne("").any():
+        df_filtrado = df_filtrado[
+            df_filtrado["Provincia_Normalizada"] == provincia_norm
+        ]
+
+    if canton_norm and df_filtrado["Cantón_Normalizado"].str.strip().ne("").any():
+        df_filtrado = df_filtrado[
+            df_filtrado["Cantón_Normalizado"] == canton_norm
+        ]
+
+    distritos = df_filtrado["Distrito"].dropna().unique().tolist()
+
+    if not distritos:
+        return obtener_distritos_unicos()
+
+    return sorted([x for x in distritos if str(x).strip() != ""])
+
+
+# ======================================================
+# GEOREFERENCIA Y MAPA
 # ======================================================
 
 @st.cache_data(show_spinner=False)
 def georreferenciar_direccion(direccion):
-    """
-    Convierte un nombre de lugar o dirección en coordenadas.
-    Usa Nominatim/OpenStreetMap.
-    """
-
     if not direccion or str(direccion).strip() == "":
         return None, None, ""
 
@@ -613,11 +829,6 @@ def georreferenciar_direccion(direccion):
 
 
 def limpiar_coordenada(valor):
-    """
-    Convierte una coordenada a número.
-    Si no es válida devuelve None.
-    """
-
     try:
         if valor is None or str(valor).strip() == "":
             return None
@@ -629,18 +840,10 @@ def limpiar_coordenada(valor):
 
 
 def obtener_color_programa(programa):
-    """
-    Devuelve color de marcador según programa.
-    """
-
     return COLORES_PROGRAMA.get(programa, "gray")
 
 
 def preparar_dataframe_mapa(df):
-    """
-    Limpia latitud y longitud para mostrar registros en el mapa.
-    """
-
     df_mapa = df.copy()
 
     if "Latitud" not in df_mapa.columns:
@@ -658,20 +861,14 @@ def preparar_dataframe_mapa(df):
 
 
 def crear_mapa_registros(df, zoom_start=8):
-    """
-    Crea mapa Folium con todos los registros que tengan coordenadas.
-    Cada programa se muestra con color diferente.
-    """
-
     df_mapa = preparar_dataframe_mapa(df)
 
     if df_mapa.empty:
-        mapa = folium.Map(
+        return folium.Map(
             location=[9.7489, -83.7534],
             zoom_start=7,
             tiles="OpenStreetMap"
         )
-        return mapa
 
     centro_lat = df_mapa["Latitud_Num"].mean()
     centro_lon = df_mapa["Longitud_Num"].mean()
@@ -694,6 +891,7 @@ def crear_mapa_registros(df, zoom_start=8):
             <b>Programa:</b> {row.get("Programa", "")}<br>
             <b>Actividad:</b> {row.get("Actividad", "")}<br>
             <b>Provincia:</b> {row.get("Provincia", "")}<br>
+            <b>Cantón:</b> {row.get("Cantón", "")}<br>
             <b>Distrito:</b> {row.get("Distrito", "")}<br>
             <b>Lugar:</b> {row.get("Lugar", "")}<br>
             <b>Estado:</b> {row.get("Estado Revisión", "")}<br>
@@ -712,10 +910,6 @@ def crear_mapa_registros(df, zoom_start=8):
 
 
 def mostrar_mapa_registros(df, height=520, key="mapa_registros"):
-    """
-    Muestra el mapa en Streamlit.
-    """
-
     df_mapa = preparar_dataframe_mapa(df)
 
     if df_mapa.empty:
@@ -725,14 +919,14 @@ def mostrar_mapa_registros(df, height=520, key="mapa_registros"):
 
     st_folium(
         mapa,
-        width=None,
+        width=1100,
         height=height,
         key=key
     )
 
 
 # ======================================================
-# DATOS PRINCIPALES
+# DATOS PRINCIPALES GOOGLE SHEETS
 # ======================================================
 
 def cargar_datos():
@@ -898,16 +1092,12 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
 
     if tipo_mapa == "OpenStreetMap":
         folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(mapa)
-
     elif tipo_mapa == "Mapa claro":
         folium.TileLayer("CartoDB positron", name="Mapa claro").add_to(mapa)
-
     elif tipo_mapa == "Mapa oscuro":
         folium.TileLayer("CartoDB dark_matter", name="Mapa oscuro").add_to(mapa)
-
     elif tipo_mapa == "Topográfico":
         folium.TileLayer("OpenTopoMap", name="Topográfico").add_to(mapa)
-
     elif tipo_mapa == "Satélite":
         folium.TileLayer(
             tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -1017,9 +1207,8 @@ elif menu == "Registrar actividad":
         """
         <div class="card-azul">
             <div class="texto-pumi">
-                Complete la información de la actividad. Puede registrar la ubicación
-                mediante búsqueda, GPS, coordenadas manuales o marcando directamente
-                el punto en el mapa.
+                Complete la información de la actividad. Los campos se despliegan
+                de forma dependiente según la base Datos Importantes.xlsx.
             </div>
         </div>
         """,
@@ -1032,8 +1221,9 @@ elif menu == "Registrar actividad":
     if "longitud_registro" not in st.session_state:
         st.session_state.longitud_registro = ""
 
-    delegaciones_lista = obtener_delegaciones_unicas()
-    distritos_lista = obtener_distritos_unicos()
+    # ======================================================
+    # DATOS GENERALES
+    # ======================================================
 
     st.markdown(
         """
@@ -1044,19 +1234,56 @@ elif menu == "Registrar actividad":
         unsafe_allow_html=True
     )
 
+    regiones_lista = obtener_regiones_datos()
+
     col1, col2 = st.columns(2)
 
     with col1:
-        fecha_actividad = st.date_input("Fecha de la actividad", value=date.today(), format="DD/MM/YYYY")
-        direccion_regional = st.selectbox("Dirección Regional", REGIONES)
-        delegacion = st.selectbox("Delegación", delegaciones_lista if delegaciones_lista else ["Sin datos disponibles"])
-        programa = st.selectbox("Programa", PROGRAMAS)
+        fecha_actividad = st.date_input(
+            "Fecha de la actividad",
+            value=date.today(),
+            format="DD/MM/YYYY"
+        )
+
+        direccion_regional = st.selectbox(
+            "Dirección Regional",
+            regiones_lista if regiones_lista else REGIONES
+        )
+
+        delegaciones_filtradas = obtener_delegaciones_por_region(direccion_regional)
+
+        delegacion = st.selectbox(
+            "Delegación",
+            delegaciones_filtradas if delegaciones_filtradas else ["Sin datos disponibles"]
+        )
+
+        actividades_filtradas = obtener_actividades_por_delegacion(delegacion)
+
+        actividad = st.selectbox(
+            "Actividad realizada",
+            actividades_filtradas if actividades_filtradas else ["Sin datos disponibles"]
+        )
 
     with col2:
-        actividad = st.text_input("Actividad realizada")
+        programas_filtrados = obtener_programas_por_actividad(actividad)
+
+        programa = st.selectbox(
+            "Programa",
+            programas_filtrados if programas_filtrados else PROGRAMAS
+        )
+
         responsable = st.text_input("Funcionario responsable")
         usuario = st.text_input("Usuario que registra")
-        cantidad = st.number_input("Cantidad de participantes", min_value=0, step=1)
+
+        cantidad = st.number_input(
+            "Cantidad de participantes",
+            min_value=0,
+            step=1
+        )
+
+    # ======================================================
+    # UBICACIÓN TERRITORIAL
+    # ======================================================
 
     st.markdown(
         """
@@ -1067,16 +1294,35 @@ elif menu == "Registrar actividad":
         unsafe_allow_html=True
     )
 
+    provincias_lista = obtener_provincias_datos()
+
     col3, col4, col5 = st.columns(3)
 
     with col3:
-        provincia = st.selectbox("Provincia", PROVINCIAS)
+        provincia = st.selectbox(
+            "Provincia",
+            provincias_lista if provincias_lista else PROVINCIAS
+        )
 
     with col4:
-        canton = st.text_input("Cantón")
+        cantones_filtrados = obtener_cantones_por_provincia(provincia)
+
+        canton = st.selectbox(
+            "Cantón",
+            cantones_filtrados if cantones_filtrados else ["Sin datos disponibles"]
+        )
 
     with col5:
-        distrito = st.selectbox("Distrito", distritos_lista if distritos_lista else ["Sin datos disponibles"])
+        distritos_filtrados = obtener_distritos_por_provincia_canton(provincia, canton)
+
+        distrito = st.selectbox(
+            "Distrito",
+            distritos_filtrados if distritos_filtrados else ["Sin datos disponibles"]
+        )
+
+    # ======================================================
+    # LUGAR
+    # ======================================================
 
     st.markdown(
         """
@@ -1100,7 +1346,10 @@ elif menu == "Registrar actividad":
         centros = obtener_centros_por_provincia(provincia)
 
         if centros:
-            centro_educativo = st.selectbox("Centro educativo según base MEP 2025", centros)
+            centro_educativo = st.selectbox(
+                "Centro educativo según base MEP 2025",
+                centros
+            )
             lugar = centro_educativo
         else:
             st.warning("No se encontraron centros educativos para la provincia seleccionada.")
@@ -1109,6 +1358,10 @@ elif menu == "Registrar actividad":
     else:
         lugar = st.text_input("Lugar donde se realizó la actividad")
         centro_educativo = ""
+
+    # ======================================================
+    # MAPA
+    # ======================================================
 
     st.markdown(
         """
@@ -1241,6 +1494,10 @@ elif menu == "Registrar actividad":
         st.write("Latitud:", st.session_state.latitud_registro)
         st.write("Longitud:", st.session_state.longitud_registro)
 
+    # ======================================================
+    # INFORMACIÓN COMPLEMENTARIA
+    # ======================================================
+
     st.markdown(
         """
         <div class="bloque-datos">
@@ -1257,7 +1514,12 @@ elif menu == "Registrar actividad":
 
     if st.button("Guardar registro"):
 
-        if not delegacion or delegacion == "Sin datos disponibles" or not actividad or not responsable:
+        if (
+            not delegacion
+            or delegacion == "Sin datos disponibles"
+            or actividad == "Sin datos disponibles"
+            or not responsable
+        ):
             st.warning("Debe completar al menos Delegación, Actividad realizada y Funcionario responsable.")
 
         else:
@@ -1427,6 +1689,7 @@ elif menu == "Seguimiento de registros":
             "Programa",
             "Actividad",
             "Provincia",
+            "Cantón",
             "Distrito",
             "Lugar",
             "Estado Revisión",
@@ -1472,9 +1735,6 @@ elif menu == "Consulta / edición administrativa":
 
     else:
         df_consulta = limpiar_dataframe_para_metricas(df)
-
-        delegaciones_lista = obtener_delegaciones_unicas()
-        distritos_lista = obtener_distritos_unicos()
 
         st.markdown(
             """
@@ -1544,7 +1804,11 @@ elif menu == "Consulta / edición administrativa":
 
         if filtro_id_admin:
             df_filtrado = df_filtrado[
-                df_filtrado["ID"].astype(str).str.contains(filtro_id_admin, case=False, na=False)
+                df_filtrado["ID"].astype(str).str.contains(
+                    filtro_id_admin,
+                    case=False,
+                    na=False
+                )
             ]
 
         if filtro_programa != "Todos":
@@ -1640,7 +1904,6 @@ elif menu == "Consulta / edición administrativa":
         )
 
         st.markdown("---")
-
         st.markdown("## Editar, revisar, georreferenciar o eliminar registro")
 
         if df_filtrado.empty:
@@ -1668,6 +1931,10 @@ elif menu == "Consulta / edición administrativa":
                 ],
                 horizontal=True
             )
+
+            # ==================================================
+            # ACTUALIZAR REVISIÓN
+            # ==================================================
 
             if accion == "Actualizar revisión":
 
@@ -1705,18 +1972,24 @@ elif menu == "Consulta / edición administrativa":
                     guardar_revision = st.form_submit_button("Guardar revisión")
 
                     if guardar_revision:
-
                         nuevos_datos = registro_actual.copy()
                         nuevos_datos["Estado Revisión"] = nuevo_estado
                         nuevos_datos["Observación de Revisión"] = observacion_revision
 
-                        actualizado = actualizar_registro_por_id(id_seleccionado, nuevos_datos)
+                        actualizado = actualizar_registro_por_id(
+                            id_seleccionado,
+                            nuevos_datos
+                        )
 
                         if actualizado:
                             st.success("Revisión actualizada correctamente.")
                             st.rerun()
                         else:
                             st.error("No se encontró el registro para actualizar.")
+
+            # ==================================================
+            # CORREGIR UBICACIÓN EN MAPA
+            # ==================================================
 
             elif accion == "Corregir ubicación en mapa":
 
@@ -1729,9 +2002,16 @@ elif menu == "Consulta / edición administrativa":
                     unsafe_allow_html=True
                 )
 
-                st.info(
-                    "Puede buscar nuevamente por dirección, usar GPS del dispositivo "
-                    "o ingresar coordenadas manualmente."
+                if "lat_admin" not in st.session_state:
+                    st.session_state.lat_admin = registro_actual.get("Latitud", "")
+
+                if "lon_admin" not in st.session_state:
+                    st.session_state.lon_admin = registro_actual.get("Longitud", "")
+
+                tipo_mapa_admin = st.selectbox(
+                    "Tipo de mapa",
+                    ["OpenStreetMap", "Mapa claro", "Mapa oscuro", "Topográfico", "Satélite"],
+                    key="tipo_mapa_admin_correccion"
                 )
 
                 direccion_actual = registro_actual.get("Dirección Mapa", "")
@@ -1746,70 +2026,78 @@ elif menu == "Consulta / edición administrativa":
                     [
                         "Buscar por nombre del lugar",
                         "Usar GPS del dispositivo",
-                        "Ingresar coordenadas manualmente"
+                        "Ingresar coordenadas manualmente",
+                        "Marcar punto en el mapa"
                     ],
                     horizontal=False
                 )
 
-                latitud_nueva = registro_actual.get("Latitud", "")
-                longitud_nueva = registro_actual.get("Longitud", "")
-
                 if metodo_admin == "Buscar por nombre del lugar":
-
                     if st.button("Buscar ubicación"):
                         lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(direccion_mapa_admin)
 
                         if lat_busqueda and lon_busqueda:
-                            st.session_state["lat_admin"] = str(lat_busqueda)
-                            st.session_state["lon_admin"] = str(lon_busqueda)
-                            st.session_state["dir_admin"] = direccion_encontrada
+                            st.session_state.lat_admin = str(lat_busqueda)
+                            st.session_state.lon_admin = str(lon_busqueda)
+                            st.session_state.dir_admin = direccion_encontrada
                             st.success("Ubicación encontrada.")
+                            st.caption(direccion_encontrada)
                         else:
                             st.warning("No se logró ubicar el lugar automáticamente.")
 
-                    latitud_nueva = st.session_state.get("lat_admin", latitud_nueva)
-                    longitud_nueva = st.session_state.get("lon_admin", longitud_nueva)
-
-                    if st.session_state.get("dir_admin", ""):
-                        st.caption(st.session_state["dir_admin"])
-
                 elif metodo_admin == "Usar GPS del dispositivo":
-
                     st.info("El navegador puede solicitar permiso para acceder a la ubicación.")
 
                     ubicacion_gps = get_geolocation()
 
                     if ubicacion_gps and "coords" in ubicacion_gps:
-                        latitud_nueva = str(ubicacion_gps["coords"].get("latitude", ""))
-                        longitud_nueva = str(ubicacion_gps["coords"].get("longitude", ""))
-                        st.success("Ubicación GPS obtenida correctamente.")
+                        lat_gps = ubicacion_gps["coords"].get("latitude", "")
+                        lon_gps = ubicacion_gps["coords"].get("longitude", "")
+
+                        if lat_gps and lon_gps:
+                            st.session_state.lat_admin = str(lat_gps)
+                            st.session_state.lon_admin = str(lon_gps)
+                            st.success("Ubicación GPS obtenida correctamente.")
+                        else:
+                            st.warning("No se recibieron coordenadas válidas desde el GPS.")
                     else:
                         st.warning("No se obtuvo ubicación GPS.")
 
-                else:
+                elif metodo_admin == "Ingresar coordenadas manualmente":
                     col_lat, col_lon = st.columns(2)
 
                     with col_lat:
-                        latitud_nueva = st.text_input(
+                        st.session_state.lat_admin = st.text_input(
                             "Latitud",
-                            value=str(latitud_nueva)
+                            value=str(st.session_state.lat_admin)
                         )
 
                     with col_lon:
-                        longitud_nueva = st.text_input(
+                        st.session_state.lon_admin = st.text_input(
                             "Longitud",
-                            value=str(longitud_nueva)
+                            value=str(st.session_state.lon_admin)
                         )
 
-                lat_num = limpiar_coordenada(latitud_nueva)
-                lon_num = limpiar_coordenada(longitud_nueva)
+                elif metodo_admin == "Marcar punto en el mapa":
+                    st.info("Haga clic sobre el mapa para seleccionar la ubicación correcta.")
+
+                lat_num = limpiar_coordenada(st.session_state.lat_admin)
+                lon_num = limpiar_coordenada(st.session_state.lon_admin)
 
                 if lat_num is not None and lon_num is not None:
-                    mapa_preview_admin = folium.Map(
-                        location=[lat_num, lon_num],
-                        zoom_start=15
-                    )
+                    centro_mapa_admin = [lat_num, lon_num]
+                    zoom_admin = 15
+                else:
+                    centro_mapa_admin = [9.7489, -83.7534]
+                    zoom_admin = 7
 
+                mapa_preview_admin = crear_mapa_base(
+                    centro=centro_mapa_admin,
+                    zoom=zoom_admin,
+                    tipo_mapa=tipo_mapa_admin
+                )
+
+                if lat_num is not None and lon_num is not None:
                     folium.Marker(
                         location=[lat_num, lon_num],
                         popup=f"Registro PUMI #{registro_actual.get('ID', '')}",
@@ -1819,21 +2107,33 @@ elif menu == "Consulta / edición administrativa":
                         )
                     ).add_to(mapa_preview_admin)
 
-                    st_folium(
-                        mapa_preview_admin,
-                        height=400,
-                        key="mapa_correccion_admin"
-                    )
+                resultado_admin = st_folium(
+                    mapa_preview_admin,
+                    width=1100,
+                    height=520,
+                    key=f"mapa_correccion_admin_{tipo_mapa_admin}_{metodo_admin}"
+                )
+
+                if resultado_admin and resultado_admin.get("last_clicked"):
+                    st.session_state.lat_admin = str(resultado_admin["last_clicked"]["lat"])
+                    st.session_state.lon_admin = str(resultado_admin["last_clicked"]["lng"])
+
+                    st.success("Punto seleccionado en el mapa.")
+                    st.write("Latitud:", st.session_state.lat_admin)
+                    st.write("Longitud:", st.session_state.lon_admin)
 
                 if st.button("Guardar ubicación corregida"):
 
-                    if lat_num is None or lon_num is None:
+                    lat_final = limpiar_coordenada(st.session_state.lat_admin)
+                    lon_final = limpiar_coordenada(st.session_state.lon_admin)
+
+                    if lat_final is None or lon_final is None:
                         st.warning("Debe indicar coordenadas válidas antes de guardar.")
                     else:
                         nuevos_datos = registro_actual.copy()
                         nuevos_datos["Dirección Mapa"] = direccion_mapa_admin
-                        nuevos_datos["Latitud"] = str(lat_num)
-                        nuevos_datos["Longitud"] = str(lon_num)
+                        nuevos_datos["Latitud"] = str(lat_final)
+                        nuevos_datos["Longitud"] = str(lon_final)
 
                         actualizado = actualizar_registro_por_id(
                             id_seleccionado,
@@ -1846,305 +2146,359 @@ elif menu == "Consulta / edición administrativa":
                         else:
                             st.error("No se encontró el registro para actualizar.")
 
+            # ==================================================
+            # EDITAR REGISTRO COMPLETO
+            # ==================================================
+
             elif accion == "Editar registro completo":
 
-                with st.form("form_editar_registro"):
+                st.markdown(
+                    """
+                    <div class="bloque-datos">
+                        <b>Datos generales del registro</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                    st.markdown(
-                        """
-                        <div class="bloque-datos">
-                            <b>Datos generales del registro</b>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
+                fecha_registro = st.text_input(
+                    "Fecha Registro",
+                    registro_actual.get("Fecha Registro", "")
+                )
+
+                fecha_actividad_actual = pd.to_datetime(
+                    registro_actual.get("Fecha Actividad", ""),
+                    errors="coerce",
+                    dayfirst=True
+                )
+
+                if pd.isna(fecha_actividad_actual):
+                    fecha_actividad_actual = date.today()
+                else:
+                    fecha_actividad_actual = fecha_actividad_actual.date()
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    fecha_actividad_editada = st.date_input(
+                        "Fecha de la actividad",
+                        value=fecha_actividad_actual,
+                        format="DD/MM/YYYY"
                     )
 
-                    col1, col2 = st.columns(2)
+                    regiones_lista = obtener_regiones_datos()
 
-                    with col1:
-                        fecha_registro = st.text_input(
-                            "Fecha Registro",
-                            registro_actual.get("Fecha Registro", "")
-                        )
+                    region_actual = registro_actual.get("Dirección Regional", "")
+                    opciones_region = regiones_lista if regiones_lista else REGIONES
 
-                        fecha_actividad_actual = pd.to_datetime(
-                            registro_actual.get("Fecha Actividad", ""),
-                            errors="coerce",
-                            dayfirst=True
-                        )
+                    if region_actual and region_actual not in opciones_region:
+                        opciones_region = [region_actual] + opciones_region
 
-                        if pd.isna(fecha_actividad_actual):
-                            fecha_actividad_actual = date.today()
-                        else:
-                            fecha_actividad_actual = fecha_actividad_actual.date()
-
-                        fecha_actividad_editada = st.date_input(
-                            "Fecha de la actividad",
-                            value=fecha_actividad_actual,
-                            format="DD/MM/YYYY"
-                        )
-
-                        nueva_region = st.selectbox(
-                            "Dirección Regional",
-                            REGIONES,
-                            index=REGIONES.index(registro_actual.get("Dirección Regional", ""))
-                            if registro_actual.get("Dirección Regional", "") in REGIONES else 0
-                        )
-
-                        delegacion_actual = registro_actual.get("Delegación", "")
-
-                        if delegacion_actual and delegacion_actual not in delegaciones_lista:
-                            opciones_delegacion = [delegacion_actual] + delegaciones_lista
-                        else:
-                            opciones_delegacion = delegaciones_lista if delegaciones_lista else [delegacion_actual]
-
-                        nueva_delegacion = st.selectbox(
-                            "Delegación",
-                            opciones_delegacion,
-                            index=opciones_delegacion.index(delegacion_actual)
-                            if delegacion_actual in opciones_delegacion else 0
-                        )
-
-                        nuevo_programa = st.selectbox(
-                            "Programa",
-                            PROGRAMAS,
-                            index=PROGRAMAS.index(registro_actual.get("Programa", ""))
-                            if registro_actual.get("Programa", "") in PROGRAMAS else 0
-                        )
-
-                    with col2:
-                        nueva_actividad = st.text_input(
-                            "Actividad realizada",
-                            registro_actual.get("Actividad", "")
-                        )
-
-                        nuevo_responsable = st.text_input(
-                            "Responsable",
-                            registro_actual.get("Responsable", "")
-                        )
-
-                        nuevo_usuario = st.text_input(
-                            "Usuario Registra",
-                            registro_actual.get("Usuario Registra", "")
-                        )
-
-                        cantidad_actual = pd.to_numeric(
-                            registro_actual.get("Cantidad Participantes", 0),
-                            errors="coerce"
-                        )
-
-                        if pd.isna(cantidad_actual):
-                            cantidad_actual = 0
-
-                        nueva_cantidad = st.number_input(
-                            "Cantidad Participantes",
-                            min_value=0,
-                            step=1,
-                            value=int(cantidad_actual)
-                        )
-
-                    st.markdown(
-                        """
-                        <div class="bloque-territorio">
-                            <b>Ubicación territorial</b>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
+                    nueva_region = st.selectbox(
+                        "Dirección Regional",
+                        opciones_region,
+                        index=opciones_region.index(region_actual)
+                        if region_actual in opciones_region else 0
                     )
 
-                    col3, col4, col5 = st.columns(3)
+                    delegaciones_filtradas = obtener_delegaciones_por_region(nueva_region)
 
-                    with col3:
-                        nueva_provincia = st.selectbox(
-                            "Provincia",
-                            PROVINCIAS,
-                            index=PROVINCIAS.index(registro_actual.get("Provincia", ""))
-                            if registro_actual.get("Provincia", "") in PROVINCIAS else 0
-                        )
+                    delegacion_actual = registro_actual.get("Delegación", "")
+                    opciones_delegacion = delegaciones_filtradas if delegaciones_filtradas else obtener_delegaciones_unicas()
 
-                    with col4:
-                        nuevo_canton = st.text_input(
-                            "Cantón",
-                            registro_actual.get("Cantón", "")
-                        )
+                    if delegacion_actual and delegacion_actual not in opciones_delegacion:
+                        opciones_delegacion = [delegacion_actual] + opciones_delegacion
 
-                    with col5:
-                        distrito_actual = registro_actual.get("Distrito", "")
-
-                        if distrito_actual and distrito_actual not in distritos_lista:
-                            opciones_distrito = [distrito_actual] + distritos_lista
-                        else:
-                            opciones_distrito = distritos_lista if distritos_lista else [distrito_actual]
-
-                        nuevo_distrito = st.selectbox(
-                            "Distrito",
-                            opciones_distrito,
-                            index=opciones_distrito.index(distrito_actual)
-                            if distrito_actual in opciones_distrito else 0
-                        )
-
-                    st.markdown(
-                        """
-                        <div class="bloque-actividad">
-                            <b>Lugar de realización de la actividad</b>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
+                    nueva_delegacion = st.selectbox(
+                        "Delegación",
+                        opciones_delegacion if opciones_delegacion else ["Sin datos disponibles"],
+                        index=opciones_delegacion.index(delegacion_actual)
+                        if delegacion_actual in opciones_delegacion else 0
                     )
 
-                    tipo_actual = registro_actual.get("Tipo Lugar", "Otro lugar")
+                    actividades_filtradas = obtener_actividades_por_delegacion(nueva_delegacion)
 
-                    if tipo_actual not in ["Centro educativo", "Otro lugar"]:
-                        tipo_actual = "Otro lugar"
+                    actividad_actual = registro_actual.get("Actividad", "")
+                    opciones_actividad = actividades_filtradas if actividades_filtradas else [actividad_actual]
 
-                    tipo_lugar_editado = st.radio(
-                        "Seleccione el tipo de lugar",
-                        ["Centro educativo", "Otro lugar"],
-                        index=["Centro educativo", "Otro lugar"].index(tipo_actual),
-                        horizontal=True
+                    if actividad_actual and actividad_actual not in opciones_actividad:
+                        opciones_actividad = [actividad_actual] + opciones_actividad
+
+                    nueva_actividad = st.selectbox(
+                        "Actividad realizada",
+                        opciones_actividad if opciones_actividad else ["Sin datos disponibles"],
+                        index=opciones_actividad.index(actividad_actual)
+                        if actividad_actual in opciones_actividad else 0
                     )
 
-                    lugar_editado = ""
+                with col2:
+                    programas_filtrados = obtener_programas_por_actividad(nueva_actividad)
+
+                    programa_actual = registro_actual.get("Programa", "")
+                    opciones_programa = programas_filtrados if programas_filtrados else PROGRAMAS
+
+                    if programa_actual and programa_actual not in opciones_programa:
+                        opciones_programa = [programa_actual] + opciones_programa
+
+                    nuevo_programa = st.selectbox(
+                        "Programa",
+                        opciones_programa,
+                        index=opciones_programa.index(programa_actual)
+                        if programa_actual in opciones_programa else 0
+                    )
+
+                    nuevo_responsable = st.text_input(
+                        "Responsable",
+                        registro_actual.get("Responsable", "")
+                    )
+
+                    nuevo_usuario = st.text_input(
+                        "Usuario Registra",
+                        registro_actual.get("Usuario Registra", "")
+                    )
+
+                    cantidad_actual = pd.to_numeric(
+                        registro_actual.get("Cantidad Participantes", 0),
+                        errors="coerce"
+                    )
+
+                    if pd.isna(cantidad_actual):
+                        cantidad_actual = 0
+
+                    nueva_cantidad = st.number_input(
+                        "Cantidad Participantes",
+                        min_value=0,
+                        step=1,
+                        value=int(cantidad_actual)
+                    )
+
+                st.markdown(
+                    """
+                    <div class="bloque-territorio">
+                        <b>Ubicación territorial</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                provincias_lista = obtener_provincias_datos()
+
+                provincia_actual = registro_actual.get("Provincia", "")
+                opciones_provincia = provincias_lista if provincias_lista else PROVINCIAS
+
+                if provincia_actual and provincia_actual not in opciones_provincia:
+                    opciones_provincia = [provincia_actual] + opciones_provincia
+
+                col3, col4, col5 = st.columns(3)
+
+                with col3:
+                    nueva_provincia = st.selectbox(
+                        "Provincia",
+                        opciones_provincia,
+                        index=opciones_provincia.index(provincia_actual)
+                        if provincia_actual in opciones_provincia else 0
+                    )
+
+                with col4:
+                    cantones_filtrados = obtener_cantones_por_provincia(nueva_provincia)
+
+                    canton_actual = registro_actual.get("Cantón", "")
+                    opciones_canton = cantones_filtrados if cantones_filtrados else [canton_actual]
+
+                    if canton_actual and canton_actual not in opciones_canton:
+                        opciones_canton = [canton_actual] + opciones_canton
+
+                    nuevo_canton = st.selectbox(
+                        "Cantón",
+                        opciones_canton if opciones_canton else ["Sin datos disponibles"],
+                        index=opciones_canton.index(canton_actual)
+                        if canton_actual in opciones_canton else 0
+                    )
+
+                with col5:
+                    distritos_filtrados = obtener_distritos_por_provincia_canton(
+                        nueva_provincia,
+                        nuevo_canton
+                    )
+
+                    distrito_actual = registro_actual.get("Distrito", "")
+                    opciones_distrito = distritos_filtrados if distritos_filtrados else [distrito_actual]
+
+                    if distrito_actual and distrito_actual not in opciones_distrito:
+                        opciones_distrito = [distrito_actual] + opciones_distrito
+
+                    nuevo_distrito = st.selectbox(
+                        "Distrito",
+                        opciones_distrito if opciones_distrito else ["Sin datos disponibles"],
+                        index=opciones_distrito.index(distrito_actual)
+                        if distrito_actual in opciones_distrito else 0
+                    )
+
+                st.markdown(
+                    """
+                    <div class="bloque-actividad">
+                        <b>Lugar de realización de la actividad</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                tipo_actual = registro_actual.get("Tipo Lugar", "Otro lugar")
+
+                if tipo_actual not in ["Centro educativo", "Otro lugar"]:
+                    tipo_actual = "Otro lugar"
+
+                tipo_lugar_editado = st.radio(
+                    "Seleccione el tipo de lugar",
+                    ["Centro educativo", "Otro lugar"],
+                    index=["Centro educativo", "Otro lugar"].index(tipo_actual),
+                    horizontal=True
+                )
+
+                lugar_editado = ""
+                centro_editado = ""
+
+                if tipo_lugar_editado == "Centro educativo":
+
+                    centros = obtener_centros_por_provincia(nueva_provincia)
+                    centro_actual = registro_actual.get("Centro Educativo", "")
+
+                    if centros:
+                        opciones_centros = centros
+
+                        if centro_actual and centro_actual not in opciones_centros:
+                            opciones_centros = [centro_actual] + opciones_centros
+
+                        centro_editado = st.selectbox(
+                            "Centro educativo según base MEP 2025",
+                            opciones_centros,
+                            index=opciones_centros.index(centro_actual)
+                            if centro_actual in opciones_centros else 0
+                        )
+                    else:
+                        centro_editado = st.text_input(
+                            "Digite el centro educativo manualmente",
+                            centro_actual
+                        )
+
+                    lugar_editado = centro_editado
+
+                else:
+                    lugar_editado = st.text_input(
+                        "Lugar donde se realizó la actividad",
+                        registro_actual.get("Lugar", "")
+                    )
                     centro_editado = ""
 
-                    if tipo_lugar_editado == "Centro educativo":
+                st.markdown(
+                    """
+                    <div class="bloque-mapa">
+                        <b>Datos de georreferencia</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                        centros = obtener_centros_por_provincia(nueva_provincia)
-                        centro_actual = registro_actual.get("Centro Educativo", "")
+                nueva_direccion_mapa = st.text_input(
+                    "Dirección Mapa",
+                    registro_actual.get("Dirección Mapa", "")
+                )
 
-                        if centros:
-                            if centro_actual and centro_actual not in centros:
-                                opciones_centros = [centro_actual] + centros
-                            else:
-                                opciones_centros = centros
+                nueva_latitud = st.text_input(
+                    "Latitud",
+                    registro_actual.get("Latitud", "")
+                )
 
-                            centro_editado = st.selectbox(
-                                "Centro educativo según base MEP 2025",
-                                opciones_centros,
-                                index=opciones_centros.index(centro_actual)
-                                if centro_actual in opciones_centros else 0
-                            )
-                        else:
-                            centro_editado = st.text_input(
-                                "Digite el centro educativo manualmente",
-                                centro_actual
-                            )
+                nueva_longitud = st.text_input(
+                    "Longitud",
+                    registro_actual.get("Longitud", "")
+                )
 
-                        lugar_editado = centro_editado
+                st.markdown(
+                    """
+                    <div class="bloque-datos">
+                        <b>Información complementaria y revisión</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
+                nuevas_instituciones = st.text_area(
+                    "Instituciones Participantes",
+                    registro_actual.get("Instituciones Participantes", "")
+                )
+
+                nuevo_plan = st.text_input(
+                    "Plan Estratégico Relacionado",
+                    registro_actual.get("Plan Estratégico Relacionado", "")
+                )
+
+                nueva_evidencia = st.text_input(
+                    "Evidencia",
+                    registro_actual.get("Evidencia", "")
+                )
+
+                nuevas_observaciones = st.text_area(
+                    "Observaciones del registro",
+                    registro_actual.get("Observaciones", "")
+                )
+
+                nuevo_estado = st.selectbox(
+                    "Estado Revisión",
+                    ESTADOS_REVISION,
+                    index=ESTADOS_REVISION.index(registro_actual.get("Estado Revisión", ""))
+                    if registro_actual.get("Estado Revisión", "") in ESTADOS_REVISION else 0
+                )
+
+                nueva_observacion_revision = st.text_area(
+                    "Observación de Revisión",
+                    registro_actual.get("Observación de Revisión", "")
+                )
+
+                if st.button("Guardar cambios completos"):
+
+                    nuevos_datos = {
+                        "ID": registro_actual.get("ID", ""),
+                        "Fecha Registro": fecha_registro,
+                        "Fecha Actividad": fecha_actividad_editada.strftime("%d/%m/%Y"),
+                        "Dirección Regional": nueva_region,
+                        "Delegación": nueva_delegacion,
+                        "Programa": nuevo_programa,
+                        "Actividad": nueva_actividad,
+                        "Provincia": nueva_provincia,
+                        "Cantón": nuevo_canton,
+                        "Distrito": nuevo_distrito,
+                        "Tipo Lugar": tipo_lugar_editado,
+                        "Lugar": lugar_editado,
+                        "Centro Educativo": centro_editado,
+                        "Dirección Mapa": nueva_direccion_mapa,
+                        "Latitud": nueva_latitud,
+                        "Longitud": nueva_longitud,
+                        "Responsable": nuevo_responsable,
+                        "Cantidad Participantes": nueva_cantidad,
+                        "Instituciones Participantes": nuevas_instituciones,
+                        "Plan Estratégico Relacionado": nuevo_plan,
+                        "Evidencia": nueva_evidencia,
+                        "Observaciones": nuevas_observaciones,
+                        "Estado Revisión": nuevo_estado,
+                        "Observación de Revisión": nueva_observacion_revision,
+                        "Usuario Registra": nuevo_usuario
+                    }
+
+                    actualizado = actualizar_registro_por_id(
+                        id_seleccionado,
+                        nuevos_datos
+                    )
+
+                    if actualizado:
+                        st.success("Registro actualizado correctamente.")
+                        st.rerun()
                     else:
-                        lugar_editado = st.text_input(
-                            "Lugar donde se realizó la actividad",
-                            registro_actual.get("Lugar", "")
-                        )
-                        centro_editado = ""
+                        st.error("No se encontró el registro para actualizar.")
 
-                    st.markdown(
-                        """
-                        <div class="bloque-mapa">
-                            <b>Datos de georreferencia</b>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-
-                    nueva_direccion_mapa = st.text_input(
-                        "Dirección Mapa",
-                        registro_actual.get("Dirección Mapa", "")
-                    )
-
-                    nueva_latitud = st.text_input(
-                        "Latitud",
-                        registro_actual.get("Latitud", "")
-                    )
-
-                    nueva_longitud = st.text_input(
-                        "Longitud",
-                        registro_actual.get("Longitud", "")
-                    )
-
-                    st.markdown(
-                        """
-                        <div class="bloque-datos">
-                            <b>Información complementaria y revisión</b>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-
-                    nuevas_instituciones = st.text_area(
-                        "Instituciones Participantes",
-                        registro_actual.get("Instituciones Participantes", "")
-                    )
-
-                    nuevo_plan = st.text_input(
-                        "Plan Estratégico Relacionado",
-                        registro_actual.get("Plan Estratégico Relacionado", "")
-                    )
-
-                    nueva_evidencia = st.text_input(
-                        "Evidencia",
-                        registro_actual.get("Evidencia", "")
-                    )
-
-                    nuevas_observaciones = st.text_area(
-                        "Observaciones del registro",
-                        registro_actual.get("Observaciones", "")
-                    )
-
-                    nuevo_estado = st.selectbox(
-                        "Estado Revisión",
-                        ESTADOS_REVISION,
-                        index=ESTADOS_REVISION.index(registro_actual.get("Estado Revisión", ""))
-                        if registro_actual.get("Estado Revisión", "") in ESTADOS_REVISION else 0
-                    )
-
-                    nueva_observacion_revision = st.text_area(
-                        "Observación de Revisión",
-                        registro_actual.get("Observación de Revisión", "")
-                    )
-
-                    actualizar = st.form_submit_button("Guardar cambios completos")
-
-                    if actualizar:
-                        nuevos_datos = {
-                            "ID": registro_actual.get("ID", ""),
-                            "Fecha Registro": fecha_registro,
-                            "Fecha Actividad": fecha_actividad_editada.strftime("%d/%m/%Y"),
-                            "Dirección Regional": nueva_region,
-                            "Delegación": nueva_delegacion,
-                            "Programa": nuevo_programa,
-                            "Actividad": nueva_actividad,
-                            "Provincia": nueva_provincia,
-                            "Cantón": nuevo_canton,
-                            "Distrito": nuevo_distrito,
-                            "Tipo Lugar": tipo_lugar_editado,
-                            "Lugar": lugar_editado,
-                            "Centro Educativo": centro_editado,
-                            "Dirección Mapa": nueva_direccion_mapa,
-                            "Latitud": nueva_latitud,
-                            "Longitud": nueva_longitud,
-                            "Responsable": nuevo_responsable,
-                            "Cantidad Participantes": nueva_cantidad,
-                            "Instituciones Participantes": nuevas_instituciones,
-                            "Plan Estratégico Relacionado": nuevo_plan,
-                            "Evidencia": nueva_evidencia,
-                            "Observaciones": nuevas_observaciones,
-                            "Estado Revisión": nuevo_estado,
-                            "Observación de Revisión": nueva_observacion_revision,
-                            "Usuario Registra": nuevo_usuario
-                        }
-
-                        actualizado = actualizar_registro_por_id(
-                            id_seleccionado,
-                            nuevos_datos
-                        )
-
-                        if actualizado:
-                            st.success("Registro actualizado correctamente.")
-                            st.rerun()
-                        else:
-                            st.error("No se encontró el registro para actualizar.")
+            # ==================================================
+            # ELIMINAR REGISTRO
+            # ==================================================
 
             else:
                 st.warning("Esta acción eliminará el registro seleccionado de forma permanente.")
