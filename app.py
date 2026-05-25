@@ -67,6 +67,38 @@ CLAVES_ADMINISTRATIVAS = {
 }
 
 
+CLAVES_USUARIO_PROGRAMA = {
+    "DPPP": {
+        "claves": ["DPPP23", "DPPP2026"],
+        "programas_permitidos": "TODOS"
+    },
+    "DARE": {
+        "claves": ["DARE23", "DARE2026", "DAREUSUARIO"],
+        "programas_permitidos": ["DARE"]
+    },
+    "GREAT": {
+        "claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"],
+        "programas_permitidos": ["GREAT", "GREAT CAMP"]
+    },
+    "MPAS": {
+        "claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"],
+        "programas_permitidos": ["MPAS"]
+    },
+    "PSCC": {
+        "claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"],
+        "programas_permitidos": ["PSCC"]
+    },
+    "VIF": {
+        "claves": ["VIF23", "VIF2026", "VIFUSUARIO"],
+        "programas_permitidos": ["VIF"]
+    },
+    "Política Pública": {
+        "claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"],
+        "programas_permitidos": ["Política Pública"]
+    }
+}
+
+
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1O-HNa1c4ppF0-ND7BUqKA2OzZDc1O0kTxZOMVDeA-GY/edit?gid=0#gid=0"
 HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 
@@ -1558,32 +1590,16 @@ elif menu == "Registrar actividad":
     colr1, colr2, colr3, colr4 = st.columns(4)
 
     with colr1:
-        edad_10_18 = st.number_input(
-            "Edad 10 a 18",
-            min_value=0,
-            step=1
-        )
+        edad_10_18 = st.number_input("Edad 10 a 18", min_value=0, step=1)
 
     with colr2:
-        edad_19_30 = st.number_input(
-            "Edad 19 a 30",
-            min_value=0,
-            step=1
-        )
+        edad_19_30 = st.number_input("Edad 19 a 30", min_value=0, step=1)
 
     with colr3:
-        edad_31_45 = st.number_input(
-            "Edad 31 a 45",
-            min_value=0,
-            step=1
-        )
+        edad_31_45 = st.number_input("Edad 31 a 45", min_value=0, step=1)
 
     with colr4:
-        edad_46_mas = st.number_input(
-            "Edad 46 en adelante",
-            min_value=0,
-            step=1
-        )
+        edad_46_mas = st.number_input("Edad 46 en adelante", min_value=0, step=1)
 
     suma_sexo = cantidad_hombres + cantidad_mujeres
     suma_edades = edad_10_18 + edad_19_30 + edad_31_45 + edad_46_mas
@@ -1905,178 +1921,247 @@ elif menu == "Registrar actividad":
 
 # ======================================================
 # SEGUIMIENTO DE REGISTROS
-# VISTA PARA USUARIOS
+# VISTA PARA USUARIOS CON CLAVE POR PROGRAMA
 # ======================================================
 
 elif menu == "Seguimiento de registros":
 
     st.markdown("## Seguimiento de registros")
 
-    df = cargar_datos()
+    st.markdown(
+        """
+        <div class="card-azul">
+            <div class="texto-pumi">
+                Para consultar registros, seleccione el programa e ingrese la clave correspondiente.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    if df.empty:
-        st.info("No existen registros para consultar.")
+    programa_consulta = st.selectbox(
+        "Seleccione el programa a consultar",
+        ["Seleccione"] + PROGRAMAS + ["Todos"]
+    )
 
-    else:
-        df_seguimiento = limpiar_dataframe_para_metricas(df)
+    clave_usuario = st.text_input(
+        "Clave de consulta",
+        type="password"
+    )
 
-        st.markdown("### Filtros de seguimiento")
+    acceso_valido = False
+    programas_permitidos_usuario = []
 
-        col1, col2, col3 = st.columns(3)
+    if programa_consulta != "Seleccione" and clave_usuario:
+        clave_normalizada = str(clave_usuario).strip().upper()
 
-        with col1:
-            filtro_id = st.text_input("Buscar por ID")
+        claves_dppp = [c.upper() for c in CLAVES_USUARIO_PROGRAMA["DPPP"]["claves"]]
 
-            filtro_delegacion = st.selectbox(
-                "Delegación",
-                ["Todas"] + sorted(df_seguimiento["Delegación"].dropna().astype(str).unique().tolist())
-            )
+        if clave_normalizada in claves_dppp:
+            acceso_valido = True
+            programas_permitidos_usuario = "TODOS"
 
-        with col2:
-            filtro_programa = st.selectbox(
-                "Programa",
-                ["Todos"] + sorted(df_seguimiento["Programa"].dropna().astype(str).unique().tolist())
-            )
+        elif programa_consulta != "Todos":
+            datos_programa = CLAVES_USUARIO_PROGRAMA.get(programa_consulta, {})
+            claves_validas = [c.upper() for c in datos_programa.get("claves", [])]
 
-            filtro_estado = st.selectbox(
-                "Estado de revisión",
-                ["Todos"] + sorted(df_seguimiento["Estado Revisión"].dropna().astype(str).unique().tolist())
-            )
+            if clave_normalizada in claves_validas:
+                acceso_valido = True
+                programas_permitidos_usuario = datos_programa.get("programas_permitidos", [])
 
-        with col3:
-            filtro_provincia = st.selectbox(
-                "Provincia",
-                ["Todas"] + sorted(df_seguimiento["Provincia"].dropna().astype(str).unique().tolist())
-            )
+        if not acceso_valido:
+            st.error("Clave incorrecta para el programa seleccionado.")
 
-            usar_fechas_seg = st.checkbox("Filtrar por rango de fechas", key="fechas_seguimiento")
+    if programa_consulta == "Seleccione":
+        st.info("Seleccione un programa para continuar.")
 
-        df_usuario = df_seguimiento.copy()
+    elif not clave_usuario:
+        st.warning("Ingrese la clave de consulta para ver los registros.")
 
-        if filtro_id:
-            df_usuario = df_usuario[
-                df_usuario["ID"].astype(str).str.contains(filtro_id, case=False, na=False)
-            ]
+    elif acceso_valido:
 
-        if filtro_delegacion != "Todas":
-            df_usuario = df_usuario[df_usuario["Delegación"] == filtro_delegacion]
+        df = cargar_datos()
 
-        if filtro_programa != "Todos":
-            df_usuario = df_usuario[df_usuario["Programa"] == filtro_programa]
+        if df.empty:
+            st.info("No existen registros para consultar.")
 
-        if filtro_estado != "Todos":
-            df_usuario = df_usuario[df_usuario["Estado Revisión"] == filtro_estado]
+        else:
+            df_seguimiento = limpiar_dataframe_para_metricas(df)
 
-        if filtro_provincia != "Todas":
-            df_usuario = df_usuario[df_usuario["Provincia"] == filtro_provincia]
-
-        if usar_fechas_seg:
-            fechas_validas = df_usuario["Fecha Actividad"].dropna()
-
-            if not fechas_validas.empty:
-                fecha_min = fechas_validas.min().date()
-                fecha_max = fechas_validas.max().date()
-
-                colf1, colf2 = st.columns(2)
-
-                with colf1:
-                    fecha_inicio_seg = st.date_input(
-                        "Fecha inicial",
-                        value=fecha_min,
-                        format="DD/MM/YYYY",
-                        key="fecha_inicio_seg"
-                    )
-
-                with colf2:
-                    fecha_fin_seg = st.date_input(
-                        "Fecha final",
-                        value=fecha_max,
-                        format="DD/MM/YYYY",
-                        key="fecha_fin_seg"
-                    )
-
-                df_usuario = df_usuario[
-                    (df_usuario["Fecha Actividad"].dt.date >= fecha_inicio_seg) &
-                    (df_usuario["Fecha Actividad"].dt.date <= fecha_fin_seg)
+            if programas_permitidos_usuario != "TODOS":
+                df_seguimiento = df_seguimiento[
+                    df_seguimiento["Programa"].isin(programas_permitidos_usuario)
                 ]
 
-        st.markdown("### Resumen del seguimiento")
+            elif programa_consulta != "Todos":
+                if programa_consulta == "GREAT":
+                    df_seguimiento = df_seguimiento[
+                        df_seguimiento["Programa"].isin(["GREAT", "GREAT CAMP"])
+                    ]
+                else:
+                    df_seguimiento = df_seguimiento[
+                        df_seguimiento["Programa"] == programa_consulta
+                    ]
 
-        total_participantes = int(df_usuario["Cantidad Participantes"].sum()) if not df_usuario.empty else 0
-        total_hombres = int(df_usuario["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_usuario.columns else 0
-        total_mujeres = int(df_usuario["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_usuario.columns else 0
+            st.success("Acceso concedido.")
 
-        colm1, colm2, colm3, colm4 = st.columns(4)
+            st.markdown("### Filtros de seguimiento")
 
-        colm1.metric("Registros", len(df_usuario))
-        colm2.metric("Participantes", total_participantes)
-        colm3.metric("Hombres", f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})")
-        colm4.metric("Mujeres", f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})")
+            col1, col2, col3 = st.columns(3)
 
-        colm5, colm6, colm7, colm8 = st.columns(4)
+            with col1:
+                filtro_id = st.text_input("Buscar por ID")
 
-        colm5.metric("Aprobados", len(df_usuario[df_usuario["Estado Revisión"] == "Aprobado"]))
-        colm6.metric("Con observaciones", len(df_usuario[df_usuario["Estado Revisión"] == "Con observaciones"]))
-        colm7.metric("Rechazados", len(df_usuario[df_usuario["Estado Revisión"] == "Rechazado"]))
-        colm8.metric("Pendientes", len(df_usuario[df_usuario["Estado Revisión"] == "Pendiente de revisión"]))
+                filtro_delegacion = st.selectbox(
+                    "Delegación",
+                    ["Todas"] + sorted(df_seguimiento["Delegación"].dropna().astype(str).unique().tolist())
+                )
 
-        st.markdown("### Mapa general de actividades")
+            with col2:
+                filtro_estado = st.selectbox(
+                    "Estado de revisión",
+                    ["Todos"] + sorted(df_seguimiento["Estado Revisión"].dropna().astype(str).unique().tolist())
+                )
 
-        mostrar_mapa_registros(
-            df_usuario,
-            height=560,
-            key="mapa_seguimiento_usuarios"
-        )
+                filtro_provincia = st.selectbox(
+                    "Provincia",
+                    ["Todas"] + sorted(df_seguimiento["Provincia"].dropna().astype(str).unique().tolist())
+                )
 
-        st.markdown("### Estado de los registros")
+            with col3:
+                filtro_distrito = st.selectbox(
+                    "Distrito",
+                    ["Todos"] + sorted(df_seguimiento["Distrito"].dropna().astype(str).unique().tolist())
+                )
 
-        df_mostrar_usuario = df_usuario.copy()
+                usar_fechas_seg = st.checkbox("Filtrar por rango de fechas", key="fechas_seguimiento")
 
-        if "Fecha Actividad" in df_mostrar_usuario.columns:
-            df_mostrar_usuario["Fecha Actividad"] = df_mostrar_usuario["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+            df_usuario = df_seguimiento.copy()
 
-        columnas_usuario = [
-            "ID",
-            "Fecha Actividad",
-            "Delegación",
-            "Programa",
-            "Actividad",
-            "Provincia",
-            "Cantón",
-            "Distrito",
-            "Lugar",
-            "Centro Educativo",
-            "Código Presupuestario",
-            "Cantidad Participantes",
-            "Cantidad Hombres",
-            "Cantidad Mujeres",
-            "Edad 10 a 18",
-            "Edad 19 a 30",
-            "Edad 31 a 45",
-            "Edad 46 en adelante",
-            "Estado Revisión",
-            "Observación de Revisión"
-        ]
+            if filtro_id:
+                df_usuario = df_usuario[
+                    df_usuario["ID"].astype(str).str.contains(filtro_id, case=False, na=False)
+                ]
 
-        columnas_existentes = [
-            col for col in columnas_usuario
-            if col in df_mostrar_usuario.columns
-        ]
+            if filtro_delegacion != "Todas":
+                df_usuario = df_usuario[df_usuario["Delegación"] == filtro_delegacion]
 
-        st.dataframe(
-            df_mostrar_usuario[columnas_existentes],
-            use_container_width=True,
-            hide_index=True
-        )
+            if filtro_estado != "Todos":
+                df_usuario = df_usuario[df_usuario["Estado Revisión"] == filtro_estado]
 
-        excel_seguimiento = convertir_excel(df_mostrar_usuario[columnas_existentes])
+            if filtro_provincia != "Todas":
+                df_usuario = df_usuario[df_usuario["Provincia"] == filtro_provincia]
 
-        st.download_button(
-            label="Descargar seguimiento en Excel",
-            data=excel_seguimiento,
-            file_name="seguimiento_registros_pumi.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            if filtro_distrito != "Todos":
+                df_usuario = df_usuario[df_usuario["Distrito"] == filtro_distrito]
+
+            if usar_fechas_seg:
+                fechas_validas = df_usuario["Fecha Actividad"].dropna()
+
+                if not fechas_validas.empty:
+                    fecha_min = fechas_validas.min().date()
+                    fecha_max = fechas_validas.max().date()
+
+                    colf1, colf2 = st.columns(2)
+
+                    with colf1:
+                        fecha_inicio_seg = st.date_input(
+                            "Fecha inicial",
+                            value=fecha_min,
+                            format="DD/MM/YYYY",
+                            key="fecha_inicio_seg"
+                        )
+
+                    with colf2:
+                        fecha_fin_seg = st.date_input(
+                            "Fecha final",
+                            value=fecha_max,
+                            format="DD/MM/YYYY",
+                            key="fecha_fin_seg"
+                        )
+
+                    df_usuario = df_usuario[
+                        (df_usuario["Fecha Actividad"].dt.date >= fecha_inicio_seg) &
+                        (df_usuario["Fecha Actividad"].dt.date <= fecha_fin_seg)
+                    ]
+
+            st.markdown("### Resumen del seguimiento")
+
+            total_participantes = int(df_usuario["Cantidad Participantes"].sum()) if not df_usuario.empty else 0
+            total_hombres = int(df_usuario["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_usuario.columns else 0
+            total_mujeres = int(df_usuario["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_usuario.columns else 0
+
+            colm1, colm2, colm3, colm4 = st.columns(4)
+
+            colm1.metric("Registros", len(df_usuario))
+            colm2.metric("Participantes", total_participantes)
+            colm3.metric("Hombres", f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})")
+            colm4.metric("Mujeres", f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})")
+
+            colm5, colm6, colm7, colm8 = st.columns(4)
+
+            colm5.metric("Aprobados", len(df_usuario[df_usuario["Estado Revisión"] == "Aprobado"]))
+            colm6.metric("Con observaciones", len(df_usuario[df_usuario["Estado Revisión"] == "Con observaciones"]))
+            colm7.metric("Rechazados", len(df_usuario[df_usuario["Estado Revisión"] == "Rechazado"]))
+            colm8.metric("Pendientes", len(df_usuario[df_usuario["Estado Revisión"] == "Pendiente de revisión"]))
+
+            st.markdown("### Mapa general de actividades")
+
+            mostrar_mapa_registros(
+                df_usuario,
+                height=560,
+                key="mapa_seguimiento_usuarios"
+            )
+
+            st.markdown("### Estado de los registros")
+
+            df_mostrar_usuario = df_usuario.copy()
+
+            if "Fecha Actividad" in df_mostrar_usuario.columns:
+                df_mostrar_usuario["Fecha Actividad"] = df_mostrar_usuario["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+
+            columnas_usuario = [
+                "ID",
+                "Fecha Actividad",
+                "Delegación",
+                "Programa",
+                "Actividad",
+                "Provincia",
+                "Cantón",
+                "Distrito",
+                "Lugar",
+                "Centro Educativo",
+                "Código Presupuestario",
+                "Cantidad Participantes",
+                "Cantidad Hombres",
+                "Cantidad Mujeres",
+                "Edad 10 a 18",
+                "Edad 19 a 30",
+                "Edad 31 a 45",
+                "Edad 46 en adelante",
+                "Estado Revisión",
+                "Observación de Revisión"
+            ]
+
+            columnas_existentes = [
+                col for col in columnas_usuario
+                if col in df_mostrar_usuario.columns
+            ]
+
+            st.dataframe(
+                df_mostrar_usuario[columnas_existentes],
+                use_container_width=True,
+                hide_index=True
+            )
+
+            excel_seguimiento = convertir_excel(df_mostrar_usuario[columnas_existentes])
+
+            st.download_button(
+                label="Descargar seguimiento en Excel",
+                data=excel_seguimiento,
+                file_name="seguimiento_registros_pumi.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 # ======================================================
 # PARTE 4 DE 5
 # CONSULTA, EDICIÓN ADMINISTRATIVA, REVISIÓN, MAPA Y ELIMINACIÓN
