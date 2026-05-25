@@ -482,22 +482,31 @@ def obtener_columna_por_nombre(df, posibles_nombres):
     return None
 
 
+def ordenar_regiones_numericamente(lista_regiones):
+    def extraer_numero_region(region):
+        texto = str(region)
+        numero = ""
+
+        for caracter in texto:
+            if caracter.isdigit():
+                numero += caracter
+            elif numero:
+                break
+
+        if numero:
+            return int(numero)
+
+        return 999
+
+    return sorted(lista_regiones, key=extraer_numero_region)
+
+
 # ======================================================
 # BASE DATOS IMPORTANTES
 # ======================================================
 
 @st.cache_data
 def cargar_datos_importantes():
-    """
-    Carga Datos Importantes.xlsx.
-
-    Estructura esperada:
-    Provincia, Cantón, Distritos, Dirección Regional,
-    Delegación, Actividad Realizada, Programa.
-
-    Las columnas vacías intermedias del Excel se ignoran.
-    """
-
     columnas_base = [
         "Provincia",
         "Cantón",
@@ -593,22 +602,10 @@ def cargar_datos_importantes():
         df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
         df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
         df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
-
-        df["Región_Normalizada"] = df["Dirección Regional"].apply(
-            normalizar_texto
-        )
-
-        df["Delegación_Normalizada"] = df["Delegación"].apply(
-            normalizar_texto
-        )
-
-        df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(
-            normalizar_texto
-        )
-
-        df["Programa_Normalizado"] = df["Programa"].apply(
-            normalizar_texto
-        )
+        df["Región_Normalizada"] = df["Dirección Regional"].apply(normalizar_texto)
+        df["Delegación_Normalizada"] = df["Delegación"].apply(normalizar_texto)
+        df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(normalizar_texto)
+        df["Programa_Normalizado"] = df["Programa"].apply(normalizar_texto)
 
         return df
 
@@ -622,7 +619,7 @@ def obtener_regiones_datos():
     df = cargar_datos_importantes()
 
     if df.empty:
-        return REGIONES
+        return ordenar_regiones_numericamente(REGIONES)
 
     regiones = df["Dirección Regional"].dropna().unique().tolist()
 
@@ -631,7 +628,7 @@ def obtener_regiones_datos():
         if str(x).strip() != ""
     ]
 
-    return sorted(regiones)
+    return ordenar_regiones_numericamente(regiones)
 
 
 def obtener_delegaciones_por_region(region):
@@ -654,17 +651,52 @@ def obtener_delegaciones_por_region(region):
     return sorted(delegaciones)
 
 
+def obtener_programas_datos():
+    df = cargar_datos_importantes()
+
+    if df.empty:
+        return PROGRAMAS
+
+    programas = df["Programa"].dropna().unique().tolist()
+
+    programas = [
+        x for x in programas
+        if str(x).strip() != ""
+    ]
+
+    if not programas:
+        return PROGRAMAS
+
+    return sorted(programas)
+
+
+def obtener_actividades_por_programa(programa):
+    df = cargar_datos_importantes()
+
+    if df.empty or not programa:
+        return []
+
+    programa_norm = normalizar_texto(programa)
+
+    actividades = df[
+        df["Programa_Normalizado"] == programa_norm
+    ]["Actividad Realizada"].dropna().unique().tolist()
+
+    actividades = [
+        x for x in actividades
+        if str(x).strip() != ""
+    ]
+
+    return sorted(actividades)
+
+
 def obtener_actividades_por_delegacion(delegacion):
     df = cargar_datos_importantes()
 
-    if df.empty or not delegacion:
+    if df.empty:
         return []
 
-    delegacion_norm = normalizar_texto(delegacion)
-
-    actividades = df[
-        df["Delegación_Normalizada"] == delegacion_norm
-    ]["Actividad Realizada"].dropna().unique().tolist()
+    actividades = df["Actividad Realizada"].dropna().unique().tolist()
 
     actividades = [
         x for x in actividades
@@ -677,14 +709,10 @@ def obtener_actividades_por_delegacion(delegacion):
 def obtener_programas_por_actividad(actividad):
     df = cargar_datos_importantes()
 
-    if df.empty or not actividad:
+    if df.empty:
         return PROGRAMAS
 
-    actividad_norm = normalizar_texto(actividad)
-
-    programas = df[
-        df["Actividad_Normalizada"] == actividad_norm
-    ]["Programa"].dropna().unique().tolist()
+    programas = df["Programa"].dropna().unique().tolist()
 
     programas = [
         x for x in programas
@@ -798,8 +826,6 @@ def obtener_centros_por_provincia(provincia):
 
 # ======================================================
 # BASE DELEGACIONES Y DISTRITOS
-# Se conserva como respaldo para delegaciones antiguas.
-# Los distritos ahora salen de Datos Importantes.xlsx.
 # ======================================================
 
 @st.cache_data
@@ -1372,19 +1398,19 @@ elif menu == "Registrar actividad":
             delegaciones_filtradas if delegaciones_filtradas else ["Sin datos disponibles"]
         )
 
-        actividades_filtradas = obtener_actividades_por_delegacion(delegacion)
+        programas_lista = obtener_programas_datos()
+
+        programa = st.selectbox(
+            "Programa",
+            programas_lista if programas_lista else PROGRAMAS
+        )
+
+    with col2:
+        actividades_filtradas = obtener_actividades_por_programa(programa)
 
         actividad = st.selectbox(
             "Actividad realizada",
             actividades_filtradas if actividades_filtradas else ["Sin datos disponibles"]
-        )
-
-    with col2:
-        programas_filtrados = obtener_programas_por_actividad(actividad)
-
-        programa = st.selectbox(
-            "Programa",
-            programas_filtrados if programas_filtrados else PROGRAMAS
         )
 
         responsable = st.text_input("Funcionario responsable")
@@ -1633,9 +1659,10 @@ elif menu == "Registrar actividad":
             not delegacion
             or delegacion == "Sin datos disponibles"
             or actividad == "Sin datos disponibles"
+            or programa == "Sin datos disponibles"
             or not responsable
         ):
-            st.warning("Debe completar al menos Delegación, Actividad realizada y Funcionario responsable.")
+            st.warning("Debe completar al menos Delegación, Programa, Actividad realizada y Funcionario responsable.")
 
         else:
             nuevo_id = generar_id_consecutivo()
