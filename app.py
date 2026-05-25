@@ -470,10 +470,6 @@ def normalizar_texto(valor):
 
 
 def obtener_columna_por_nombre(df, posibles_nombres):
-    """
-    Busca una columna aunque venga con tildes, mayúsculas o espacios distintos.
-    """
-
     columnas = list(df.columns)
 
     for posible in posibles_nombres:
@@ -494,14 +490,18 @@ def obtener_columna_por_nombre(df, posibles_nombres):
 def cargar_datos_importantes():
     """
     Carga Datos Importantes.xlsx.
-    Columnas esperadas:
-    Provincia, Cantón, Dirección Regional, Delegación,
-    Actividad Realizada, Programa.
+
+    Estructura esperada:
+    Provincia, Cantón, Distritos, Dirección Regional,
+    Delegación, Actividad Realizada, Programa.
+
+    Las columnas vacías intermedias del Excel se ignoran.
     """
 
     columnas_base = [
         "Provincia",
         "Cantón",
+        "Distrito",
         "Dirección Regional",
         "Delegación",
         "Actividad Realizada",
@@ -511,45 +511,111 @@ def cargar_datos_importantes():
     if not os.path.exists(ARCHIVO_DATOS_IMPORTANTES):
         return pd.DataFrame(columns=columnas_base)
 
-    df = pd.read_excel(ARCHIVO_DATOS_IMPORTANTES)
+    try:
+        df_original = pd.read_excel(ARCHIVO_DATOS_IMPORTANTES)
 
-    col_provincia = obtener_columna_por_nombre(df, ["Provincia"])
-    col_canton = obtener_columna_por_nombre(df, ["Cantón", "Canton"])
-    col_region = obtener_columna_por_nombre(df, ["Dirección Regional", "Direccion Regional"])
-    col_delegacion = obtener_columna_por_nombre(df, ["Delegación", "Delegacion"])
-    col_actividad = obtener_columna_por_nombre(df, ["Actividad Realizada"])
-    col_programa = obtener_columna_por_nombre(df, ["Programa"])
+        col_provincia = obtener_columna_por_nombre(
+            df_original,
+            ["Provincia"]
+        )
 
-    if not all([col_provincia, col_canton, col_region, col_delegacion, col_actividad, col_programa]):
-        return pd.DataFrame(columns=columnas_base)
+        col_canton = obtener_columna_por_nombre(
+            df_original,
+            ["Cantón", "Canton"]
+        )
 
-    df = df[
-        [
+        col_distrito = obtener_columna_por_nombre(
+            df_original,
+            ["Distrito", "Distritos"]
+        )
+
+        col_region = obtener_columna_por_nombre(
+            df_original,
+            ["Dirección Regional", "Direccion Regional"]
+        )
+
+        col_delegacion = obtener_columna_por_nombre(
+            df_original,
+            ["Delegación", "Delegacion"]
+        )
+
+        col_actividad = obtener_columna_por_nombre(
+            df_original,
+            ["Actividad Realizada", "Actividad"]
+        )
+
+        col_programa = obtener_columna_por_nombre(
+            df_original,
+            ["Programa"]
+        )
+
+        columnas_requeridas = [
             col_provincia,
             col_canton,
+            col_distrito,
             col_region,
             col_delegacion,
             col_actividad,
             col_programa
         ]
-    ].copy()
 
-    df.columns = columnas_base
+        if not all(columnas_requeridas):
+            st.warning(
+                "El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas."
+            )
+            return pd.DataFrame(columns=columnas_base)
 
-    for col in columnas_base:
-        df[col] = df[col].astype(str).str.strip()
+        df = df_original[
+            [
+                col_provincia,
+                col_canton,
+                col_distrito,
+                col_region,
+                col_delegacion,
+                col_actividad,
+                col_programa
+            ]
+        ].copy()
 
-    df = df.replace("nan", "")
-    df = df.drop_duplicates()
+        df.columns = columnas_base
 
-    df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
-    df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
-    df["Región_Normalizada"] = df["Dirección Regional"].apply(normalizar_texto)
-    df["Delegación_Normalizada"] = df["Delegación"].apply(normalizar_texto)
-    df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(normalizar_texto)
-    df["Programa_Normalizado"] = df["Programa"].apply(normalizar_texto)
+        for col in columnas_base:
+            df[col] = (
+                df[col]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
 
-    return df
+        df = df.replace("nan", "")
+        df = df.drop_duplicates()
+
+        df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
+        df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+        df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
+
+        df["Región_Normalizada"] = df["Dirección Regional"].apply(
+            normalizar_texto
+        )
+
+        df["Delegación_Normalizada"] = df["Delegación"].apply(
+            normalizar_texto
+        )
+
+        df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(
+            normalizar_texto
+        )
+
+        df["Programa_Normalizado"] = df["Programa"].apply(
+            normalizar_texto
+        )
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error leyendo {ARCHIVO_DATOS_IMPORTANTES}")
+        st.exception(e)
+        return pd.DataFrame(columns=columnas_base)
 
 
 def obtener_regiones_datos():
@@ -558,7 +624,14 @@ def obtener_regiones_datos():
     if df.empty:
         return REGIONES
 
-    return sorted(df["Dirección Regional"].dropna().unique().tolist())
+    regiones = df["Dirección Regional"].dropna().unique().tolist()
+
+    regiones = [
+        x for x in regiones
+        if str(x).strip() != ""
+    ]
+
+    return sorted(regiones)
 
 
 def obtener_delegaciones_por_region(region):
@@ -572,6 +645,11 @@ def obtener_delegaciones_por_region(region):
     delegaciones = df[
         df["Región_Normalizada"] == region_norm
     ]["Delegación"].dropna().unique().tolist()
+
+    delegaciones = [
+        x for x in delegaciones
+        if str(x).strip() != ""
+    ]
 
     return sorted(delegaciones)
 
@@ -588,6 +666,11 @@ def obtener_actividades_por_delegacion(delegacion):
         df["Delegación_Normalizada"] == delegacion_norm
     ]["Actividad Realizada"].dropna().unique().tolist()
 
+    actividades = [
+        x for x in actividades
+        if str(x).strip() != ""
+    ]
+
     return sorted(actividades)
 
 
@@ -603,6 +686,11 @@ def obtener_programas_por_actividad(actividad):
         df["Actividad_Normalizada"] == actividad_norm
     ]["Programa"].dropna().unique().tolist()
 
+    programas = [
+        x for x in programas
+        if str(x).strip() != ""
+    ]
+
     if not programas:
         return PROGRAMAS
 
@@ -615,7 +703,14 @@ def obtener_provincias_datos():
     if df.empty:
         return PROVINCIAS
 
-    return sorted(df["Provincia"].dropna().unique().tolist())
+    provincias = df["Provincia"].dropna().unique().tolist()
+
+    provincias = [
+        x for x in provincias
+        if str(x).strip() != ""
+    ]
+
+    return sorted(provincias)
 
 
 def obtener_cantones_por_provincia(provincia):
@@ -630,7 +725,34 @@ def obtener_cantones_por_provincia(provincia):
         df["Provincia_Normalizada"] == provincia_norm
     ]["Cantón"].dropna().unique().tolist()
 
+    cantones = [
+        x for x in cantones
+        if str(x).strip() != ""
+    ]
+
     return sorted(cantones)
+
+
+def obtener_distritos_por_provincia_canton(provincia, canton):
+    df = cargar_datos_importantes()
+
+    if df.empty or not provincia or not canton:
+        return []
+
+    provincia_norm = normalizar_texto(provincia)
+    canton_norm = normalizar_texto(canton)
+
+    distritos = df[
+        (df["Provincia_Normalizada"] == provincia_norm) &
+        (df["Cantón_Normalizado"] == canton_norm)
+    ]["Distrito"].dropna().unique().tolist()
+
+    distritos = [
+        x for x in distritos
+        if str(x).strip() != ""
+    ]
+
+    return sorted(distritos)
 
 
 # ======================================================
@@ -676,16 +798,12 @@ def obtener_centros_por_provincia(provincia):
 
 # ======================================================
 # BASE DELEGACIONES Y DISTRITOS
+# Se conserva como respaldo para delegaciones antiguas.
+# Los distritos ahora salen de Datos Importantes.xlsx.
 # ======================================================
 
 @st.cache_data
 def cargar_base_delegaciones():
-    """
-    Carga DELEGACIONES Y DISTRITOS.xlsx.
-    Si el archivo tiene Provincia/Cantón/Distrito, permite filtrar distrito por cantón.
-    Si solo tiene Delegacion/Distrito, se usa como lista única.
-    """
-
     if not os.path.exists(ARCHIVO_DELEGACIONES):
         return pd.DataFrame(columns=["Delegacion", "Distrito"])
 
@@ -697,16 +815,20 @@ def cargar_base_delegaciones():
     col_canton = obtener_columna_por_nombre(df_original, ["Canton", "Cantón"])
 
     columnas = {}
+
     if col_delegacion:
         columnas[col_delegacion] = "Delegacion"
+
     if col_distrito:
         columnas[col_distrito] = "Distrito"
+
     if col_provincia:
         columnas[col_provincia] = "Provincia"
+
     if col_canton:
         columnas[col_canton] = "Cantón"
 
-    if not col_distrito:
+    if not col_delegacion and not col_distrito:
         return pd.DataFrame(columns=["Delegacion", "Distrito", "Provincia", "Cantón"])
 
     df = df_original[list(columnas.keys())].copy()
@@ -719,26 +841,30 @@ def cargar_base_delegaciones():
         df[col] = df[col].astype(str).str.strip()
 
     df = df.replace("nan", "")
-    df = df.dropna(subset=["Distrito"])
 
     df["Delegacion_Normalizada"] = df["Delegacion"].apply(normalizar_texto)
     df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
     df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
     df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
 
-    df = df.drop_duplicates(
-        subset=[
-            "Delegacion_Normalizada",
-            "Distrito_Normalizado",
-            "Provincia_Normalizada",
-            "Cantón_Normalizado"
-        ]
-    )
+    df = df.drop_duplicates()
 
     return df
 
 
 def obtener_delegaciones_unicas():
+    df_datos = cargar_datos_importantes()
+
+    if not df_datos.empty:
+        delegaciones = df_datos["Delegación"].dropna().unique().tolist()
+
+        delegaciones = [
+            x for x in delegaciones
+            if str(x).strip() != ""
+        ]
+
+        return sorted(delegaciones)
+
     df = cargar_base_delegaciones()
 
     if df.empty or "Delegacion" not in df.columns:
@@ -748,10 +874,27 @@ def obtener_delegaciones_unicas():
         subset=["Delegacion_Normalizada"]
     )
 
-    return sorted([x for x in df_tmp["Delegacion"].dropna().tolist() if x.strip() != ""])
+    return sorted(
+        [
+            x for x in df_tmp["Delegacion"].dropna().tolist()
+            if x.strip() != ""
+        ]
+    )
 
 
 def obtener_distritos_unicos():
+    df_datos = cargar_datos_importantes()
+
+    if not df_datos.empty:
+        distritos = df_datos["Distrito"].dropna().unique().tolist()
+
+        distritos = [
+            x for x in distritos
+            if str(x).strip() != ""
+        ]
+
+        return sorted(distritos)
+
     df = cargar_base_delegaciones()
 
     if df.empty:
@@ -761,41 +904,12 @@ def obtener_distritos_unicos():
         subset=["Distrito_Normalizado"]
     )
 
-    return sorted([x for x in df_tmp["Distrito"].dropna().tolist() if x.strip() != ""])
-
-
-def obtener_distritos_por_provincia_canton(provincia, canton):
-    """
-    Filtra distritos por provincia y cantón si la base los trae.
-    Si no existen esas columnas con datos, devuelve lista general.
-    """
-
-    df = cargar_base_delegaciones()
-
-    if df.empty:
-        return []
-
-    provincia_norm = normalizar_texto(provincia)
-    canton_norm = normalizar_texto(canton)
-
-    df_filtrado = df.copy()
-
-    if provincia_norm and df_filtrado["Provincia_Normalizada"].str.strip().ne("").any():
-        df_filtrado = df_filtrado[
-            df_filtrado["Provincia_Normalizada"] == provincia_norm
+    return sorted(
+        [
+            x for x in df_tmp["Distrito"].dropna().tolist()
+            if x.strip() != ""
         ]
-
-    if canton_norm and df_filtrado["Cantón_Normalizado"].str.strip().ne("").any():
-        df_filtrado = df_filtrado[
-            df_filtrado["Cantón_Normalizado"] == canton_norm
-        ]
-
-    distritos = df_filtrado["Distrito"].dropna().unique().tolist()
-
-    if not distritos:
-        return obtener_distritos_unicos()
-
-    return sorted([x for x in distritos if str(x).strip() != ""])
+    )
 
 
 # ======================================================
@@ -809,6 +923,7 @@ def georreferenciar_direccion(direccion):
 
     try:
         geolocator = Nominatim(user_agent="pumi_2026_streamlit_app")
+
         geocode = RateLimiter(
             geolocator.geocode,
             min_delay_seconds=1,
