@@ -30,10 +30,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 
 
-# ======================================================
-# CONFIGURACIÓN GENERAL DE LA APP
-# ======================================================
-
 st.set_page_config(
     page_title="PUMI 2026",
     page_icon="🛡️",
@@ -42,118 +38,38 @@ st.set_page_config(
 )
 
 
-# ======================================================
-# ARCHIVOS BASE EN EL REPOSITORIO
-# ======================================================
-
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
 ARCHIVO_DELEGACIONES = "DELEGACIONES Y DISTRITOS.xlsx"
 ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 
 
-# ======================================================
-# CLAVES ADMINISTRATIVAS Y PERFILES DE ACCESO
-# ======================================================
-
 CLAVES_ADMINISTRATIVAS = {
-    "DPPP23": {
-        "perfil": "DPPP",
-        "programa": "TODOS",
-        "programas_permitidos": "TODOS",
-        "descripcion": "Administrador general"
-    },
-    "DPPP2026": {
-        "perfil": "DPPP",
-        "programa": "TODOS",
-        "programas_permitidos": "TODOS",
-        "descripcion": "Administrador general"
-    },
-    "DARE23": {
-        "perfil": "DARE",
-        "programa": "DARE",
-        "programas_permitidos": ["DARE"],
-        "descripcion": "Administrador programa DARE"
-    },
-    "DARE2026": {
-        "perfil": "DARE",
-        "programa": "DARE",
-        "programas_permitidos": ["DARE"],
-        "descripcion": "Administrador programa DARE"
-    },
-    "GREAT23": {
-        "perfil": "GREAT",
-        "programa": "GREAT",
-        "programas_permitidos": ["GREAT", "GREAT CAMP"],
-        "descripcion": "Administrador programa GREAT"
-    },
-    "GREAT2026": {
-        "perfil": "GREAT",
-        "programa": "GREAT",
-        "programas_permitidos": ["GREAT", "GREAT CAMP"],
-        "descripcion": "Administrador programa GREAT"
-    },
-    "MPAS23": {
-        "perfil": "MPAS",
-        "programa": "MPAS",
-        "programas_permitidos": ["MPAS"],
-        "descripcion": "Administrador programa MPAS"
-    },
-    "MPAS2026": {
-        "perfil": "MPAS",
-        "programa": "MPAS",
-        "programas_permitidos": ["MPAS"],
-        "descripcion": "Administrador programa MPAS"
-    },
-    "PSCC23": {
-        "perfil": "PSCC",
-        "programa": "PSCC",
-        "programas_permitidos": ["PSCC"],
-        "descripcion": "Administrador programa PSCC"
-    },
-    "PSCC2026": {
-        "perfil": "PSCC",
-        "programa": "PSCC",
-        "programas_permitidos": ["PSCC"],
-        "descripcion": "Administrador programa PSCC"
-    },
-    "VIF23": {
-        "perfil": "VIF",
-        "programa": "VIF",
-        "programas_permitidos": ["VIF"],
-        "descripcion": "Administrador programa VIF"
-    },
-    "VIF2026": {
-        "perfil": "VIF",
-        "programa": "VIF",
-        "programas_permitidos": ["VIF"],
-        "descripcion": "Administrador programa VIF"
-    },
-    "POLITICA23": {
-        "perfil": "POLITICA PUBLICA",
-        "programa": "Política Pública",
-        "programas_permitidos": ["Política Pública"],
-        "descripcion": "Administrador programa Política Pública"
-    },
-    "POLITICA2026": {
-        "perfil": "POLITICA PUBLICA",
-        "programa": "Política Pública",
-        "programas_permitidos": ["Política Pública"],
-        "descripcion": "Administrador programa Política Pública"
-    }
+    "DPPP23": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+    "DPPP2026": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+
+    "DARE23": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+    "DARE2026": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+
+    "GREAT23": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+    "GREAT2026": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+
+    "MPAS23": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+    "MPAS2026": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+
+    "PSCC23": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+    "PSCC2026": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+
+    "VIF23": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+    "VIF2026": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+
+    "POLITICA23": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"},
+    "POLITICA2026": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"}
 }
 
-
-# ======================================================
-# CONEXIÓN BASE GOOGLE SHEETS
-# ======================================================
 
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1O-HNa1c4ppF0-ND7BUqKA2OzZDc1O0kTxZOMVDeA-GY/edit?gid=0#gid=0"
 HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 
-
-# ======================================================
-# ENCABEZADOS OFICIALES DE LA BASE DE DATOS
-# ======================================================
 
 ENCABEZADOS = [
     "ID",
@@ -190,10 +106,6 @@ ENCABEZADOS = [
     "Usuario Registra"
 ]
 
-
-# ======================================================
-# CATÁLOGOS BASE DE RESPALDO
-# ======================================================
 
 PROGRAMAS = [
     "DARE",
@@ -254,10 +166,6 @@ COLORES_PROGRAMA = {
 }
 
 
-# ======================================================
-# COLORES INSTITUCIONALES
-# ======================================================
-
 COLOR_AZUL = "#003366"
 COLOR_AZUL_MEDIO = "#005B96"
 COLOR_AZUL_CLARO = "#0B84C6"
@@ -268,10 +176,6 @@ COLOR_GRIS = "#F4F6F8"
 COLOR_GRIS_OSCURO = "#2F3542"
 COLOR_BLANCO = "#FFFFFF"
 
-
-# ======================================================
-# ESTILOS VISUALES DE LA APP
-# ======================================================
 
 st.markdown(
     f"""
@@ -316,31 +220,26 @@ st.markdown(
         color: #F4FFF8;
     }}
 
-    .card-pumi {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #F0FAF4 100%);
+    .card-pumi, .card-azul, .card-dorado {{
         padding: 24px;
         border-radius: 20px;
         box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
-        border-left: 9px solid {COLOR_VERDE};
         margin-bottom: 20px;
+    }}
+
+    .card-pumi {{
+        background: linear-gradient(135deg, #FFFFFF 0%, #F0FAF4 100%);
+        border-left: 9px solid {COLOR_VERDE};
     }}
 
     .card-azul {{
         background: linear-gradient(135deg, #FFFFFF 0%, #EEF7FF 100%);
-        padding: 24px;
-        border-radius: 20px;
-        box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
         border-left: 9px solid {COLOR_AZUL};
-        margin-bottom: 20px;
     }}
 
     .card-dorado {{
         background: linear-gradient(135deg, #FFFFFF 0%, #FFF8DC 100%);
-        padding: 24px;
-        border-radius: 20px;
-        box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
         border-left: 9px solid {COLOR_DORADO};
-        margin-bottom: 20px;
     }}
 
     .bloque-datos {{
@@ -464,10 +363,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
-# ======================================================
-# FUNCIÓN PARA MOSTRAR LOGO
-# ======================================================
 
 def mostrar_logo():
     if os.path.exists("logo_pumi.jpeg"):
@@ -1064,8 +959,19 @@ def obtener_distritos_unicos():
 
 
 # ======================================================
-# GEOREFERENCIA Y MAPA
+# GEOREFERENCIA Y MAPA INTELIGENTE
 # ======================================================
+
+CENTROS_PROVINCIA = {
+    "San José": [9.9281, -84.0907],
+    "Alajuela": [10.0162, -84.2116],
+    "Cartago": [9.8644, -83.9194],
+    "Heredia": [10.0024, -84.1165],
+    "Guanacaste": [10.6267, -85.4437],
+    "Puntarenas": [9.9763, -84.8384],
+    "Limón": [9.9917, -83.0360]
+}
+
 
 @st.cache_data(show_spinner=False)
 def georreferenciar_direccion(direccion):
@@ -1126,31 +1032,66 @@ def preparar_dataframe_mapa(df):
     return df_mapa
 
 
+def obtener_centro_mapa_por_provincia(df):
+    if df.empty or "Provincia" not in df.columns:
+        return [9.7489, -83.7534], 7
+
+    provincias = df["Provincia"].dropna().astype(str).unique().tolist()
+    provincias = [p for p in provincias if p.strip() != ""]
+
+    if len(provincias) == 1:
+        provincia = provincias[0]
+
+        if provincia in CENTROS_PROVINCIA:
+            return CENTROS_PROVINCIA[provincia], 10
+
+    return [9.7489, -83.7534], 7
+
+
 def crear_mapa_registros(df, zoom_start=8):
     df_mapa = preparar_dataframe_mapa(df)
 
     if df_mapa.empty:
-        return folium.Map(
-            location=[9.7489, -83.7534],
-            zoom_start=7,
+        centro, zoom = obtener_centro_mapa_por_provincia(df)
+
+        mapa = folium.Map(
+            location=centro,
+            zoom_start=zoom,
             tiles="OpenStreetMap"
         )
 
-    centro_lat = df_mapa["Latitud_Num"].mean()
-    centro_lon = df_mapa["Longitud_Num"].mean()
+        return mapa
+
+    total_puntos = len(df_mapa)
+
+    if total_puntos == 1:
+        centro_lat = float(df_mapa.iloc[0]["Latitud_Num"])
+        centro_lon = float(df_mapa.iloc[0]["Longitud_Num"])
+        zoom_mapa = 16
+
+    else:
+        centro_lat = float(df_mapa["Latitud_Num"].mean())
+        centro_lon = float(df_mapa["Longitud_Num"].mean())
+        zoom_mapa = zoom_start
 
     mapa = folium.Map(
         location=[centro_lat, centro_lon],
-        zoom_start=zoom_start,
+        zoom_start=zoom_mapa,
         tiles="OpenStreetMap"
     )
+
+    coordenadas = []
 
     for _, row in df_mapa.iterrows():
         programa = str(row.get("Programa", ""))
         color = obtener_color_programa(programa)
 
+        lat = float(row["Latitud_Num"])
+        lon = float(row["Longitud_Num"])
+        coordenadas.append([lat, lon])
+
         popup_html = f"""
-        <div style="font-family: Arial; width: 260px;">
+        <div style="font-family: Arial; width: 280px;">
             <h4 style="color:#003366; margin-bottom:6px;">Registro PUMI #{row.get("ID", "")}</h4>
             <b>Fecha:</b> {row.get("Fecha Actividad", "")}<br>
             <b>Delegación:</b> {row.get("Delegación", "")}<br>
@@ -1169,10 +1110,54 @@ def crear_mapa_registros(df, zoom_start=8):
         """
 
         folium.Marker(
-            location=[row["Latitud_Num"], row["Longitud_Num"]],
-            popup=folium.Popup(popup_html, max_width=320),
+            location=[lat, lon],
+            popup=folium.Popup(popup_html, max_width=330),
             tooltip=f'{row.get("Programa", "")} - {row.get("Delegación", "")}',
             icon=folium.Icon(color=color, icon="info-sign")
+        ).add_to(mapa)
+
+    if total_puntos == 1:
+        folium.Circle(
+            location=coordenadas[0],
+            radius=1200,
+            color="#003366",
+            fill=True,
+            fill_color="#0B84C6",
+            fill_opacity=0.12,
+            weight=2,
+            popup="Área de referencia del registro filtrado"
+        ).add_to(mapa)
+
+    elif total_puntos > 1:
+        min_lat = df_mapa["Latitud_Num"].min()
+        max_lat = df_mapa["Latitud_Num"].max()
+        min_lon = df_mapa["Longitud_Num"].min()
+        max_lon = df_mapa["Longitud_Num"].max()
+
+        margen_lat = max((max_lat - min_lat) * 0.25, 0.02)
+        margen_lon = max((max_lon - min_lon) * 0.25, 0.02)
+
+        bounds = [
+            [min_lat - margen_lat, min_lon - margen_lon],
+            [max_lat + margen_lat, max_lon + margen_lon]
+        ]
+
+        mapa.fit_bounds(bounds)
+
+        radio = max(
+            1500,
+            int(max(max_lat - min_lat, max_lon - min_lon) * 111000 / 2)
+        )
+
+        folium.Circle(
+            location=[centro_lat, centro_lon],
+            radius=radio,
+            color="#003366",
+            fill=True,
+            fill_color="#0B84C6",
+            fill_opacity=0.10,
+            weight=2,
+            popup=f"Área aproximada de {total_puntos} registros filtrados"
         ).add_to(mapa)
 
     return mapa
@@ -1182,7 +1167,7 @@ def mostrar_mapa_registros(df, height=520, key="mapa_registros"):
     df_mapa = preparar_dataframe_mapa(df)
 
     if df_mapa.empty:
-        st.info("No hay registros con coordenadas para mostrar en el mapa.")
+        st.info("No hay registros con coordenadas para mostrar. Se mostrará la ubicación aproximada según provincia si está disponible.")
 
     mapa = crear_mapa_registros(df)
 
