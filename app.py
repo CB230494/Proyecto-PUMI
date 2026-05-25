@@ -1499,8 +1499,7 @@ elif menu == "Registrar actividad":
         """
         <div class="card-azul">
             <div class="texto-pumi">
-                Complete la información de la actividad. Los campos se despliegan
-                de forma dependiente según la base Datos Importantes.xlsx.
+                Complete la información de la actividad.
             </div>
         </div>
         """,
