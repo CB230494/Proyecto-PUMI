@@ -1454,12 +1454,6 @@ if menu == "Inicio":
         unsafe_allow_html=True
     )
 
-    df = cargar_datos()
-
-    st.metric("Total de registros", len(df))
-
-    st.success("Conexión con Google Sheets activa.")
-
 
 # ======================================================
 # REGISTRAR ACTIVIDAD
