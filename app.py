@@ -291,8 +291,8 @@ st.markdown(
     }}
 
     .logo-fp-app {{
-        width: 145px;
-        height: 125px;
+        width: 400px;
+        height: 150px;
         object-fit: contain;
     }}
 
@@ -487,8 +487,8 @@ st.markdown(
         }}
 
         .logo-fp-app {{
-            width: 130px;
-            height: 105px;
+            width: 350px;
+            height: 100px;
         }}
     }}
 
