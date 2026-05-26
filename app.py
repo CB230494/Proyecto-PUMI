@@ -4660,7 +4660,6 @@ elif menu == "Dashboard profesional":
 
                 width, height = letter
 
-                # Líneas institucionales superiores SIN logos pequeños
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
                 canvas.line(42, height - 52, width - 42, height - 52)
@@ -4669,7 +4668,6 @@ elif menu == "Dashboard profesional":
                 canvas.setLineWidth(1.5)
                 canvas.line(42, height - 57, width - 42, height - 57)
 
-                # Marco exterior limpio
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
                 canvas.rect(
@@ -4688,7 +4686,6 @@ elif menu == "Dashboard profesional":
                     height - 108
                 )
 
-                # Pie de página
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(1)
                 canvas.line(42, 43, 205, 43)
@@ -4809,28 +4806,35 @@ elif menu == "Dashboard profesional":
                     )
 
 
-            def crear_tabla_logos_pdf(logo_fp, logo_min, logo_pumi):
+            def crear_tabla_logos_pdf(logo_min, logo_pumi, logo_fp):
+                """
+                Orden corregido igual que en la Parte 1:
+                IZQUIERDA: Ministerio | CENTRO: PUMI | DERECHA: Fuerza Pública
+                """
+
                 tabla_logos_data = [
                     [
-                        RLImage(logo_min, width=155, height=45) if logo_min else "",
-                        RLImage(logo_fp, width=150, height=50) if logo_fp else "",
-                        RLImage(logo_pumi, width=155, height=58) if logo_pumi else ""
+                        RLImage(logo_min, width=158, height=45) if logo_min else "",
+                        RLImage(logo_pumi, width=140, height=47) if logo_pumi else "",
+                        RLImage(logo_fp, width=180, height=68) if logo_fp else ""
                     ]
                 ]
 
                 tabla_logos = Table(
                     tabla_logos_data,
-                    colWidths=[165, 160, 165]
+                    colWidths=[165, 150, 185]
                 )
 
                 tabla_logos.setStyle(
                     TableStyle(
                         [
-                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                            ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                            ("ALIGN", (2, 0), (2, 0), "RIGHT"),
                             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                             ("BOX", (0, 0), (-1, -1), 0, colors.white),
-                            ("LEFTPADDING", (0, 0), (-1, -1), 2),
-                            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                             ("TOPPADDING", (0, 0), (-1, -1), 2),
                             ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
                         ]
@@ -4921,16 +4925,15 @@ elif menu == "Dashboard profesional":
                     wordWrap="CJK"
                 )
 
-                logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
                 logo_min = obtener_logo_existente(LOGO_MINISTERIO)
                 logo_pumi = obtener_logo_existente(LOGO_PUMI)
+                logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
 
-                # Portada: logos grandes y bien alineados
                 elementos.append(
                     crear_tabla_logos_pdf(
-                        logo_fp,
                         logo_min,
-                        logo_pumi
+                        logo_pumi,
+                        logo_fp
                     )
                 )
 
@@ -5336,9 +5339,9 @@ elif menu == "Dashboard profesional":
 
                 elementos.append(
                     crear_tabla_logos_pdf(
-                        logo_fp,
                         logo_min,
-                        logo_pumi
+                        logo_pumi,
+                        logo_fp
                     )
                 )
 
