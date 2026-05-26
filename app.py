@@ -279,8 +279,8 @@ st.markdown(
     }}
 
     .logo-ministerio-app {{
-        width: 400px;
-        height: 150px;
+        width: 350px;
+        height: 100px;
         object-fit: contain;
     }}
 
@@ -477,8 +477,8 @@ st.markdown(
         }}
 
         .logo-ministerio-app {{
-            width: 350px;
-            height: 100px;
+            width: 300px;
+            height: 80px;
         }}
 
         .logo-pumi-app {{
