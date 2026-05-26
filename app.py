@@ -568,7 +568,7 @@ def mostrar_encabezado_institucional():
 
 def mostrar_logos_encabezado():
     mostrar_encabezado_institucional()
-        # ======================================================
+# ======================================================
 # PARTE 2 DE 12
 # CONEXIÓN GOOGLE SHEETS, FUNCIONES BASE Y DATOS IMPORTANTES
 # ======================================================
@@ -605,11 +605,13 @@ def obtener_hoja(nombre_hoja):
             return spreadsheet.worksheet(nombre_hoja)
 
         except gspread.WorksheetNotFound:
-            return spreadsheet.add_worksheet(
+            hoja_nueva = spreadsheet.add_worksheet(
                 title=nombre_hoja,
                 rows=5000,
                 cols=len(ENCABEZADOS)
             )
+            hoja_nueva.append_row(ENCABEZADOS)
+            return hoja_nueva
 
     except Exception as e:
         st.error("Error al conectar con la hoja de Google Sheets.")
@@ -627,19 +629,17 @@ def inicializar_hoja():
         st.exception(e)
         st.stop()
 
+    # Si la hoja está vacía, agrega encabezados oficiales
     if len(datos) == 0:
         hoja.append_row(ENCABEZADOS)
         return hoja
 
-    return hoja
-
     primera_fila = datos[0]
 
+    # Si la primera fila no corresponde a encabezados oficiales,
+    # se inserta una fila de encabezados arriba sin borrar datos existentes.
     if primera_fila != ENCABEZADOS:
-        hoja.update(
-            f"A1:{chr(64 + len(ENCABEZADOS))}1",
-            [ENCABEZADOS]
-        )
+        hoja.insert_row(ENCABEZADOS, index=1)
 
     return hoja
 
