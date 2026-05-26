@@ -81,90 +81,26 @@ HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 # ======================================================
 
 CLAVES_ADMINISTRATIVAS = {
-    "DPPP23": {
-        "perfil": "DPPP",
-        "programa": "TODOS",
-        "programas_permitidos": "TODOS",
-        "descripcion": "Administrador general"
-    },
-    "DPPP2026": {
-        "perfil": "DPPP",
-        "programa": "TODOS",
-        "programas_permitidos": "TODOS",
-        "descripcion": "Administrador general"
-    },
-    "DARE23": {
-        "perfil": "DARE",
-        "programa": "DARE",
-        "programas_permitidos": ["DARE"],
-        "descripcion": "Administrador programa DARE"
-    },
-    "DARE2026": {
-        "perfil": "DARE",
-        "programa": "DARE",
-        "programas_permitidos": ["DARE"],
-        "descripcion": "Administrador programa DARE"
-    },
-    "GREAT23": {
-        "perfil": "GREAT",
-        "programa": "GREAT",
-        "programas_permitidos": ["GREAT", "GREAT CAMP"],
-        "descripcion": "Administrador programa GREAT"
-    },
-    "GREAT2026": {
-        "perfil": "GREAT",
-        "programa": "GREAT",
-        "programas_permitidos": ["GREAT", "GREAT CAMP"],
-        "descripcion": "Administrador programa GREAT"
-    },
-    "MPAS23": {
-        "perfil": "MPAS",
-        "programa": "MPAS",
-        "programas_permitidos": ["MPAS"],
-        "descripcion": "Administrador programa MPAS"
-    },
-    "MPAS2026": {
-        "perfil": "MPAS",
-        "programa": "MPAS",
-        "programas_permitidos": ["MPAS"],
-        "descripcion": "Administrador programa MPAS"
-    },
-    "PSCC23": {
-        "perfil": "PSCC",
-        "programa": "PSCC",
-        "programas_permitidos": ["PSCC"],
-        "descripcion": "Administrador programa PSCC"
-    },
-    "PSCC2026": {
-        "perfil": "PSCC",
-        "programa": "PSCC",
-        "programas_permitidos": ["PSCC"],
-        "descripcion": "Administrador programa PSCC"
-    },
-    "VIF23": {
-        "perfil": "VIF",
-        "programa": "VIF",
-        "programas_permitidos": ["VIF"],
-        "descripcion": "Administrador programa VIF"
-    },
-    "VIF2026": {
-        "perfil": "VIF",
-        "programa": "VIF",
-        "programas_permitidos": ["VIF"],
-        "descripcion": "Administrador programa VIF"
-    },
-    "POLITICA23": {
-        "perfil": "POLITICA PUBLICA",
-        "programa": "Política Pública",
-        "programas_permitidos": ["Política Pública"],
-        "descripcion": "Administrador programa Política Pública"
-    },
-    "POLITICA2026": {
-        "perfil": "POLITICA PUBLICA",
-        "programa": "Política Pública",
-        "programas_permitidos": ["Política Pública"],
-        "descripcion": "Administrador programa Política Pública"
-    }
+    "DPPP23": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+    "DPPP2026": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+
+    "DARE23": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+    "DARE2026": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+
+    "GREAT23": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+    "GREAT2026": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+
+    "MPAS23": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+    "MPAS2026": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+
+    "PSCC23": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+    "PSCC2026": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+
+    "VIF23": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+    "VIF2026": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+
+    "POLITICA23": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"},
+    "POLITICA2026": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"}
 }
 
 
@@ -173,34 +109,13 @@ CLAVES_ADMINISTRATIVAS = {
 # ======================================================
 
 CLAVES_USUARIO_PROGRAMA = {
-    "DPPP": {
-        "claves": ["DPPP23", "DPPP2026"],
-        "programas_permitidos": "TODOS"
-    },
-    "DARE": {
-        "claves": ["DARE23", "DARE2026", "DAREUSUARIO"],
-        "programas_permitidos": ["DARE"]
-    },
-    "GREAT": {
-        "claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"],
-        "programas_permitidos": ["GREAT", "GREAT CAMP"]
-    },
-    "MPAS": {
-        "claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"],
-        "programas_permitidos": ["MPAS"]
-    },
-    "PSCC": {
-        "claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"],
-        "programas_permitidos": ["PSCC"]
-    },
-    "VIF": {
-        "claves": ["VIF23", "VIF2026", "VIFUSUARIO"],
-        "programas_permitidos": ["VIF"]
-    },
-    "Política Pública": {
-        "claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"],
-        "programas_permitidos": ["Política Pública"]
-    }
+    "DPPP": {"claves": ["DPPP23", "DPPP2026"], "programas_permitidos": "TODOS"},
+    "DARE": {"claves": ["DARE23", "DARE2026", "DAREUSUARIO"], "programas_permitidos": ["DARE"]},
+    "GREAT": {"claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"], "programas_permitidos": ["GREAT", "GREAT CAMP"]},
+    "MPAS": {"claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"], "programas_permitidos": ["MPAS"]},
+    "PSCC": {"claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"], "programas_permitidos": ["PSCC"]},
+    "VIF": {"claves": ["VIF23", "VIF2026", "VIFUSUARIO"], "programas_permitidos": ["VIF"]},
+    "Política Pública": {"claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"], "programas_permitidos": ["Política Pública"]}
 }
 
 
@@ -209,39 +124,16 @@ CLAVES_USUARIO_PROGRAMA = {
 # ======================================================
 
 ENCABEZADOS = [
-    "ID",
-    "Fecha Registro",
-    "Fecha Actividad",
-    "Hora Actividad",
-    "Dirección Regional",
-    "Delegación",
-    "Programa",
-    "Actividad",
-    "Provincia",
-    "Cantón",
-    "Distrito",
-    "Tipo Lugar",
-    "Lugar",
-    "Centro Educativo",
-    "Código Presupuestario",
-    "Dirección Mapa",
-    "Latitud",
-    "Longitud",
-    "Responsable",
-    "Cantidad Participantes",
-    "Cantidad Hombres",
-    "Cantidad Mujeres",
-    "Edad 10 a 18",
-    "Edad 19 a 30",
-    "Edad 31 a 45",
-    "Edad 46 en adelante",
-    "Instituciones Participantes",
-    "Plan Estratégico Relacionado",
-    "Número de Referencia",
-    "Número de Expediente Referencia",
-    "Observaciones",
-    "Estado Revisión",
-    "Observación de Revisión",
+    "ID", "Fecha Registro", "Fecha Actividad", "Hora Actividad",
+    "Dirección Regional", "Delegación", "Programa", "Actividad",
+    "Provincia", "Cantón", "Distrito", "Tipo Lugar", "Lugar",
+    "Centro Educativo", "Código Presupuestario", "Dirección Mapa",
+    "Latitud", "Longitud", "Responsable", "Cantidad Participantes",
+    "Cantidad Hombres", "Cantidad Mujeres", "Edad 10 a 18",
+    "Edad 19 a 30", "Edad 31 a 45", "Edad 46 en adelante",
+    "Instituciones Participantes", "Plan Estratégico Relacionado",
+    "Número de Referencia", "Número de Expediente Referencia",
+    "Observaciones", "Estado Revisión", "Observación de Revisión",
     "Usuario Registra"
 ]
 
@@ -250,53 +142,20 @@ ENCABEZADOS = [
 # CATÁLOGOS BASE
 # ======================================================
 
-PROGRAMAS = [
-    "DARE",
-    "GREAT",
-    "MPAS",
-    "PSCC",
-    "VIF",
-    "Política Pública"
-]
+PROGRAMAS = ["DARE", "GREAT", "MPAS", "PSCC", "VIF", "Política Pública"]
 
 REGIONES = [
-    "R1 San José Central",
-    "R2 San José Norte",
-    "R3 San José Sur",
-    "R4 Alajuela",
-    "R5 Cartago",
-    "R6 Heredia",
-    "R7 Chorotega",
-    "R8 Puntarenas",
-    "R9 Limón",
-    "R10 Brunca",
-    "R11 Chorotega Norte",
-    "R12"
+    "R1 San José Central", "R2 San José Norte", "R3 San José Sur",
+    "R4 Alajuela", "R5 Cartago", "R6 Heredia", "R7 Chorotega",
+    "R8 Puntarenas", "R9 Limón", "R10 Brunca",
+    "R11 Chorotega Norte", "R12"
 ]
 
-PROVINCIAS = [
-    "San José",
-    "Alajuela",
-    "Cartago",
-    "Heredia",
-    "Guanacaste",
-    "Puntarenas",
-    "Limón"
-]
+PROVINCIAS = ["San José", "Alajuela", "Cartago", "Heredia", "Guanacaste", "Puntarenas", "Limón"]
 
-RANGOS_EDAD = [
-    "Edad 10 a 18",
-    "Edad 19 a 30",
-    "Edad 31 a 45",
-    "Edad 46 en adelante"
-]
+RANGOS_EDAD = ["Edad 10 a 18", "Edad 19 a 30", "Edad 31 a 45", "Edad 46 en adelante"]
 
-ESTADOS_REVISION = [
-    "Pendiente de revisión",
-    "Aprobado",
-    "Con observaciones",
-    "Rechazado"
-]
+ESTADOS_REVISION = ["Pendiente de revisión", "Aprobado", "Con observaciones", "Rechazado"]
 
 
 # ======================================================
@@ -380,7 +239,7 @@ st.markdown(
     }}
 
     .sidebar-logo-pumi img {{
-        max-width: 100%;
+        width: 100%;
         max-height: 145px;
         object-fit: contain;
     }}
@@ -393,48 +252,47 @@ st.markdown(
         box-shadow: 0px 8px 22px rgba(0,0,0,0.11);
         border-bottom: 7px solid {COLOR_DORADO};
         display: grid;
-        grid-template-columns: 1fr 1.2fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
         align-items: center;
-        gap: 28px;
-        min-height: 150px;
+        gap: 22px;
+        min-height: 155px;
+    }}
+
+    .encabezado-logo-izq,
+    .encabezado-logo-centro,
+    .encabezado-logo-der {{
+        height: 125px;
+        display: flex;
+        align-items: center;
     }}
 
     .encabezado-logo-izq {{
-        display: flex;
         justify-content: flex-start;
-        align-items: center;
     }}
 
     .encabezado-logo-centro {{
-        display: flex;
         justify-content: center;
-        align-items: center;
     }}
 
     .encabezado-logo-der {{
-        display: flex;
         justify-content: flex-end;
-        align-items: center;
     }}
 
     .logo-ministerio-app {{
-        max-height: 48px;
-        max-width: 285px;
-        width: auto;
+        width: 300px;
+        height: 88px;
         object-fit: contain;
     }}
 
     .logo-pumi-app {{
-        max-height: 128px;
-        max-width: 340px;
-        width: auto;
+        width: 320px;
+        height: 125px;
         object-fit: contain;
     }}
 
     .logo-fp-app {{
-        max-height: 112px;
-        max-width: 155px;
-        width: auto;
+        width: 145px;
+        height: 125px;
         object-fit: contain;
     }}
 
@@ -615,21 +473,22 @@ st.markdown(
         .encabezado-logo-centro,
         .encabezado-logo-der {{
             justify-content: center;
+            height: auto;
         }}
 
         .logo-ministerio-app {{
-            max-height: 48px;
-            max-width: 260px;
+            width: 260px;
+            height: 75px;
         }}
 
         .logo-pumi-app {{
-            max-height: 105px;
-            max-width: 280px;
+            width: 280px;
+            height: 105px;
         }}
 
         .logo-fp-app {{
-            max-height: 95px;
-            max-width: 135px;
+            width: 130px;
+            height: 105px;
         }}
     }}
 
