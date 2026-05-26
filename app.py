@@ -9,6 +9,7 @@ import gspread
 import plotly.express as px
 import unicodedata
 import os
+import base64
 
 import folium
 from streamlit_folium import st_folium
@@ -65,10 +66,12 @@ ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 
 LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
 LOGO_MINISTERIO = "Logo2.jpeg"
+LOGO_PUMI = "logo_pumi.jpeg"
 
 LOGOS_INSTITUCIONALES = [
     LOGO_FUERZA_PUBLICA,
-    LOGO_MINISTERIO
+    LOGO_MINISTERIO,
+    LOGO_PUMI
 ]
 
 
@@ -85,96 +88,26 @@ HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 # ======================================================
 
 CLAVES_ADMINISTRATIVAS = {
-    "DPPP23": {
-        "perfil": "DPPP",
-        "programa": "TODOS",
-        "programas_permitidos": "TODOS",
-        "descripcion": "Administrador general"
-    },
-    "DPPP2026": {
-        "perfil": "DPPP",
-        "programa": "TODOS",
-        "programas_permitidos": "TODOS",
-        "descripcion": "Administrador general"
-    },
+    "DPPP23": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+    "DPPP2026": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
 
-    "DARE23": {
-        "perfil": "DARE",
-        "programa": "DARE",
-        "programas_permitidos": ["DARE"],
-        "descripcion": "Administrador programa DARE"
-    },
-    "DARE2026": {
-        "perfil": "DARE",
-        "programa": "DARE",
-        "programas_permitidos": ["DARE"],
-        "descripcion": "Administrador programa DARE"
-    },
+    "DARE23": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+    "DARE2026": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
 
-    "GREAT23": {
-        "perfil": "GREAT",
-        "programa": "GREAT",
-        "programas_permitidos": ["GREAT", "GREAT CAMP"],
-        "descripcion": "Administrador programa GREAT"
-    },
-    "GREAT2026": {
-        "perfil": "GREAT",
-        "programa": "GREAT",
-        "programas_permitidos": ["GREAT", "GREAT CAMP"],
-        "descripcion": "Administrador programa GREAT"
-    },
+    "GREAT23": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+    "GREAT2026": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
 
-    "MPAS23": {
-        "perfil": "MPAS",
-        "programa": "MPAS",
-        "programas_permitidos": ["MPAS"],
-        "descripcion": "Administrador programa MPAS"
-    },
-    "MPAS2026": {
-        "perfil": "MPAS",
-        "programa": "MPAS",
-        "programas_permitidos": ["MPAS"],
-        "descripcion": "Administrador programa MPAS"
-    },
+    "MPAS23": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+    "MPAS2026": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
 
-    "PSCC23": {
-        "perfil": "PSCC",
-        "programa": "PSCC",
-        "programas_permitidos": ["PSCC"],
-        "descripcion": "Administrador programa PSCC"
-    },
-    "PSCC2026": {
-        "perfil": "PSCC",
-        "programa": "PSCC",
-        "programas_permitidos": ["PSCC"],
-        "descripcion": "Administrador programa PSCC"
-    },
+    "PSCC23": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+    "PSCC2026": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
 
-    "VIF23": {
-        "perfil": "VIF",
-        "programa": "VIF",
-        "programas_permitidos": ["VIF"],
-        "descripcion": "Administrador programa VIF"
-    },
-    "VIF2026": {
-        "perfil": "VIF",
-        "programa": "VIF",
-        "programas_permitidos": ["VIF"],
-        "descripcion": "Administrador programa VIF"
-    },
+    "VIF23": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+    "VIF2026": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
 
-    "POLITICA23": {
-        "perfil": "POLITICA PUBLICA",
-        "programa": "Política Pública",
-        "programas_permitidos": ["Política Pública"],
-        "descripcion": "Administrador programa Política Pública"
-    },
-    "POLITICA2026": {
-        "perfil": "POLITICA PUBLICA",
-        "programa": "Política Pública",
-        "programas_permitidos": ["Política Pública"],
-        "descripcion": "Administrador programa Política Pública"
-    }
+    "POLITICA23": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"},
+    "POLITICA2026": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"}
 }
 
 
@@ -183,34 +116,13 @@ CLAVES_ADMINISTRATIVAS = {
 # ======================================================
 
 CLAVES_USUARIO_PROGRAMA = {
-    "DPPP": {
-        "claves": ["DPPP23", "DPPP2026"],
-        "programas_permitidos": "TODOS"
-    },
-    "DARE": {
-        "claves": ["DARE23", "DARE2026", "DAREUSUARIO"],
-        "programas_permitidos": ["DARE"]
-    },
-    "GREAT": {
-        "claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"],
-        "programas_permitidos": ["GREAT", "GREAT CAMP"]
-    },
-    "MPAS": {
-        "claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"],
-        "programas_permitidos": ["MPAS"]
-    },
-    "PSCC": {
-        "claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"],
-        "programas_permitidos": ["PSCC"]
-    },
-    "VIF": {
-        "claves": ["VIF23", "VIF2026", "VIFUSUARIO"],
-        "programas_permitidos": ["VIF"]
-    },
-    "Política Pública": {
-        "claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"],
-        "programas_permitidos": ["Política Pública"]
-    }
+    "DPPP": {"claves": ["DPPP23", "DPPP2026"], "programas_permitidos": "TODOS"},
+    "DARE": {"claves": ["DARE23", "DARE2026", "DAREUSUARIO"], "programas_permitidos": ["DARE"]},
+    "GREAT": {"claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"], "programas_permitidos": ["GREAT", "GREAT CAMP"]},
+    "MPAS": {"claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"], "programas_permitidos": ["MPAS"]},
+    "PSCC": {"claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"], "programas_permitidos": ["PSCC"]},
+    "VIF": {"claves": ["VIF23", "VIF2026", "VIFUSUARIO"], "programas_permitidos": ["VIF"]},
+    "Política Pública": {"claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"], "programas_permitidos": ["Política Pública"]}
 }
 
 
@@ -311,8 +223,6 @@ ESTADOS_REVISION = [
 
 # ======================================================
 # COLORES INSTITUCIONALES
-# Azul y blanco se mantienen.
-# Rojo se sustituye visualmente por dorado institucional.
 # ======================================================
 
 COLOR_AZUL = "#002B7F"
@@ -327,8 +237,7 @@ COLOR_BLANCO = "#FFFFFF"
 COLOR_GRIS = "#F4F6F8"
 COLOR_GRIS_OSCURO = "#2F3542"
 
-# Compatibilidad con partes anteriores del código:
-# Todo lo que antes llamaba COLOR_ROJO ahora usará dorado.
+# Compatibilidad con partes anteriores
 COLOR_ROJO = COLOR_DORADO
 COLOR_ROJO_OSCURO = COLOR_DORADO_OSCURO
 COLOR_ROJO_CLARO = COLOR_DORADO_CLARO
@@ -346,6 +255,21 @@ COLORES_PROGRAMA = {
     "VIF": "orange",
     "Política Pública": "green"
 }
+
+
+# ======================================================
+# FUNCIÓN PARA CONVERTIR IMÁGENES A BASE64
+# ======================================================
+
+def imagen_a_base64(ruta):
+    if not os.path.exists(ruta):
+        return ""
+
+    try:
+        with open(ruta, "rb") as archivo:
+            return base64.b64encode(archivo.read()).decode()
+    except Exception:
+        return ""
 
 
 # ======================================================
@@ -369,8 +293,57 @@ st.markdown(
         box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
     }}
 
+    .encabezado-institucional {{
+        background: #FFFFFF;
+        border-radius: 20px;
+        padding: 18px 28px;
+        margin-bottom: 22px;
+        box-shadow: 0px 6px 20px rgba(0,0,0,0.11);
+        border-bottom: 6px solid {COLOR_DORADO};
+        display: grid;
+        grid-template-columns: 1fr 2fr 1fr;
+        align-items: center;
+        gap: 24px;
+    }}
+
+    .encabezado-logo-izq {{
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+    }}
+
+    .encabezado-logo-centro {{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }}
+
+    .encabezado-logo-der {{
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }}
+
+    .logo-fp-app {{
+        max-height: 95px;
+        width: auto;
+        object-fit: contain;
+    }}
+
+    .logo-ministerio-app {{
+        max-height: 58px;
+        width: auto;
+        object-fit: contain;
+    }}
+
+    .logo-pumi-app {{
+        max-height: 110px;
+        width: auto;
+        object-fit: contain;
+    }}
+
     .titulo-principal {{
-        background: linear-gradient(135deg, {COLOR_AZUL}, {COLOR_DORADO});
+        background: linear-gradient(135deg, {COLOR_AZUL}, #243B63, {COLOR_DORADO});
         padding: 38px;
         border-radius: 22px;
         text-align: center;
@@ -394,28 +367,6 @@ st.markdown(
         margin-top: 8px;
         font-weight: 600;
         color: white;
-    }}
-
-    .logos-app {{
-        background: #FFFFFF;
-        border-radius: 18px;
-        padding: 14px 20px;
-        margin-bottom: 18px;
-        box-shadow: 0px 5px 16px rgba(0,0,0,0.12);
-        border-bottom: 5px solid {COLOR_DORADO};
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 24px;
-    }}
-
-    .logos-app img {{
-        max-height: 76px;
-        object-fit: contain;
-    }}
-
-    .logos-app .logo-ministerio {{
-        max-height: 54px;
     }}
 
     .card-pumi, .card-azul, .card-dorado {{
@@ -557,6 +508,31 @@ st.markdown(
         font-weight: 900;
     }}
 
+    @media (max-width: 900px) {{
+        .encabezado-institucional {{
+            grid-template-columns: 1fr;
+            text-align: center;
+        }}
+
+        .encabezado-logo-izq,
+        .encabezado-logo-centro,
+        .encabezado-logo-der {{
+            justify-content: center;
+        }}
+
+        .logo-fp-app {{
+            max-height: 85px;
+        }}
+
+        .logo-ministerio-app {{
+            max-height: 50px;
+        }}
+
+        .logo-pumi-app {{
+            max-height: 95px;
+        }}
+    }}
+
     </style>
     """,
     unsafe_allow_html=True
@@ -564,47 +540,88 @@ st.markdown(
 
 
 # ======================================================
-# LOGOS
+# LOGOS EN SIDEBAR
 # ======================================================
 
 def mostrar_logo():
     """
-    Muestra los logos institucionales en el sidebar.
-    Los archivos deben estar al mismo nivel de app.py:
-    - Logo1.jpeg
-    - Logo2.jpeg
+    Muestra los logos institucionales en el sidebar sin deformarlos.
     """
 
-    logos_encontrados = []
+    if os.path.exists(LOGO_PUMI):
+        st.sidebar.image(LOGO_PUMI, width=190)
 
-    for logo_path in LOGOS_INSTITUCIONALES:
-        if os.path.exists(logo_path):
-            logos_encontrados.append(logo_path)
+    st.sidebar.markdown("---")
 
-    if logos_encontrados:
-        for logo_path in logos_encontrados:
-            logo = Image.open(logo_path)
-            st.sidebar.image(logo, use_container_width=True)
-            st.sidebar.markdown("<br>", unsafe_allow_html=True)
-    else:
+    if os.path.exists(LOGO_FUERZA_PUBLICA):
+        st.sidebar.image(LOGO_FUERZA_PUBLICA, width=135)
+
+    if os.path.exists(LOGO_MINISTERIO):
+        st.sidebar.image(LOGO_MINISTERIO, width=190)
+
+    if (
+        not os.path.exists(LOGO_PUMI)
+        and not os.path.exists(LOGO_FUERZA_PUBLICA)
+        and not os.path.exists(LOGO_MINISTERIO)
+    ):
         st.sidebar.warning("Logos institucionales no encontrados.")
 
 
+# ======================================================
+# ENCABEZADO INSTITUCIONAL SUPERIOR DE LA APP
+# ======================================================
+
+def mostrar_encabezado_institucional():
+    """
+    Encabezado superior para todas las páginas de la app.
+    Se usa en la Parte 4 antes del título principal.
+    """
+
+    logo_fp_b64 = imagen_a_base64(LOGO_FUERZA_PUBLICA)
+    logo_min_b64 = imagen_a_base64(LOGO_MINISTERIO)
+    logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
+
+    img_fp = (
+        f'<img class="logo-fp-app" src="data:image/jpeg;base64,{logo_fp_b64}">'
+        if logo_fp_b64 else ""
+    )
+
+    img_min = (
+        f'<img class="logo-ministerio-app" src="data:image/jpeg;base64,{logo_min_b64}">'
+        if logo_min_b64 else ""
+    )
+
+    img_pumi = (
+        f'<img class="logo-pumi-app" src="data:image/jpeg;base64,{logo_pumi_b64}">'
+        if logo_pumi_b64 else ""
+    )
+
+    st.markdown(
+        f"""
+        <div class="encabezado-institucional">
+            <div class="encabezado-logo-izq">
+                {img_fp}
+            </div>
+            <div class="encabezado-logo-centro">
+                {img_min}
+            </div>
+            <div class="encabezado-logo-der">
+                {img_pumi}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# ======================================================
+# FUNCIÓN DE COMPATIBILIDAD
+# Para que no falle si en Parte 4 todavía existe:
+# mostrar_logos_encabezado()
+# ======================================================
+
 def mostrar_logos_encabezado():
-    """
-    Muestra ambos logos en la parte superior de la app.
-    Para usarse en la Parte 4, antes del encabezado principal.
-    """
-
-    col_logo1, col_logo2 = st.columns([1, 3])
-
-    with col_logo1:
-        if os.path.exists(LOGO_FUERZA_PUBLICA):
-            st.image(LOGO_FUERZA_PUBLICA, width=120)
-
-    with col_logo2:
-        if os.path.exists(LOGO_MINISTERIO):
-            st.image(LOGO_MINISTERIO, width=360)
+    mostrar_encabezado_institucional()
         # ======================================================
 # PARTE 2 DE 12
 # CONEXIÓN GOOGLE SHEETS, FUNCIONES BASE Y DATOS IMPORTANTES
@@ -1733,16 +1750,28 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
     )
 
     if tipo_mapa == "OpenStreetMap":
-        folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(mapa)
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="OpenStreetMap"
+        ).add_to(mapa)
 
     elif tipo_mapa == "Mapa claro":
-        folium.TileLayer("CartoDB positron", name="Mapa claro").add_to(mapa)
+        folium.TileLayer(
+            "CartoDB positron",
+            name="Mapa claro"
+        ).add_to(mapa)
 
     elif tipo_mapa == "Mapa oscuro":
-        folium.TileLayer("CartoDB dark_matter", name="Mapa oscuro").add_to(mapa)
+        folium.TileLayer(
+            "CartoDB dark_matter",
+            name="Mapa oscuro"
+        ).add_to(mapa)
 
     elif tipo_mapa == "Topográfico":
-        folium.TileLayer("OpenTopoMap", name="Topográfico").add_to(mapa)
+        folium.TileLayer(
+            "OpenTopoMap",
+            name="Topográfico"
+        ).add_to(mapa)
 
     elif tipo_mapa == "Satélite":
         folium.TileLayer(
@@ -1757,7 +1786,7 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
 
 
 # ======================================================
-# SIDEBAR, LOGO Y ACCESO ADMINISTRATIVO
+# SIDEBAR, LOGOS Y ACCESO ADMINISTRATIVO
 # ======================================================
 
 mostrar_logo()
@@ -1834,10 +1863,10 @@ menu = st.sidebar.radio(
 
 
 # ======================================================
-# LOGOS SUPERIORES DE LA APP
+# ENCABEZADO INSTITUCIONAL SUPERIOR
 # ======================================================
 
-mostrar_logos_encabezado()
+mostrar_encabezado_institucional()
 
 
 # ======================================================
@@ -4437,7 +4466,10 @@ elif menu == "Dashboard profesional":
 
                 fig_delegacion.update_layout(title_x=0.5)
 
-                st.plotly_chart(fig_delegacion, use_container_width=True)
+                st.plotly_chart(
+                    fig_delegacion,
+                    use_container_width=True
+                )
 
             with colg6:
                 st.markdown("### Registros por tipo de lugar")
@@ -4450,8 +4482,14 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_tipo_lugar.update_traces(textinfo="label+value+percent")
-                    st.plotly_chart(fig_tipo_lugar, use_container_width=True)
+                    fig_tipo_lugar.update_traces(
+                        textinfo="label+value+percent"
+                    )
+
+                    st.plotly_chart(
+                        fig_tipo_lugar,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No existe la columna Tipo Lugar.")
 
@@ -4476,8 +4514,14 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_sexo.update_traces(textinfo="label+value+percent")
-                    st.plotly_chart(fig_sexo, use_container_width=True)
+                    fig_sexo.update_traces(
+                        textinfo="label+value+percent"
+                    )
+
+                    st.plotly_chart(
+                        fig_sexo,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No hay datos de sexo registrados.")
 
@@ -4520,8 +4564,15 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_edades.update_layout(showlegend=False, title_x=0.5)
-                    st.plotly_chart(fig_edades, use_container_width=True)
+                    fig_edades.update_layout(
+                        showlegend=False,
+                        title_x=0.5
+                    )
+
+                    st.plotly_chart(
+                        fig_edades,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No hay datos de rangos de edad registrados.")
 
@@ -4531,7 +4582,9 @@ elif menu == "Dashboard profesional":
 
             st.markdown("### Evolución mensual de actividades")
 
-            df_mensual = df_filtrado.dropna(subset=["Fecha Actividad"]).copy()
+            df_mensual = df_filtrado.dropna(
+                subset=["Fecha Actividad"]
+            ).copy()
 
             if not df_mensual.empty:
                 df_mensual["Mes"] = df_mensual[
@@ -4563,8 +4616,11 @@ elif menu == "Dashboard profesional":
                 )
 
                 fig_mensual.update_layout(title_x=0.5)
-                st.plotly_chart(fig_mensual, use_container_width=True)
 
+                st.plotly_chart(
+                    fig_mensual,
+                    use_container_width=True
+                )
             else:
                 st.info("No hay fechas válidas para generar evolución mensual.")
 
@@ -4581,7 +4637,11 @@ elif menu == "Dashboard profesional":
                     "Fecha Actividad"
                 ].dt.strftime("%d/%m/%Y")
 
-            st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_mostrar,
+                use_container_width=True,
+                hide_index=True
+            )
 
             # ======================================================
             # CONFIGURACIÓN DEL INFORME PDF
@@ -4654,18 +4714,20 @@ elif menu == "Dashboard profesional":
 
                 width, height = letter
 
-                # Logos en todas las páginas
                 logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
                 logo_min = obtener_logo_existente(LOGO_MINISTERIO)
+
+                # Encabezado superior limpio en páginas internas
+                logo_y = height - 72
 
                 if logo_fp:
                     try:
                         canvas.drawImage(
                             logo_fp,
-                            42,
-                            height - 68,
-                            width=48,
-                            height=48,
+                            48,
+                            logo_y,
+                            width=58,
+                            height=58,
                             preserveAspectRatio=True,
                             mask="auto"
                         )
@@ -4676,38 +4738,51 @@ elif menu == "Dashboard profesional":
                     try:
                         canvas.drawImage(
                             logo_min,
-                            width - 205,
-                            height - 58,
-                            width=165,
-                            height=36,
+                            width / 2 - 100,
+                            logo_y + 11,
+                            width=200,
+                            height=42,
                             preserveAspectRatio=True,
                             mask="auto"
                         )
                     except Exception:
                         pass
 
-                # Línea institucional superior
+                # Líneas institucionales debajo del encabezado
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
-                canvas.line(42, height - 78, width - 42, height - 78)
+                canvas.line(42, height - 92, width - 42, height - 92)
 
                 canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
                 canvas.setLineWidth(1.5)
-                canvas.line(42, height - 82, width - 42, height - 82)
+                canvas.line(42, height - 97, width - 42, height - 97)
 
-                # Marco exterior
+                # Marco exterior bajado para no chocar con logos
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
-                canvas.rect(24, 24, width - 48, height - 48)
+                canvas.rect(
+                    24,
+                    24,
+                    width - 48,
+                    height - 138
+                )
 
                 canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
                 canvas.setLineWidth(1)
-                canvas.rect(30, 30, width - 60, height - 60)
+                canvas.rect(
+                    30,
+                    30,
+                    width - 60,
+                    height - 150
+                )
 
-                # Pie de página
                 canvas.setFont("Helvetica", 8)
                 canvas.setFillColor(colors.HexColor(COLOR_GRIS_OSCURO))
-                canvas.drawCentredString(width / 2, 16, f"Página {doc.page}")
+                canvas.drawCentredString(
+                    width / 2,
+                    16,
+                    f"Página {doc.page}"
+                )
 
                 canvas.restoreState()
 
@@ -4804,6 +4879,37 @@ elif menu == "Dashboard profesional":
                         )
                     )
 
+
+            def crear_tabla_logos_pdf(logo_fp, logo_min, logo_pumi):
+                tabla_logos_data = [
+                    [
+                        RLImage(logo_fp, width=82, height=82) if logo_fp else "",
+                        RLImage(logo_min, width=225, height=52) if logo_min else "",
+                        RLImage(logo_pumi, width=92, height=92) if logo_pumi else ""
+                    ]
+                ]
+
+                tabla_logos = Table(
+                    tabla_logos_data,
+                    colWidths=[115, 250, 115]
+                )
+
+                tabla_logos.setStyle(
+                    TableStyle(
+                        [
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("BOX", (0, 0), (-1, -1), 0, colors.white),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                            ("TOPPADDING", (0, 0), (-1, -1), 2),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                        ]
+                    )
+                )
+
+                return tabla_logos
+
             # ======================================================
             # GENERACIÓN DEL PDF PROFESIONAL
             # ======================================================
@@ -4821,10 +4927,10 @@ elif menu == "Dashboard profesional":
                 doc = SimpleDocTemplate(
                     buffer,
                     pagesize=letter,
-                    rightMargin=42,
-                    leftMargin=42,
-                    topMargin=96,
-                    bottomMargin=52
+                    rightMargin=46,
+                    leftMargin=46,
+                    topMargin=112,
+                    bottomMargin=54
                 )
 
                 elementos = []
@@ -4888,42 +4994,17 @@ elif menu == "Dashboard profesional":
 
                 logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
                 logo_min = obtener_logo_existente(LOGO_MINISTERIO)
+                logo_pumi = obtener_logo_existente(LOGO_PUMI)
 
-                # Portada con logos
-                tabla_logos_data = []
-
-                fila_logos = []
-
-                if logo_fp:
-                    img_fp = RLImage(logo_fp, width=80, height=80)
-                    fila_logos.append(img_fp)
-                else:
-                    fila_logos.append("")
-
-                if logo_min:
-                    img_min = RLImage(logo_min, width=250, height=55)
-                    fila_logos.append(img_min)
-                else:
-                    fila_logos.append("")
-
-                tabla_logos_data.append(fila_logos)
-
-                tabla_logos = Table(
-                    tabla_logos_data,
-                    colWidths=[120, 340]
-                )
-
-                tabla_logos.setStyle(
-                    TableStyle(
-                        [
-                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                            ("BOX", (0, 0), (-1, -1), 0, colors.white),
-                        ]
+                # Portada con tres logos bien alineados
+                elementos.append(
+                    crear_tabla_logos_pdf(
+                        logo_fp,
+                        logo_min,
+                        logo_pumi
                     )
                 )
 
-                elementos.append(tabla_logos)
                 elementos.append(Spacer(1, 18))
 
                 elementos.append(
@@ -5128,31 +5209,53 @@ elif menu == "Dashboard profesional":
 
                 if graficos_seleccionados:
                     elementos.append(PageBreak())
-                    elementos.append(Paragraph("Gráficos seleccionados", titulo))
+                    elementos.append(
+                        Paragraph("Gráficos seleccionados", titulo)
+                    )
 
                     if "Actividades por programa" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_programa, "Actividades por programa", subtitulo, texto
+                            elementos,
+                            fig_programa,
+                            "Actividades por programa",
+                            subtitulo,
+                            texto
                         )
 
                     if "Participantes por programa" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_participantes, "Participantes por programa", subtitulo, texto
+                            elementos,
+                            fig_participantes,
+                            "Participantes por programa",
+                            subtitulo,
+                            texto
                         )
 
                     if "Estado de revisión" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_estado, "Estado de revisión", subtitulo, texto
+                            elementos,
+                            fig_estado,
+                            "Estado de revisión",
+                            subtitulo,
+                            texto
                         )
 
                     if "Actividades por provincia" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_provincia, "Actividades por provincia", subtitulo, texto
+                            elementos,
+                            fig_provincia,
+                            "Actividades por provincia",
+                            subtitulo,
+                            texto
                         )
 
                     if "Ranking de delegaciones" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_delegacion, "Ranking de delegaciones", subtitulo, texto
+                            elementos,
+                            fig_delegacion,
+                            "Ranking de delegaciones",
+                            subtitulo,
+                            texto
                         )
 
                     if (
@@ -5160,7 +5263,11 @@ elif menu == "Dashboard profesional":
                         and "Tipo Lugar" in df_pdf.columns
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_tipo_lugar, "Registros por tipo de lugar", subtitulo, texto
+                            elementos,
+                            fig_tipo_lugar,
+                            "Registros por tipo de lugar",
+                            subtitulo,
+                            texto
                         )
 
                     if (
@@ -5168,7 +5275,11 @@ elif menu == "Dashboard profesional":
                         and data_sexo["Cantidad"].sum() > 0
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_sexo, "Distribución por sexo", subtitulo, texto
+                            elementos,
+                            fig_sexo,
+                            "Distribución por sexo",
+                            subtitulo,
+                            texto
                         )
 
                     if (
@@ -5176,7 +5287,11 @@ elif menu == "Dashboard profesional":
                         and data_edades["Cantidad"].sum() > 0
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_edades, "Distribución por rangos de edad", subtitulo, texto
+                            elementos,
+                            fig_edades,
+                            "Distribución por rangos de edad",
+                            subtitulo,
+                            texto
                         )
 
                     if (
@@ -5184,7 +5299,11 @@ elif menu == "Dashboard profesional":
                         and not df_mensual.empty
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos, fig_mensual, "Evolución mensual de actividades", subtitulo, texto
+                            elementos,
+                            fig_mensual,
+                            "Evolución mensual de actividades",
+                            subtitulo,
+                            texto
                         )
 
                 # ==================================================
@@ -5193,7 +5312,9 @@ elif menu == "Dashboard profesional":
 
                 if incluir_detalle_pdf:
                     elementos.append(PageBreak())
-                    elementos.append(Paragraph("Detalle de registros", titulo))
+                    elementos.append(
+                        Paragraph("Detalle de registros", titulo)
+                    )
 
                     df_detalle = df_pdf.copy()
 
@@ -5282,19 +5403,17 @@ elif menu == "Dashboard profesional":
                 # ==================================================
 
                 elementos.append(PageBreak())
-                elementos.append(Spacer(1, 70))
+                elementos.append(Spacer(1, 90))
 
-                if logo_fp:
-                    logo_final_fp = RLImage(logo_fp, width=115, height=115)
-                    logo_final_fp.hAlign = "CENTER"
-                    elementos.append(logo_final_fp)
-                    elementos.append(Spacer(1, 12))
+                elementos.append(
+                    crear_tabla_logos_pdf(
+                        logo_fp,
+                        logo_min,
+                        logo_pumi
+                    )
+                )
 
-                if logo_min:
-                    logo_final_min = RLImage(logo_min, width=280, height=60)
-                    logo_final_min.hAlign = "CENTER"
-                    elementos.append(logo_final_min)
-                    elementos.append(Spacer(1, 24))
+                elementos.append(Spacer(1, 28))
 
                 elementos.append(
                     Paragraph(
