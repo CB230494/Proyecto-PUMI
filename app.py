@@ -88,26 +88,96 @@ HOJA_REGISTRO = "REGISTRO_PUMI_2026"
 # ======================================================
 
 CLAVES_ADMINISTRATIVAS = {
-    "DPPP23": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
-    "DPPP2026": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+    "DPPP23": {
+        "perfil": "DPPP",
+        "programa": "TODOS",
+        "programas_permitidos": "TODOS",
+        "descripcion": "Administrador general"
+    },
+    "DPPP2026": {
+        "perfil": "DPPP",
+        "programa": "TODOS",
+        "programas_permitidos": "TODOS",
+        "descripcion": "Administrador general"
+    },
 
-    "DARE23": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
-    "DARE2026": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+    "DARE23": {
+        "perfil": "DARE",
+        "programa": "DARE",
+        "programas_permitidos": ["DARE"],
+        "descripcion": "Administrador programa DARE"
+    },
+    "DARE2026": {
+        "perfil": "DARE",
+        "programa": "DARE",
+        "programas_permitidos": ["DARE"],
+        "descripcion": "Administrador programa DARE"
+    },
 
-    "GREAT23": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
-    "GREAT2026": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+    "GREAT23": {
+        "perfil": "GREAT",
+        "programa": "GREAT",
+        "programas_permitidos": ["GREAT", "GREAT CAMP"],
+        "descripcion": "Administrador programa GREAT"
+    },
+    "GREAT2026": {
+        "perfil": "GREAT",
+        "programa": "GREAT",
+        "programas_permitidos": ["GREAT", "GREAT CAMP"],
+        "descripcion": "Administrador programa GREAT"
+    },
 
-    "MPAS23": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
-    "MPAS2026": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+    "MPAS23": {
+        "perfil": "MPAS",
+        "programa": "MPAS",
+        "programas_permitidos": ["MPAS"],
+        "descripcion": "Administrador programa MPAS"
+    },
+    "MPAS2026": {
+        "perfil": "MPAS",
+        "programa": "MPAS",
+        "programas_permitidos": ["MPAS"],
+        "descripcion": "Administrador programa MPAS"
+    },
 
-    "PSCC23": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
-    "PSCC2026": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+    "PSCC23": {
+        "perfil": "PSCC",
+        "programa": "PSCC",
+        "programas_permitidos": ["PSCC"],
+        "descripcion": "Administrador programa PSCC"
+    },
+    "PSCC2026": {
+        "perfil": "PSCC",
+        "programa": "PSCC",
+        "programas_permitidos": ["PSCC"],
+        "descripcion": "Administrador programa PSCC"
+    },
 
-    "VIF23": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
-    "VIF2026": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+    "VIF23": {
+        "perfil": "VIF",
+        "programa": "VIF",
+        "programas_permitidos": ["VIF"],
+        "descripcion": "Administrador programa VIF"
+    },
+    "VIF2026": {
+        "perfil": "VIF",
+        "programa": "VIF",
+        "programas_permitidos": ["VIF"],
+        "descripcion": "Administrador programa VIF"
+    },
 
-    "POLITICA23": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"},
-    "POLITICA2026": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"}
+    "POLITICA23": {
+        "perfil": "POLITICA PUBLICA",
+        "programa": "Política Pública",
+        "programas_permitidos": ["Política Pública"],
+        "descripcion": "Administrador programa Política Pública"
+    },
+    "POLITICA2026": {
+        "perfil": "POLITICA PUBLICA",
+        "programa": "Política Pública",
+        "programas_permitidos": ["Política Pública"],
+        "descripcion": "Administrador programa Política Pública"
+    }
 }
 
 
@@ -116,13 +186,34 @@ CLAVES_ADMINISTRATIVAS = {
 # ======================================================
 
 CLAVES_USUARIO_PROGRAMA = {
-    "DPPP": {"claves": ["DPPP23", "DPPP2026"], "programas_permitidos": "TODOS"},
-    "DARE": {"claves": ["DARE23", "DARE2026", "DAREUSUARIO"], "programas_permitidos": ["DARE"]},
-    "GREAT": {"claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"], "programas_permitidos": ["GREAT", "GREAT CAMP"]},
-    "MPAS": {"claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"], "programas_permitidos": ["MPAS"]},
-    "PSCC": {"claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"], "programas_permitidos": ["PSCC"]},
-    "VIF": {"claves": ["VIF23", "VIF2026", "VIFUSUARIO"], "programas_permitidos": ["VIF"]},
-    "Política Pública": {"claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"], "programas_permitidos": ["Política Pública"]}
+    "DPPP": {
+        "claves": ["DPPP23", "DPPP2026"],
+        "programas_permitidos": "TODOS"
+    },
+    "DARE": {
+        "claves": ["DARE23", "DARE2026", "DAREUSUARIO"],
+        "programas_permitidos": ["DARE"]
+    },
+    "GREAT": {
+        "claves": ["GREAT23", "GREAT2026", "GREATUSUARIO"],
+        "programas_permitidos": ["GREAT", "GREAT CAMP"]
+    },
+    "MPAS": {
+        "claves": ["MPAS23", "MPAS2026", "MPASUSUARIO"],
+        "programas_permitidos": ["MPAS"]
+    },
+    "PSCC": {
+        "claves": ["PSCC23", "PSCC2026", "PSCCUSUARIO"],
+        "programas_permitidos": ["PSCC"]
+    },
+    "VIF": {
+        "claves": ["VIF23", "VIF2026", "VIFUSUARIO"],
+        "programas_permitidos": ["VIF"]
+    },
+    "Política Pública": {
+        "claves": ["POLITICA23", "POLITICA2026", "POLITICAUSUARIO"],
+        "programas_permitidos": ["Política Pública"]
+    }
 }
 
 
@@ -293,17 +384,33 @@ st.markdown(
         box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
     }}
 
+    .sidebar-logo-pumi {{
+        background: #FFFFFF;
+        border-radius: 16px;
+        padding: 12px;
+        margin: 8px 0px 18px 0px;
+        box-shadow: 0px 4px 14px rgba(0,0,0,0.10);
+        text-align: center;
+    }}
+
+    .sidebar-logo-pumi img {{
+        max-width: 100%;
+        max-height: 145px;
+        object-fit: contain;
+    }}
+
     .encabezado-institucional {{
         background: #FFFFFF;
-        border-radius: 20px;
-        padding: 18px 28px;
-        margin-bottom: 22px;
-        box-shadow: 0px 6px 20px rgba(0,0,0,0.11);
-        border-bottom: 6px solid {COLOR_DORADO};
+        border-radius: 22px;
+        padding: 22px 32px;
+        margin-bottom: 24px;
+        box-shadow: 0px 8px 22px rgba(0,0,0,0.11);
+        border-bottom: 7px solid {COLOR_DORADO};
         display: grid;
-        grid-template-columns: 1fr 2fr 1fr;
+        grid-template-columns: 1.25fr 1fr 1.25fr;
         align-items: center;
         gap: 24px;
+        min-height: 145px;
     }}
 
     .encabezado-logo-izq {{
@@ -324,20 +431,22 @@ st.markdown(
         align-items: center;
     }}
 
-    .logo-fp-app {{
-        max-height: 95px;
+    .logo-ministerio-app {{
+        max-height: 62px;
+        max-width: 310px;
         width: auto;
         object-fit: contain;
     }}
 
-    .logo-ministerio-app {{
-        max-height: 58px;
+    .logo-fp-app {{
+        max-height: 112px;
         width: auto;
         object-fit: contain;
     }}
 
     .logo-pumi-app {{
-        max-height: 110px;
+        max-height: 118px;
+        max-width: 310px;
         width: auto;
         object-fit: contain;
     }}
@@ -512,6 +621,7 @@ st.markdown(
         .encabezado-institucional {{
             grid-template-columns: 1fr;
             text-align: center;
+            min-height: auto;
         }}
 
         .encabezado-logo-izq,
@@ -520,16 +630,16 @@ st.markdown(
             justify-content: center;
         }}
 
-        .logo-fp-app {{
-            max-height: 85px;
+        .logo-ministerio-app {{
+            max-height: 52px;
         }}
 
-        .logo-ministerio-app {{
-            max-height: 50px;
+        .logo-fp-app {{
+            max-height: 95px;
         }}
 
         .logo-pumi-app {{
-            max-height: 95px;
+            max-height: 100px;
         }}
     }}
 
@@ -540,55 +650,52 @@ st.markdown(
 
 
 # ======================================================
-# LOGOS EN SIDEBAR
+# LOGO EN SIDEBAR
+# Solo se muestra el logo PUMI
 # ======================================================
 
 def mostrar_logo():
     """
-    Muestra los logos institucionales en el sidebar sin deformarlos.
+    Muestra únicamente el logo PUMI en el sidebar.
     """
 
-    if os.path.exists(LOGO_PUMI):
-        st.sidebar.image(LOGO_PUMI, width=190)
+    logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
 
-    st.sidebar.markdown("---")
-
-    if os.path.exists(LOGO_FUERZA_PUBLICA):
-        st.sidebar.image(LOGO_FUERZA_PUBLICA, width=135)
-
-    if os.path.exists(LOGO_MINISTERIO):
-        st.sidebar.image(LOGO_MINISTERIO, width=190)
-
-    if (
-        not os.path.exists(LOGO_PUMI)
-        and not os.path.exists(LOGO_FUERZA_PUBLICA)
-        and not os.path.exists(LOGO_MINISTERIO)
-    ):
-        st.sidebar.warning("Logos institucionales no encontrados.")
+    if logo_pumi_b64:
+        st.sidebar.markdown(
+            f"""
+            <div class="sidebar-logo-pumi">
+                <img src="data:image/jpeg;base64,{logo_pumi_b64}">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.sidebar.warning("Logo PUMI no encontrado.")
 
 
 # ======================================================
 # ENCABEZADO INSTITUCIONAL SUPERIOR DE LA APP
+# Ministerio izquierda, Fuerza Pública centro, PUMI derecha
 # ======================================================
 
 def mostrar_encabezado_institucional():
     """
     Encabezado superior para todas las páginas de la app.
-    Se usa en la Parte 4 antes del título principal.
     """
 
-    logo_fp_b64 = imagen_a_base64(LOGO_FUERZA_PUBLICA)
     logo_min_b64 = imagen_a_base64(LOGO_MINISTERIO)
+    logo_fp_b64 = imagen_a_base64(LOGO_FUERZA_PUBLICA)
     logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
-
-    img_fp = (
-        f'<img class="logo-fp-app" src="data:image/jpeg;base64,{logo_fp_b64}">'
-        if logo_fp_b64 else ""
-    )
 
     img_min = (
         f'<img class="logo-ministerio-app" src="data:image/jpeg;base64,{logo_min_b64}">'
         if logo_min_b64 else ""
+    )
+
+    img_fp = (
+        f'<img class="logo-fp-app" src="data:image/jpeg;base64,{logo_fp_b64}">'
+        if logo_fp_b64 else ""
     )
 
     img_pumi = (
@@ -600,10 +707,10 @@ def mostrar_encabezado_institucional():
         f"""
         <div class="encabezado-institucional">
             <div class="encabezado-logo-izq">
-                {img_fp}
+                {img_min}
             </div>
             <div class="encabezado-logo-centro">
-                {img_min}
+                {img_fp}
             </div>
             <div class="encabezado-logo-der">
                 {img_pumi}
@@ -4714,57 +4821,23 @@ elif menu == "Dashboard profesional":
 
                 width, height = letter
 
-                logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
-                logo_min = obtener_logo_existente(LOGO_MINISTERIO)
-
-                # Encabezado superior limpio en páginas internas
-                logo_y = height - 72
-
-                if logo_fp:
-                    try:
-                        canvas.drawImage(
-                            logo_fp,
-                            48,
-                            logo_y,
-                            width=58,
-                            height=58,
-                            preserveAspectRatio=True,
-                            mask="auto"
-                        )
-                    except Exception:
-                        pass
-
-                if logo_min:
-                    try:
-                        canvas.drawImage(
-                            logo_min,
-                            width / 2 - 100,
-                            logo_y + 11,
-                            width=200,
-                            height=42,
-                            preserveAspectRatio=True,
-                            mask="auto"
-                        )
-                    except Exception:
-                        pass
-
-                # Líneas institucionales debajo del encabezado
+                # Líneas institucionales superiores SIN logos pequeños
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
-                canvas.line(42, height - 92, width - 42, height - 92)
+                canvas.line(42, height - 52, width - 42, height - 52)
 
                 canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
                 canvas.setLineWidth(1.5)
-                canvas.line(42, height - 97, width - 42, height - 97)
+                canvas.line(42, height - 57, width - 42, height - 57)
 
-                # Marco exterior bajado para no chocar con logos
+                # Marco exterior limpio
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
                 canvas.rect(
                     24,
                     24,
                     width - 48,
-                    height - 138
+                    height - 96
                 )
 
                 canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
@@ -4773,14 +4846,31 @@ elif menu == "Dashboard profesional":
                     30,
                     30,
                     width - 60,
-                    height - 150
+                    height - 108
                 )
+
+                # Pie de página
+                canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
+                canvas.setLineWidth(1)
+                canvas.line(42, 43, 205, 43)
+
+                canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
+                canvas.setLineWidth(1)
+                canvas.line(42, 38, 205, 38)
+
+                canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
+                canvas.setLineWidth(1)
+                canvas.line(width - 205, 43, width - 42, 43)
+
+                canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
+                canvas.setLineWidth(1)
+                canvas.line(width - 205, 38, width - 42, 38)
 
                 canvas.setFont("Helvetica", 8)
                 canvas.setFillColor(colors.HexColor(COLOR_GRIS_OSCURO))
                 canvas.drawCentredString(
                     width / 2,
-                    16,
+                    36,
                     f"Página {doc.page}"
                 )
 
@@ -4883,15 +4973,15 @@ elif menu == "Dashboard profesional":
             def crear_tabla_logos_pdf(logo_fp, logo_min, logo_pumi):
                 tabla_logos_data = [
                     [
-                        RLImage(logo_fp, width=82, height=82) if logo_fp else "",
-                        RLImage(logo_min, width=225, height=52) if logo_min else "",
-                        RLImage(logo_pumi, width=92, height=92) if logo_pumi else ""
+                        RLImage(logo_min, width=135, height=38) if logo_min else "",
+                        RLImage(logo_fp, width=130, height=130) if logo_fp else "",
+                        RLImage(logo_pumi, width=135, height=100) if logo_pumi else ""
                     ]
                 ]
 
                 tabla_logos = Table(
                     tabla_logos_data,
-                    colWidths=[115, 250, 115]
+                    colWidths=[150, 170, 150]
                 )
 
                 tabla_logos.setStyle(
@@ -4927,10 +5017,10 @@ elif menu == "Dashboard profesional":
                 doc = SimpleDocTemplate(
                     buffer,
                     pagesize=letter,
-                    rightMargin=46,
-                    leftMargin=46,
-                    topMargin=112,
-                    bottomMargin=54
+                    rightMargin=48,
+                    leftMargin=48,
+                    topMargin=78,
+                    bottomMargin=62
                 )
 
                 elementos = []
@@ -4996,7 +5086,7 @@ elif menu == "Dashboard profesional":
                 logo_min = obtener_logo_existente(LOGO_MINISTERIO)
                 logo_pumi = obtener_logo_existente(LOGO_PUMI)
 
-                # Portada con tres logos bien alineados
+                # Portada: logos grandes y bien alineados
                 elementos.append(
                     crear_tabla_logos_pdf(
                         logo_fp,
@@ -5005,7 +5095,7 @@ elif menu == "Dashboard profesional":
                     )
                 )
 
-                elementos.append(Spacer(1, 18))
+                elementos.append(Spacer(1, 24))
 
                 elementos.append(
                     Paragraph(
@@ -5403,7 +5493,7 @@ elif menu == "Dashboard profesional":
                 # ==================================================
 
                 elementos.append(PageBreak())
-                elementos.append(Spacer(1, 90))
+                elementos.append(Spacer(1, 120))
 
                 elementos.append(
                     crear_tabla_logos_pdf(
