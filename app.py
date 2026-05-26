@@ -4301,7 +4301,7 @@ elif menu == "Dashboard profesional":
                     fig_provincia,
                     use_container_width=True
                 )
-                # ======================================================
+               # ======================================================
 # PARTE 11 DE 12
 # DASHBOARD PROFESIONAL: GRÁFICOS COMPLEMENTARIOS, TABLA E INFORME PDF
 # ======================================================
@@ -4311,9 +4311,22 @@ elif menu == "Dashboard profesional":
             with colg5:
                 st.markdown("### Ranking de delegaciones")
 
-                data_delegacion = df_filtrado.groupby("Delegación", as_index=False)["ID"].count().sort_values("ID", ascending=False).head(15)
-                data_delegacion["Porcentaje"] = data_delegacion["ID"].apply(lambda x: porcentaje(x, data_delegacion["ID"].sum()))
-                data_delegacion["Etiqueta"] = data_delegacion.apply(lambda row: f"{int(row['ID'])} ({row['Porcentaje']})", axis=1)
+                data_delegacion = df_filtrado.groupby(
+                    "Delegación",
+                    as_index=False
+                )["ID"].count().sort_values(
+                    "ID",
+                    ascending=False
+                ).head(15)
+
+                data_delegacion["Porcentaje"] = data_delegacion["ID"].apply(
+                    lambda x: porcentaje(x, data_delegacion["ID"].sum())
+                )
+
+                data_delegacion["Etiqueta"] = data_delegacion.apply(
+                    lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
+                    axis=1
+                )
 
                 fig_delegacion = px.bar(
                     data_delegacion,
@@ -4328,7 +4341,10 @@ elif menu == "Dashboard profesional":
 
                 fig_delegacion.update_layout(title_x=0.5)
 
-                st.plotly_chart(fig_delegacion, use_container_width=True)
+                st.plotly_chart(
+                    fig_delegacion,
+                    use_container_width=True
+                )
 
             with colg6:
                 st.markdown("### Registros por tipo de lugar")
@@ -4341,8 +4357,14 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_tipo_lugar.update_traces(textinfo="label+value+percent")
-                    st.plotly_chart(fig_tipo_lugar, use_container_width=True)
+                    fig_tipo_lugar.update_traces(
+                        textinfo="label+value+percent"
+                    )
+
+                    st.plotly_chart(
+                        fig_tipo_lugar,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No existe la columna Tipo Lugar.")
 
@@ -4367,8 +4389,14 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_sexo.update_traces(textinfo="label+value+percent")
-                    st.plotly_chart(fig_sexo, use_container_width=True)
+                    fig_sexo.update_traces(
+                        textinfo="label+value+percent"
+                    )
+
+                    st.plotly_chart(
+                        fig_sexo,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No hay datos de sexo registrados.")
 
@@ -4377,14 +4405,30 @@ elif menu == "Dashboard profesional":
 
                 data_edades = pd.DataFrame(
                     {
-                        "Rango de edad": ["10 a 18", "19 a 30", "31 a 45", "46 en adelante"],
-                        "Cantidad": [edad_10_18, edad_19_30, edad_31_45, edad_46]
+                        "Rango de edad": [
+                            "10 a 18",
+                            "19 a 30",
+                            "31 a 45",
+                            "46 en adelante"
+                        ],
+                        "Cantidad": [
+                            edad_10_18,
+                            edad_19_30,
+                            edad_31_45,
+                            edad_46
+                        ]
                     }
                 )
 
                 if data_edades["Cantidad"].sum() > 0:
-                    data_edades["Porcentaje"] = data_edades["Cantidad"].apply(lambda x: porcentaje(x, data_edades["Cantidad"].sum()))
-                    data_edades["Etiqueta"] = data_edades.apply(lambda row: f"{int(row['Cantidad'])} ({row['Porcentaje']})", axis=1)
+                    data_edades["Porcentaje"] = data_edades["Cantidad"].apply(
+                        lambda x: porcentaje(x, data_edades["Cantidad"].sum())
+                    )
+
+                    data_edades["Etiqueta"] = data_edades.apply(
+                        lambda row: f"{int(row['Cantidad'])} ({row['Porcentaje']})",
+                        axis=1
+                    )
 
                     fig_edades = px.bar(
                         data_edades,
@@ -4395,8 +4439,15 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_edades.update_layout(showlegend=False, title_x=0.5)
-                    st.plotly_chart(fig_edades, use_container_width=True)
+                    fig_edades.update_layout(
+                        showlegend=False,
+                        title_x=0.5
+                    )
+
+                    st.plotly_chart(
+                        fig_edades,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No hay datos de rangos de edad registrados.")
 
@@ -4406,14 +4457,28 @@ elif menu == "Dashboard profesional":
 
             st.markdown("### Evolución mensual de actividades")
 
-            df_mensual = df_filtrado.dropna(subset=["Fecha Actividad"]).copy()
+            df_mensual = df_filtrado.dropna(
+                subset=["Fecha Actividad"]
+            ).copy()
 
             if not df_mensual.empty:
-                df_mensual["Mes"] = df_mensual["Fecha Actividad"].dt.to_period("M").astype(str)
+                df_mensual["Mes"] = df_mensual[
+                    "Fecha Actividad"
+                ].dt.to_period("M").astype(str)
 
-                data_mensual = df_mensual.groupby("Mes", as_index=False)["ID"].count()
-                data_mensual["Porcentaje"] = data_mensual["ID"].apply(lambda x: porcentaje(x, data_mensual["ID"].sum()))
-                data_mensual["Etiqueta"] = data_mensual.apply(lambda row: f"{int(row['ID'])} ({row['Porcentaje']})", axis=1)
+                data_mensual = df_mensual.groupby(
+                    "Mes",
+                    as_index=False
+                )["ID"].count()
+
+                data_mensual["Porcentaje"] = data_mensual["ID"].apply(
+                    lambda x: porcentaje(x, data_mensual["ID"].sum())
+                )
+
+                data_mensual["Etiqueta"] = data_mensual.apply(
+                    lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
+                    axis=1
+                )
 
                 fig_mensual = px.line(
                     data_mensual,
@@ -4426,7 +4491,11 @@ elif menu == "Dashboard profesional":
                 )
 
                 fig_mensual.update_layout(title_x=0.5)
-                st.plotly_chart(fig_mensual, use_container_width=True)
+
+                st.plotly_chart(
+                    fig_mensual,
+                    use_container_width=True
+                )
             else:
                 st.info("No hay fechas válidas para generar evolución mensual.")
 
@@ -4439,9 +4508,15 @@ elif menu == "Dashboard profesional":
             df_mostrar = df_filtrado.copy()
 
             if "Fecha Actividad" in df_mostrar.columns:
-                df_mostrar["Fecha Actividad"] = df_mostrar["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+                df_mostrar["Fecha Actividad"] = df_mostrar[
+                    "Fecha Actividad"
+                ].dt.strftime("%d/%m/%Y")
 
-            st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_mostrar,
+                use_container_width=True,
+                hide_index=True
+            )
 
             # ======================================================
             # CONFIGURACIÓN DEL INFORME PDF
@@ -4473,7 +4548,7 @@ elif menu == "Dashboard profesional":
                 )
 
                 incluir_detalle = st.checkbox(
-                    "Incluir tabla de detalle de registros",
+                    "Incluir detalle de registros en formato ficha",
                     value=True
                 )
 
@@ -4518,7 +4593,11 @@ elif menu == "Dashboard profesional":
 
                 canvas.setFont("Helvetica", 8)
                 canvas.setFillColor(colors.HexColor(COLOR_GRIS_OSCURO))
-                canvas.drawCentredString(width / 2, 16, f"Página {doc.page}")
+                canvas.drawCentredString(
+                    width / 2,
+                    16,
+                    f"Página {doc.page}"
+                )
 
                 canvas.restoreState()
 
@@ -4527,7 +4606,11 @@ elif menu == "Dashboard profesional":
                 if header_color is None:
                     header_color = COLOR_AZUL
 
-                tabla = Table(data, colWidths=col_widths, repeatRows=1)
+                tabla = Table(
+                    data,
+                    colWidths=col_widths,
+                    repeatRows=1
+                )
 
                 tabla.setStyle(
                     TableStyle(
@@ -4540,10 +4623,10 @@ elif menu == "Dashboard profesional":
                             ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
                             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                             ("FONTSIZE", (0, 0), (-1, -1), font_size),
-                            ("LEFTPADDING", (0, 0), (-1, -1), 3),
-                            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-                            ("TOPPADDING", (0, 0), (-1, -1), 4),
-                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                            ("TOPPADDING", (0, 0), (-1, -1), 5),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
                         ]
                     )
                 )
@@ -4551,7 +4634,13 @@ elif menu == "Dashboard profesional":
                 return tabla
 
 
-            def agregar_imagen_plotly_al_pdf(elementos_pdf, figura, titulo_grafico, estilo_subtitulo, estilo_texto):
+            def agregar_imagen_plotly_al_pdf(
+                elementos_pdf,
+                figura,
+                titulo_grafico,
+                estilo_subtitulo,
+                estilo_texto
+            ):
                 try:
                     img_buffer = BytesIO()
 
@@ -4572,7 +4661,12 @@ elif menu == "Dashboard profesional":
 
                     img_buffer.seek(0)
 
-                    imagen = RLImage(img_buffer, width=460, height=250)
+                    imagen = RLImage(
+                        img_buffer,
+                        width=460,
+                        height=250
+                    )
+
                     imagen.hAlign = "CENTER"
 
                     elementos_pdf.append(
@@ -4666,45 +4760,69 @@ elif menu == "Dashboard profesional":
                 estilo_celda = ParagraphStyle(
                     "CeldaTablaPDF",
                     parent=estilos["Normal"],
-                    fontSize=5.8,
-                    leading=7,
-                    alignment=TA_CENTER,
+                    fontSize=7,
+                    leading=9,
+                    alignment=TA_JUSTIFY,
                     wordWrap="CJK"
                 )
 
-                estilo_celda_izquierda = ParagraphStyle(
-                    "CeldaTablaPDFIzquierda",
+                estilo_campo = ParagraphStyle(
+                    "CampoFichaPDF",
                     parent=estilos["Normal"],
-                    fontSize=5.8,
-                    leading=7,
+                    fontSize=7,
+                    leading=9,
                     alignment=TA_JUSTIFY,
+                    textColor=colors.HexColor(COLOR_AZUL),
                     wordWrap="CJK"
                 )
 
                 logo_path = None
 
-                for posible_logo in ["logo_pumi.jpeg", "logo_pumi.jpg", "logo_pumi.png"]:
+                for posible_logo in [
+                    "logo_pumi.jpeg",
+                    "logo_pumi.jpg",
+                    "logo_pumi.png"
+                ]:
                     if os.path.exists(posible_logo):
                         logo_path = posible_logo
                         break
 
                 if logo_path:
-                    logo = RLImage(logo_path, width=90, height=90)
+                    logo = RLImage(
+                        logo_path,
+                        width=90,
+                        height=90
+                    )
                     logo.hAlign = "CENTER"
                     elementos.append(logo)
                     elementos.append(Spacer(1, 8))
 
-                elementos.append(Paragraph("INFORME ADMINISTRATIVO PUMI 2026", titulo))
-                elementos.append(Paragraph("Proceso Unificado para el Manejo de la Información", subtitulo))
+                elementos.append(
+                    Paragraph(
+                        "INFORME ADMINISTRATIVO PUMI 2026",
+                        titulo
+                    )
+                )
+
+                elementos.append(
+                    Paragraph(
+                        "Proceso Unificado para el Manejo de la Información",
+                        subtitulo
+                    )
+                )
 
                 if dirigido_a_pdf:
                     elementos.append(
-                        Paragraph(f"<b>Dirigido a:</b> {dirigido_a_pdf}", texto_centrado)
+                        Paragraph(
+                            f"<b>Dirigido a:</b> {dirigido_a_pdf}",
+                            texto_centrado
+                        )
                     )
 
                 elementos.append(
                     Paragraph(
-                        f"<b>Fecha y hora del informe:</b> {fecha_pdf.strftime('%d/%m/%Y')} {hora_pdf.strftime('%H:%M')}",
+                        f"<b>Fecha y hora del informe:</b> "
+                        f"{fecha_pdf.strftime('%d/%m/%Y')} {hora_pdf.strftime('%H:%M')}",
                         texto_centrado
                     )
                 )
@@ -4726,19 +4844,67 @@ elif menu == "Dashboard profesional":
                 total_programas_pdf = df_pdf["Programa"].nunique()
                 total_delegaciones_pdf = df_pdf["Delegación"].nunique()
 
-                total_participantes_pdf = int(df_pdf["Cantidad Participantes"].sum()) if "Cantidad Participantes" in df_pdf.columns else 0
-                total_hombres_pdf = int(df_pdf["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_pdf.columns else 0
-                total_mujeres_pdf = int(df_pdf["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_pdf.columns else 0
-                edad_10_18_pdf = int(df_pdf["Edad 10 a 18"].sum()) if "Edad 10 a 18" in df_pdf.columns else 0
-                edad_19_30_pdf = int(df_pdf["Edad 19 a 30"].sum()) if "Edad 19 a 30" in df_pdf.columns else 0
-                edad_31_45_pdf = int(df_pdf["Edad 31 a 45"].sum()) if "Edad 31 a 45" in df_pdf.columns else 0
-                edad_46_pdf = int(df_pdf["Edad 46 en adelante"].sum()) if "Edad 46 en adelante" in df_pdf.columns else 0
+                total_participantes_pdf = (
+                    int(df_pdf["Cantidad Participantes"].sum())
+                    if "Cantidad Participantes" in df_pdf.columns
+                    else 0
+                )
 
-                total_aprobados_pdf = len(df_pdf[df_pdf["Estado Revisión"] == "Aprobado"])
-                total_pendientes_pdf = len(df_pdf[df_pdf["Estado Revisión"] == "Pendiente de revisión"])
-                total_observaciones_pdf = len(df_pdf[df_pdf["Estado Revisión"] == "Con observaciones"])
-                total_rechazados_pdf = len(df_pdf[df_pdf["Estado Revisión"] == "Rechazado"])
-                total_georreferenciados_pdf = len(preparar_dataframe_mapa(df_pdf))
+                total_hombres_pdf = (
+                    int(df_pdf["Cantidad Hombres"].sum())
+                    if "Cantidad Hombres" in df_pdf.columns
+                    else 0
+                )
+
+                total_mujeres_pdf = (
+                    int(df_pdf["Cantidad Mujeres"].sum())
+                    if "Cantidad Mujeres" in df_pdf.columns
+                    else 0
+                )
+
+                edad_10_18_pdf = (
+                    int(df_pdf["Edad 10 a 18"].sum())
+                    if "Edad 10 a 18" in df_pdf.columns
+                    else 0
+                )
+
+                edad_19_30_pdf = (
+                    int(df_pdf["Edad 19 a 30"].sum())
+                    if "Edad 19 a 30" in df_pdf.columns
+                    else 0
+                )
+
+                edad_31_45_pdf = (
+                    int(df_pdf["Edad 31 a 45"].sum())
+                    if "Edad 31 a 45" in df_pdf.columns
+                    else 0
+                )
+
+                edad_46_pdf = (
+                    int(df_pdf["Edad 46 en adelante"].sum())
+                    if "Edad 46 en adelante" in df_pdf.columns
+                    else 0
+                )
+
+                total_aprobados_pdf = len(
+                    df_pdf[df_pdf["Estado Revisión"] == "Aprobado"]
+                )
+
+                total_pendientes_pdf = len(
+                    df_pdf[df_pdf["Estado Revisión"] == "Pendiente de revisión"]
+                )
+
+                total_observaciones_pdf = len(
+                    df_pdf[df_pdf["Estado Revisión"] == "Con observaciones"]
+                )
+
+                total_rechazados_pdf = len(
+                    df_pdf[df_pdf["Estado Revisión"] == "Rechazado"]
+                )
+
+                total_georreferenciados_pdf = len(
+                    preparar_dataframe_mapa(df_pdf)
+                )
 
                 resumen = [
                     ["Indicador", "Resultado"],
@@ -4784,10 +4950,20 @@ elif menu == "Dashboard profesional":
                     }
                 ).reset_index()
 
-                tabla_programas = [["Programa", "Actividades", "% Actividades", "Participantes", "% Participantes"]]
+                tabla_programas = [
+                    [
+                        "Programa",
+                        "Actividades",
+                        "% Actividades",
+                        "Participantes",
+                        "% Participantes"
+                    ]
+                ]
 
                 total_actividades_programa = resumen_programa["ID"].sum()
-                total_participantes_programa = resumen_programa["Cantidad Participantes"].sum()
+                total_participantes_programa = resumen_programa[
+                    "Cantidad Participantes"
+                ].sum()
 
                 for _, row in resumen_programa.iterrows():
                     tabla_programas.append(
@@ -4796,7 +4972,10 @@ elif menu == "Dashboard profesional":
                             int(row["ID"]),
                             porcentaje(row["ID"], total_actividades_programa),
                             int(row["Cantidad Participantes"]),
-                            porcentaje(row["Cantidad Participantes"], total_participantes_programa)
+                            porcentaje(
+                                row["Cantidad Participantes"],
+                                total_participantes_programa
+                            )
                         ]
                     )
 
@@ -4820,48 +4999,125 @@ elif menu == "Dashboard profesional":
 
                 if graficos_seleccionados:
                     elementos.append(PageBreak())
-                    elementos.append(Paragraph("Gráficos seleccionados", titulo))
+                    elementos.append(
+                        Paragraph("Gráficos seleccionados", titulo)
+                    )
 
                     if "Actividades por programa" in graficos_seleccionados:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_programa, "Actividades por programa", subtitulo, texto)
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_programa,
+                            "Actividades por programa",
+                            subtitulo,
+                            texto
+                        )
 
                     if "Participantes por programa" in graficos_seleccionados:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_participantes, "Participantes por programa", subtitulo, texto)
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_participantes,
+                            "Participantes por programa",
+                            subtitulo,
+                            texto
+                        )
 
                     if "Estado de revisión" in graficos_seleccionados:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_estado, "Estado de revisión", subtitulo, texto)
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_estado,
+                            "Estado de revisión",
+                            subtitulo,
+                            texto
+                        )
 
                     if "Actividades por provincia" in graficos_seleccionados:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_provincia, "Actividades por provincia", subtitulo, texto)
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_provincia,
+                            "Actividades por provincia",
+                            subtitulo,
+                            texto
+                        )
 
                     if "Ranking de delegaciones" in graficos_seleccionados:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_delegacion, "Ranking de delegaciones", subtitulo, texto)
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_delegacion,
+                            "Ranking de delegaciones",
+                            subtitulo,
+                            texto
+                        )
 
-                    if "Tipo de lugar" in graficos_seleccionados and "Tipo Lugar" in df_pdf.columns:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_tipo_lugar, "Registros por tipo de lugar", subtitulo, texto)
+                    if (
+                        "Tipo de lugar" in graficos_seleccionados
+                        and "Tipo Lugar" in df_pdf.columns
+                    ):
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_tipo_lugar,
+                            "Registros por tipo de lugar",
+                            subtitulo,
+                            texto
+                        )
 
-                    if "Distribución por sexo" in graficos_seleccionados and data_sexo["Cantidad"].sum() > 0:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_sexo, "Distribución por sexo", subtitulo, texto)
+                    if (
+                        "Distribución por sexo" in graficos_seleccionados
+                        and data_sexo["Cantidad"].sum() > 0
+                    ):
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_sexo,
+                            "Distribución por sexo",
+                            subtitulo,
+                            texto
+                        )
 
-                    if "Distribución por rangos de edad" in graficos_seleccionados and data_edades["Cantidad"].sum() > 0:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_edades, "Distribución por rangos de edad", subtitulo, texto)
+                    if (
+                        "Distribución por rangos de edad" in graficos_seleccionados
+                        and data_edades["Cantidad"].sum() > 0
+                    ):
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_edades,
+                            "Distribución por rangos de edad",
+                            subtitulo,
+                            texto
+                        )
 
-                    if "Evolución mensual" in graficos_seleccionados and not df_mensual.empty:
-                        agregar_imagen_plotly_al_pdf(elementos, fig_mensual, "Evolución mensual de actividades", subtitulo, texto)
+                    if (
+                        "Evolución mensual" in graficos_seleccionados
+                        and not df_mensual.empty
+                    ):
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_mensual,
+                            "Evolución mensual de actividades",
+                            subtitulo,
+                            texto
+                        )
 
                 # ==================================================
-                # TABLA DETALLE DE REGISTROS CORREGIDA
-                # Texto con salto de línea dentro de la celda
+                # DETALLE DE REGISTROS EN FORMATO FICHA
                 # ==================================================
 
                 if incluir_detalle_pdf:
                     elementos.append(PageBreak())
-                    elementos.append(Paragraph("Detalle de registros", titulo))
+                    elementos.append(
+                        Paragraph("Detalle de registros", titulo)
+                    )
 
-                    columnas_detalle = [
+                    df_detalle = df_pdf.copy()
+
+                    if "Fecha Actividad" in df_detalle.columns:
+                        df_detalle["Fecha Actividad"] = df_detalle[
+                            "Fecha Actividad"
+                        ].dt.strftime("%d/%m/%Y")
+
+                    columnas_ficha = [
                         "ID",
                         "Fecha Actividad",
                         "Hora Actividad",
+                        "Dirección Regional",
                         "Delegación",
                         "Programa",
                         "Actividad",
@@ -4873,76 +5129,61 @@ elif menu == "Dashboard profesional":
                         "Estado Revisión"
                     ]
 
-                    columnas_detalle = [
-                        col for col in columnas_detalle
-                        if col in df_pdf.columns
+                    columnas_ficha = [
+                        col for col in columnas_ficha
+                        if col in df_detalle.columns
                     ]
 
-                    df_detalle = df_pdf.copy()
-
-                    if "Fecha Actividad" in df_detalle.columns:
-                        df_detalle["Fecha Actividad"] = df_detalle["Fecha Actividad"].dt.strftime("%d/%m/%Y")
-
-                    detalle = [
-                        [
-                            Paragraph(str(col), estilo_celda)
-                            for col in columnas_detalle
+                    for _, row in df_detalle[columnas_ficha].head(20).iterrows():
+                        datos_ficha = [
+                            [
+                                Paragraph("<b>Campo</b>", estilo_campo),
+                                Paragraph("<b>Detalle</b>", estilo_campo)
+                            ]
                         ]
-                    ]
 
-                    for _, row in df_detalle[columnas_detalle].head(40).iterrows():
-                        fila = []
-
-                        for col in columnas_detalle:
+                        for col in columnas_ficha:
                             valor = str(row[col]).replace("\n", " ").strip()
 
-                            if col in ["Delegación", "Programa", "Actividad", "Lugar", "Estado Revisión"]:
-                                fila.append(Paragraph(valor, estilo_celda_izquierda))
-                            else:
-                                fila.append(Paragraph(valor, estilo_celda))
+                            datos_ficha.append(
+                                [
+                                    Paragraph(f"<b>{col}</b>", estilo_campo),
+                                    Paragraph(valor, estilo_celda)
+                                ]
+                            )
 
-                        detalle.append(fila)
-
-                    anchos_detalle = [
-                        22,
-                        48,
-                        35,
-                        58,
-                        60,
-                        85,
-                        45,
-                        45,
-                        45,
-                        65,
-                        42,
-                        55
-                    ]
-
-                    anchos_detalle = anchos_detalle[:len(columnas_detalle)]
-
-                    tabla_detalle = crear_tabla_estilizada(
-                        detalle,
-                        col_widths=anchos_detalle,
-                        header_color=COLOR_AZUL,
-                        font_size=5.8
-                    )
-
-                    tabla_detalle.setStyle(
-                        TableStyle(
-                            [
-                                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
-                            ]
+                        tabla_ficha = crear_tabla_estilizada(
+                            datos_ficha,
+                            col_widths=[145, 330],
+                            header_color=COLOR_AZUL,
+                            font_size=7
                         )
-                    )
 
-                    elementos.append(tabla_detalle)
+                        tabla_ficha.setStyle(
+                            TableStyle(
+                                [
+                                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                    ("BACKGROUND", (0, 1), (0, -1), colors.HexColor(COLOR_AZUL_CLARO)),
+                                    ("TEXTCOLOR", (0, 1), (0, -1), colors.HexColor(COLOR_AZUL)),
+                                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+                                ]
+                            )
+                        )
 
-                    if len(df_detalle) > 40:
+                        elementos.append(
+                            KeepTogether(
+                                [
+                                    tabla_ficha,
+                                    Spacer(1, 12)
+                                ]
+                            )
+                        )
+
+                    if len(df_detalle) > 20:
                         elementos.append(Spacer(1, 10))
                         elementos.append(
                             Paragraph(
-                                f"Nota: se muestran los primeros 40 registros de un total de {len(df_detalle)} registros filtrados.",
+                                f"Nota: se muestran los primeros 20 registros de un total de {len(df_detalle)} registros filtrados.",
                                 texto
                             )
                         )
@@ -4950,14 +5191,30 @@ elif menu == "Dashboard profesional":
                 elementos.append(PageBreak())
 
                 if logo_path:
-                    logo_final = RLImage(logo_path, width=130, height=130)
+                    logo_final = RLImage(
+                        logo_path,
+                        width=130,
+                        height=130
+                    )
                     logo_final.hAlign = "CENTER"
                     elementos.append(Spacer(1, 80))
                     elementos.append(logo_final)
                     elementos.append(Spacer(1, 24))
 
-                elementos.append(Paragraph("Sistema PUMI 2026", titulo))
-                elementos.append(Paragraph("Informe generado automáticamente.", texto_centrado))
+                elementos.append(
+                    Paragraph(
+                        "Sistema PUMI 2026",
+                        titulo
+                    )
+                )
+
+                elementos.append(
+                    Paragraph(
+                        "Informe generado automáticamente.",
+                        texto_centrado
+                    )
+                )
+
                 elementos.append(Spacer(1, 20))
 
                 elementos.append(
