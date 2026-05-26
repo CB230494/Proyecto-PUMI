@@ -285,8 +285,8 @@ st.markdown(
     }}
 
     .logo-pumi-app {{
-        width: 320px;
-        height: 125px;
+        width: 300px;
+        height: 100px;
         object-fit: contain;
     }}
 
@@ -482,8 +482,8 @@ st.markdown(
         }}
 
         .logo-pumi-app {{
-            width: 280px;
-            height: 105px;
+            width: 250px;
+            height: 80px;
         }}
 
         .logo-fp-app {{
