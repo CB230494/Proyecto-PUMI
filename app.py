@@ -59,6 +59,20 @@ ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 
 
 # ======================================================
+# LOGOS INSTITUCIONALES
+# Deben estar al mismo nivel del archivo app.py
+# ======================================================
+
+LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
+LOGO_MINISTERIO = "Logo2.jpeg"
+
+LOGOS_INSTITUCIONALES = [
+    LOGO_FUERZA_PUBLICA,
+    LOGO_MINISTERIO
+]
+
+
+# ======================================================
 # CONEXIÓN GOOGLE SHEETS
 # ======================================================
 
@@ -296,25 +310,31 @@ ESTADOS_REVISION = [
 
 
 # ======================================================
-# COLORES BANDERA DE COSTA RICA
+# COLORES INSTITUCIONALES
+# Azul y blanco se mantienen.
+# Rojo se sustituye visualmente por dorado institucional.
 # ======================================================
 
 COLOR_AZUL = "#002B7F"
 COLOR_AZUL_MEDIO = "#1E4FA3"
 COLOR_AZUL_CLARO = "#DCE8FF"
 
-COLOR_ROJO = "#CE1126"
-COLOR_ROJO_OSCURO = "#9B0D1C"
-COLOR_ROJO_CLARO = "#F7D6DA"
+COLOR_DORADO = "#B88A2A"
+COLOR_DORADO_OSCURO = "#8A6418"
+COLOR_DORADO_CLARO = "#F4E6C1"
 
 COLOR_BLANCO = "#FFFFFF"
 COLOR_GRIS = "#F4F6F8"
 COLOR_GRIS_OSCURO = "#2F3542"
 
-# Compatibilidad con partes anteriores
-COLOR_VERDE = COLOR_ROJO
-COLOR_VERDE_CLARO = COLOR_ROJO_CLARO
-COLOR_DORADO = COLOR_ROJO
+# Compatibilidad con partes anteriores del código:
+# Todo lo que antes llamaba COLOR_ROJO ahora usará dorado.
+COLOR_ROJO = COLOR_DORADO
+COLOR_ROJO_OSCURO = COLOR_DORADO_OSCURO
+COLOR_ROJO_CLARO = COLOR_DORADO_CLARO
+
+COLOR_VERDE = COLOR_DORADO
+COLOR_VERDE_CLARO = COLOR_DORADO_CLARO
 
 
 COLORES_PROGRAMA = {
@@ -323,7 +343,7 @@ COLORES_PROGRAMA = {
     "GREAT CAMP": "orange",
     "MPAS": "darkblue",
     "PSCC": "blue",
-    "VIF": "red",
+    "VIF": "orange",
     "Política Pública": "green"
 }
 
@@ -345,12 +365,12 @@ st.markdown(
 
     section[data-testid="stSidebar"] {{
         background: linear-gradient(180deg, #FFFFFF 0%, #EAF1FF 45%, #FFFFFF 100%);
-        border-right: 5px solid {COLOR_ROJO};
+        border-right: 5px solid {COLOR_DORADO};
         box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
     }}
 
     .titulo-principal {{
-        background: linear-gradient(135deg, {COLOR_AZUL}, {COLOR_ROJO});
+        background: linear-gradient(135deg, {COLOR_AZUL}, {COLOR_DORADO});
         padding: 38px;
         border-radius: 22px;
         text-align: center;
@@ -376,6 +396,28 @@ st.markdown(
         color: white;
     }}
 
+    .logos-app {{
+        background: #FFFFFF;
+        border-radius: 18px;
+        padding: 14px 20px;
+        margin-bottom: 18px;
+        box-shadow: 0px 5px 16px rgba(0,0,0,0.12);
+        border-bottom: 5px solid {COLOR_DORADO};
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+    }}
+
+    .logos-app img {{
+        max-height: 76px;
+        object-fit: contain;
+    }}
+
+    .logos-app .logo-ministerio {{
+        max-height: 54px;
+    }}
+
     .card-pumi, .card-azul, .card-dorado {{
         padding: 24px;
         border-radius: 20px;
@@ -389,11 +431,11 @@ st.markdown(
     }}
 
     .card-azul {{
-        border-left: 9px solid {COLOR_ROJO};
+        border-left: 9px solid {COLOR_DORADO};
     }}
 
     .card-dorado {{
-        border-left: 9px solid {COLOR_AZUL};
+        border-left: 9px solid {COLOR_DORADO};
     }}
 
     .bloque-datos {{
@@ -405,10 +447,10 @@ st.markdown(
     }}
 
     .bloque-territorio {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #FFF3F5 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E8 100%);
         padding: 18px;
         border-radius: 18px;
-        border-left: 7px solid {COLOR_ROJO};
+        border-left: 7px solid {COLOR_DORADO};
         margin-bottom: 18px;
     }}
 
@@ -421,10 +463,10 @@ st.markdown(
     }}
 
     .bloque-mapa {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #F4F7FB 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E8 100%);
         padding: 18px;
         border-radius: 18px;
-        border-left: 7px solid {COLOR_ROJO};
+        border-left: 7px solid {COLOR_DORADO};
         margin-bottom: 18px;
     }}
 
@@ -448,7 +490,7 @@ st.markdown(
         padding: 20px;
         border-radius: 20px;
         box-shadow: 0px 5px 15px rgba(0,0,0,0.13);
-        border-bottom: 6px solid {COLOR_ROJO};
+        border-bottom: 6px solid {COLOR_DORADO};
     }}
 
     div[data-baseweb="select"] > div {{
@@ -466,11 +508,11 @@ st.markdown(
     textarea {{
         background-color: #FFFFFF !important;
         border-radius: 12px !important;
-        border: 1.8px solid #D8A2AA !important;
+        border: 1.8px solid {COLOR_DORADO_CLARO} !important;
     }}
 
     .stButton > button {{
-        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_ROJO});
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_DORADO});
         color: white;
         border-radius: 12px;
         border: none;
@@ -480,7 +522,7 @@ st.markdown(
     }}
 
     .stDownloadButton > button {{
-        background: linear-gradient(90deg, {COLOR_ROJO}, {COLOR_AZUL});
+        background: linear-gradient(90deg, {COLOR_DORADO}, {COLOR_AZUL});
         color: white;
         border-radius: 12px;
         border: none;
@@ -505,7 +547,7 @@ st.markdown(
     hr {{
         border: none;
         height: 3px;
-        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_BLANCO}, {COLOR_ROJO});
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_BLANCO}, {COLOR_DORADO});
         margin-top: 25px;
         margin-bottom: 25px;
     }}
@@ -522,24 +564,47 @@ st.markdown(
 
 
 # ======================================================
-# LOGO
+# LOGOS
 # ======================================================
 
 def mostrar_logo():
-    if os.path.exists("logo_pumi.jpeg"):
-        logo = Image.open("logo_pumi.jpeg")
-        st.sidebar.image(logo, use_container_width=True)
+    """
+    Muestra los logos institucionales en el sidebar.
+    Los archivos deben estar al mismo nivel de app.py:
+    - Logo1.jpeg
+    - Logo2.jpeg
+    """
 
-    elif os.path.exists("logo_pumi.jpg"):
-        logo = Image.open("logo_pumi.jpg")
-        st.sidebar.image(logo, use_container_width=True)
+    logos_encontrados = []
 
-    elif os.path.exists("logo_pumi.png"):
-        logo = Image.open("logo_pumi.png")
-        st.sidebar.image(logo, use_container_width=True)
+    for logo_path in LOGOS_INSTITUCIONALES:
+        if os.path.exists(logo_path):
+            logos_encontrados.append(logo_path)
 
+    if logos_encontrados:
+        for logo_path in logos_encontrados:
+            logo = Image.open(logo_path)
+            st.sidebar.image(logo, use_container_width=True)
+            st.sidebar.markdown("<br>", unsafe_allow_html=True)
     else:
-        st.sidebar.warning("Logo PUMI no encontrado.")
+        st.sidebar.warning("Logos institucionales no encontrados.")
+
+
+def mostrar_logos_encabezado():
+    """
+    Muestra ambos logos en la parte superior de la app.
+    Para usarse en la Parte 4, antes del encabezado principal.
+    """
+
+    col_logo1, col_logo2 = st.columns([1, 3])
+
+    with col_logo1:
+        if os.path.exists(LOGO_FUERZA_PUBLICA):
+            st.image(LOGO_FUERZA_PUBLICA, width=120)
+
+    with col_logo2:
+        if os.path.exists(LOGO_MINISTERIO):
+            st.image(LOGO_MINISTERIO, width=360)
         # ======================================================
 # PARTE 2 DE 12
 # CONEXIÓN GOOGLE SHEETS, FUNCIONES BASE Y DATOS IMPORTANTES
@@ -1651,15 +1716,13 @@ def limpiar_dataframe_para_metricas(df):
         df["Longitud"] = df["Longitud"].astype(str)
 
     return df
-    # ======================================================
+# ======================================================
 # PARTE 4 DE 12
 # INTERFAZ PRINCIPAL, LOGIN ADMINISTRATIVO, MENÚ E INICIO
 # ======================================================
 
 # ======================================================
 # FUNCIÓN PARA CREAR MAPA BASE
-# Se utiliza en el registro de actividades para seleccionar
-# o visualizar una ubicación específica.
 # ======================================================
 
 def crear_mapa_base(centro, zoom, tipo_mapa):
@@ -1670,28 +1733,16 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
     )
 
     if tipo_mapa == "OpenStreetMap":
-        folium.TileLayer(
-            "OpenStreetMap",
-            name="OpenStreetMap"
-        ).add_to(mapa)
+        folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(mapa)
 
     elif tipo_mapa == "Mapa claro":
-        folium.TileLayer(
-            "CartoDB positron",
-            name="Mapa claro"
-        ).add_to(mapa)
+        folium.TileLayer("CartoDB positron", name="Mapa claro").add_to(mapa)
 
     elif tipo_mapa == "Mapa oscuro":
-        folium.TileLayer(
-            "CartoDB dark_matter",
-            name="Mapa oscuro"
-        ).add_to(mapa)
+        folium.TileLayer("CartoDB dark_matter", name="Mapa oscuro").add_to(mapa)
 
     elif tipo_mapa == "Topográfico":
-        folium.TileLayer(
-            "OpenTopoMap",
-            name="Topográfico"
-        ).add_to(mapa)
+        folium.TileLayer("OpenTopoMap", name="Topográfico").add_to(mapa)
 
     elif tipo_mapa == "Satélite":
         folium.TileLayer(
@@ -1780,6 +1831,13 @@ menu = st.sidebar.radio(
     "Menú principal",
     opciones_menu
 )
+
+
+# ======================================================
+# LOGOS SUPERIORES DE LA APP
+# ======================================================
+
+mostrar_logos_encabezado()
 
 
 # ======================================================
@@ -4339,7 +4397,7 @@ elif menu == "Dashboard profesional":
                     fig_provincia,
                     use_container_width=True
                 )
-               # ======================================================
+# ======================================================
 # PARTE 11 DE 12
 # DASHBOARD PROFESIONAL: GRÁFICOS COMPLEMENTARIOS, TABLA E INFORME PDF
 # ======================================================
@@ -4379,10 +4437,7 @@ elif menu == "Dashboard profesional":
 
                 fig_delegacion.update_layout(title_x=0.5)
 
-                st.plotly_chart(
-                    fig_delegacion,
-                    use_container_width=True
-                )
+                st.plotly_chart(fig_delegacion, use_container_width=True)
 
             with colg6:
                 st.markdown("### Registros por tipo de lugar")
@@ -4395,14 +4450,8 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_tipo_lugar.update_traces(
-                        textinfo="label+value+percent"
-                    )
-
-                    st.plotly_chart(
-                        fig_tipo_lugar,
-                        use_container_width=True
-                    )
+                    fig_tipo_lugar.update_traces(textinfo="label+value+percent")
+                    st.plotly_chart(fig_tipo_lugar, use_container_width=True)
                 else:
                     st.info("No existe la columna Tipo Lugar.")
 
@@ -4427,14 +4476,8 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_sexo.update_traces(
-                        textinfo="label+value+percent"
-                    )
-
-                    st.plotly_chart(
-                        fig_sexo,
-                        use_container_width=True
-                    )
+                    fig_sexo.update_traces(textinfo="label+value+percent")
+                    st.plotly_chart(fig_sexo, use_container_width=True)
                 else:
                     st.info("No hay datos de sexo registrados.")
 
@@ -4477,15 +4520,8 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_edades.update_layout(
-                        showlegend=False,
-                        title_x=0.5
-                    )
-
-                    st.plotly_chart(
-                        fig_edades,
-                        use_container_width=True
-                    )
+                    fig_edades.update_layout(showlegend=False, title_x=0.5)
+                    st.plotly_chart(fig_edades, use_container_width=True)
                 else:
                     st.info("No hay datos de rangos de edad registrados.")
 
@@ -4495,9 +4531,7 @@ elif menu == "Dashboard profesional":
 
             st.markdown("### Evolución mensual de actividades")
 
-            df_mensual = df_filtrado.dropna(
-                subset=["Fecha Actividad"]
-            ).copy()
+            df_mensual = df_filtrado.dropna(subset=["Fecha Actividad"]).copy()
 
             if not df_mensual.empty:
                 df_mensual["Mes"] = df_mensual[
@@ -4529,11 +4563,8 @@ elif menu == "Dashboard profesional":
                 )
 
                 fig_mensual.update_layout(title_x=0.5)
+                st.plotly_chart(fig_mensual, use_container_width=True)
 
-                st.plotly_chart(
-                    fig_mensual,
-                    use_container_width=True
-                )
             else:
                 st.info("No hay fechas válidas para generar evolución mensual.")
 
@@ -4550,11 +4581,7 @@ elif menu == "Dashboard profesional":
                     "Fecha Actividad"
                 ].dt.strftime("%d/%m/%Y")
 
-            st.dataframe(
-                df_mostrar,
-                use_container_width=True,
-                hide_index=True
-            )
+            st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
             # ======================================================
             # CONFIGURACIÓN DEL INFORME PDF
@@ -4616,26 +4643,71 @@ elif menu == "Dashboard profesional":
             # FUNCIONES AUXILIARES PARA PDF
             # ======================================================
 
+            def obtener_logo_existente(ruta):
+                if ruta and os.path.exists(ruta):
+                    return ruta
+                return None
+
+
             def agregar_marco_y_paginacion(canvas, doc):
                 canvas.saveState()
 
                 width, height = letter
 
+                # Logos en todas las páginas
+                logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
+                logo_min = obtener_logo_existente(LOGO_MINISTERIO)
+
+                if logo_fp:
+                    try:
+                        canvas.drawImage(
+                            logo_fp,
+                            42,
+                            height - 68,
+                            width=48,
+                            height=48,
+                            preserveAspectRatio=True,
+                            mask="auto"
+                        )
+                    except Exception:
+                        pass
+
+                if logo_min:
+                    try:
+                        canvas.drawImage(
+                            logo_min,
+                            width - 205,
+                            height - 58,
+                            width=165,
+                            height=36,
+                            preserveAspectRatio=True,
+                            mask="auto"
+                        )
+                    except Exception:
+                        pass
+
+                # Línea institucional superior
+                canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
+                canvas.setLineWidth(2)
+                canvas.line(42, height - 78, width - 42, height - 78)
+
+                canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
+                canvas.setLineWidth(1.5)
+                canvas.line(42, height - 82, width - 42, height - 82)
+
+                # Marco exterior
                 canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
                 canvas.setLineWidth(2)
                 canvas.rect(24, 24, width - 48, height - 48)
 
-                canvas.setStrokeColor(colors.HexColor(COLOR_ROJO))
+                canvas.setStrokeColor(colors.HexColor(COLOR_DORADO))
                 canvas.setLineWidth(1)
                 canvas.rect(30, 30, width - 60, height - 60)
 
+                # Pie de página
                 canvas.setFont("Helvetica", 8)
                 canvas.setFillColor(colors.HexColor(COLOR_GRIS_OSCURO))
-                canvas.drawCentredString(
-                    width / 2,
-                    16,
-                    f"Página {doc.page}"
-                )
+                canvas.drawCentredString(width / 2, 16, f"Página {doc.page}")
 
                 canvas.restoreState()
 
@@ -4751,7 +4823,7 @@ elif menu == "Dashboard profesional":
                     pagesize=letter,
                     rightMargin=42,
                     leftMargin=42,
-                    topMargin=52,
+                    topMargin=96,
                     bottomMargin=52
                 )
 
@@ -4772,7 +4844,7 @@ elif menu == "Dashboard profesional":
                     "SubtituloPUMI",
                     parent=estilos["Heading2"],
                     alignment=TA_CENTER,
-                    textColor=colors.HexColor(COLOR_ROJO),
+                    textColor=colors.HexColor(COLOR_DORADO),
                     fontSize=14,
                     leading=18,
                     spaceBefore=8,
@@ -4814,26 +4886,45 @@ elif menu == "Dashboard profesional":
                     wordWrap="CJK"
                 )
 
-                logo_path = None
+                logo_fp = obtener_logo_existente(LOGO_FUERZA_PUBLICA)
+                logo_min = obtener_logo_existente(LOGO_MINISTERIO)
 
-                for posible_logo in [
-                    "logo_pumi.jpeg",
-                    "logo_pumi.jpg",
-                    "logo_pumi.png"
-                ]:
-                    if os.path.exists(posible_logo):
-                        logo_path = posible_logo
-                        break
+                # Portada con logos
+                tabla_logos_data = []
 
-                if logo_path:
-                    logo = RLImage(
-                        logo_path,
-                        width=90,
-                        height=90
+                fila_logos = []
+
+                if logo_fp:
+                    img_fp = RLImage(logo_fp, width=80, height=80)
+                    fila_logos.append(img_fp)
+                else:
+                    fila_logos.append("")
+
+                if logo_min:
+                    img_min = RLImage(logo_min, width=250, height=55)
+                    fila_logos.append(img_min)
+                else:
+                    fila_logos.append("")
+
+                tabla_logos_data.append(fila_logos)
+
+                tabla_logos = Table(
+                    tabla_logos_data,
+                    colWidths=[120, 340]
+                )
+
+                tabla_logos.setStyle(
+                    TableStyle(
+                        [
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("BOX", (0, 0), (-1, -1), 0, colors.white),
+                        ]
                     )
-                    logo.hAlign = "CENTER"
-                    elementos.append(logo)
-                    elementos.append(Spacer(1, 8))
+                )
+
+                elementos.append(tabla_logos)
+                elementos.append(Spacer(1, 18))
 
                 elementos.append(
                     Paragraph(
@@ -5020,7 +5111,7 @@ elif menu == "Dashboard profesional":
                 tabla_prog = crear_tabla_estilizada(
                     tabla_programas,
                     col_widths=[125, 75, 80, 85, 85],
-                    header_color=COLOR_ROJO,
+                    header_color=COLOR_DORADO,
                     font_size=7
                 )
 
@@ -5037,53 +5128,31 @@ elif menu == "Dashboard profesional":
 
                 if graficos_seleccionados:
                     elementos.append(PageBreak())
-                    elementos.append(
-                        Paragraph("Gráficos seleccionados", titulo)
-                    )
+                    elementos.append(Paragraph("Gráficos seleccionados", titulo))
 
                     if "Actividades por programa" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_programa,
-                            "Actividades por programa",
-                            subtitulo,
-                            texto
+                            elementos, fig_programa, "Actividades por programa", subtitulo, texto
                         )
 
                     if "Participantes por programa" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_participantes,
-                            "Participantes por programa",
-                            subtitulo,
-                            texto
+                            elementos, fig_participantes, "Participantes por programa", subtitulo, texto
                         )
 
                     if "Estado de revisión" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_estado,
-                            "Estado de revisión",
-                            subtitulo,
-                            texto
+                            elementos, fig_estado, "Estado de revisión", subtitulo, texto
                         )
 
                     if "Actividades por provincia" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_provincia,
-                            "Actividades por provincia",
-                            subtitulo,
-                            texto
+                            elementos, fig_provincia, "Actividades por provincia", subtitulo, texto
                         )
 
                     if "Ranking de delegaciones" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_delegacion,
-                            "Ranking de delegaciones",
-                            subtitulo,
-                            texto
+                            elementos, fig_delegacion, "Ranking de delegaciones", subtitulo, texto
                         )
 
                     if (
@@ -5091,11 +5160,7 @@ elif menu == "Dashboard profesional":
                         and "Tipo Lugar" in df_pdf.columns
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_tipo_lugar,
-                            "Registros por tipo de lugar",
-                            subtitulo,
-                            texto
+                            elementos, fig_tipo_lugar, "Registros por tipo de lugar", subtitulo, texto
                         )
 
                     if (
@@ -5103,11 +5168,7 @@ elif menu == "Dashboard profesional":
                         and data_sexo["Cantidad"].sum() > 0
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_sexo,
-                            "Distribución por sexo",
-                            subtitulo,
-                            texto
+                            elementos, fig_sexo, "Distribución por sexo", subtitulo, texto
                         )
 
                     if (
@@ -5115,11 +5176,7 @@ elif menu == "Dashboard profesional":
                         and data_edades["Cantidad"].sum() > 0
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_edades,
-                            "Distribución por rangos de edad",
-                            subtitulo,
-                            texto
+                            elementos, fig_edades, "Distribución por rangos de edad", subtitulo, texto
                         )
 
                     if (
@@ -5127,11 +5184,7 @@ elif menu == "Dashboard profesional":
                         and not df_mensual.empty
                     ):
                         agregar_imagen_plotly_al_pdf(
-                            elementos,
-                            fig_mensual,
-                            "Evolución mensual de actividades",
-                            subtitulo,
-                            texto
+                            elementos, fig_mensual, "Evolución mensual de actividades", subtitulo, texto
                         )
 
                 # ==================================================
@@ -5140,9 +5193,7 @@ elif menu == "Dashboard profesional":
 
                 if incluir_detalle_pdf:
                     elementos.append(PageBreak())
-                    elementos.append(
-                        Paragraph("Detalle de registros", titulo)
-                    )
+                    elementos.append(Paragraph("Detalle de registros", titulo))
 
                     df_detalle = df_pdf.copy()
 
@@ -5226,17 +5277,23 @@ elif menu == "Dashboard profesional":
                             )
                         )
 
-                elementos.append(PageBreak())
+                # ==================================================
+                # PÁGINA FINAL
+                # ==================================================
 
-                if logo_path:
-                    logo_final = RLImage(
-                        logo_path,
-                        width=130,
-                        height=130
-                    )
-                    logo_final.hAlign = "CENTER"
-                    elementos.append(Spacer(1, 80))
-                    elementos.append(logo_final)
+                elementos.append(PageBreak())
+                elementos.append(Spacer(1, 70))
+
+                if logo_fp:
+                    logo_final_fp = RLImage(logo_fp, width=115, height=115)
+                    logo_final_fp.hAlign = "CENTER"
+                    elementos.append(logo_final_fp)
+                    elementos.append(Spacer(1, 12))
+
+                if logo_min:
+                    logo_final_min = RLImage(logo_min, width=280, height=60)
+                    logo_final_min.hAlign = "CENTER"
+                    elementos.append(logo_final_min)
                     elementos.append(Spacer(1, 24))
 
                 elementos.append(
@@ -5501,7 +5558,7 @@ elif menu == "Configuración":
                 <b>Sistema:</b> PUMI 2026<br>
                 <b>Nombre:</b> Proceso Unificado para el Manejo de la Información<br>
                 <b>Fecha de revisión:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}<br>
-                <b>Paleta institucional:</b> Azul, blanco y rojo, en referencia a la bandera de Costa Rica.<br>
+                <b>Paleta institucional:</b> Azul, blanco y dorado institucional.<br>
                 <b>Estado:</b> Sistema operativo.
             </div>
         </div>
