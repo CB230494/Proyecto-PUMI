@@ -1,6 +1,6 @@
 # ======================================================
-# PARTE 1 DE 5
-# CONFIGURACIÓN GENERAL, LIBRERÍAS, CATÁLOGOS Y ESTILOS
+# PARTE 1 DE 12
+# CONFIGURACIÓN GENERAL, LIBRERÍAS, CLAVES, CATÁLOGOS Y ESTILOS
 # ======================================================
 
 import streamlit as st
@@ -17,18 +17,29 @@ from geopy.extra.rate_limiter import RateLimiter
 from streamlit_js_eval import get_geolocation
 
 from google.oauth2.service_account import Credentials
-from datetime import datetime, date
+from datetime import datetime, date, time
 from io import BytesIO
 from PIL import Image
+
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    Image as RLImage, PageBreak
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    Image as RLImage,
+    PageBreak,
+    KeepTogether
 )
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 
+
+# ======================================================
+# CONFIGURACIÓN GENERAL DE STREAMLIT
+# ======================================================
 
 st.set_page_config(
     page_title="PUMI 2026",
@@ -38,34 +49,124 @@ st.set_page_config(
 )
 
 
+# ======================================================
+# ARCHIVOS BASE
+# ======================================================
+
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
 ARCHIVO_DELEGACIONES = "DELEGACIONES Y DISTRITOS.xlsx"
 ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 
 
+# ======================================================
+# CONEXIÓN GOOGLE SHEETS
+# ======================================================
+
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1O-HNa1c4ppF0-ND7BUqKA2OzZDc1O0kTxZOMVDeA-GY/edit?gid=0#gid=0"
+HOJA_REGISTRO = "REGISTRO_PUMI_2026"
+
+
+# ======================================================
+# CLAVES ADMINISTRATIVAS
+# ======================================================
+
 CLAVES_ADMINISTRATIVAS = {
-    "DPPP23": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
-    "DPPP2026": {"perfil": "DPPP", "programa": "TODOS", "programas_permitidos": "TODOS", "descripcion": "Administrador general"},
+    "DPPP23": {
+        "perfil": "DPPP",
+        "programa": "TODOS",
+        "programas_permitidos": "TODOS",
+        "descripcion": "Administrador general"
+    },
+    "DPPP2026": {
+        "perfil": "DPPP",
+        "programa": "TODOS",
+        "programas_permitidos": "TODOS",
+        "descripcion": "Administrador general"
+    },
 
-    "DARE23": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
-    "DARE2026": {"perfil": "DARE", "programa": "DARE", "programas_permitidos": ["DARE"], "descripcion": "Administrador programa DARE"},
+    "DARE23": {
+        "perfil": "DARE",
+        "programa": "DARE",
+        "programas_permitidos": ["DARE"],
+        "descripcion": "Administrador programa DARE"
+    },
+    "DARE2026": {
+        "perfil": "DARE",
+        "programa": "DARE",
+        "programas_permitidos": ["DARE"],
+        "descripcion": "Administrador programa DARE"
+    },
 
-    "GREAT23": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
-    "GREAT2026": {"perfil": "GREAT", "programa": "GREAT", "programas_permitidos": ["GREAT", "GREAT CAMP"], "descripcion": "Administrador programa GREAT"},
+    "GREAT23": {
+        "perfil": "GREAT",
+        "programa": "GREAT",
+        "programas_permitidos": ["GREAT", "GREAT CAMP"],
+        "descripcion": "Administrador programa GREAT"
+    },
+    "GREAT2026": {
+        "perfil": "GREAT",
+        "programa": "GREAT",
+        "programas_permitidos": ["GREAT", "GREAT CAMP"],
+        "descripcion": "Administrador programa GREAT"
+    },
 
-    "MPAS23": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
-    "MPAS2026": {"perfil": "MPAS", "programa": "MPAS", "programas_permitidos": ["MPAS"], "descripcion": "Administrador programa MPAS"},
+    "MPAS23": {
+        "perfil": "MPAS",
+        "programa": "MPAS",
+        "programas_permitidos": ["MPAS"],
+        "descripcion": "Administrador programa MPAS"
+    },
+    "MPAS2026": {
+        "perfil": "MPAS",
+        "programa": "MPAS",
+        "programas_permitidos": ["MPAS"],
+        "descripcion": "Administrador programa MPAS"
+    },
 
-    "PSCC23": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
-    "PSCC2026": {"perfil": "PSCC", "programa": "PSCC", "programas_permitidos": ["PSCC"], "descripcion": "Administrador programa PSCC"},
+    "PSCC23": {
+        "perfil": "PSCC",
+        "programa": "PSCC",
+        "programas_permitidos": ["PSCC"],
+        "descripcion": "Administrador programa PSCC"
+    },
+    "PSCC2026": {
+        "perfil": "PSCC",
+        "programa": "PSCC",
+        "programas_permitidos": ["PSCC"],
+        "descripcion": "Administrador programa PSCC"
+    },
 
-    "VIF23": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
-    "VIF2026": {"perfil": "VIF", "programa": "VIF", "programas_permitidos": ["VIF"], "descripcion": "Administrador programa VIF"},
+    "VIF23": {
+        "perfil": "VIF",
+        "programa": "VIF",
+        "programas_permitidos": ["VIF"],
+        "descripcion": "Administrador programa VIF"
+    },
+    "VIF2026": {
+        "perfil": "VIF",
+        "programa": "VIF",
+        "programas_permitidos": ["VIF"],
+        "descripcion": "Administrador programa VIF"
+    },
 
-    "POLITICA23": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"},
-    "POLITICA2026": {"perfil": "POLITICA PUBLICA", "programa": "Política Pública", "programas_permitidos": ["Política Pública"], "descripcion": "Administrador programa Política Pública"}
+    "POLITICA23": {
+        "perfil": "POLITICA PUBLICA",
+        "programa": "Política Pública",
+        "programas_permitidos": ["Política Pública"],
+        "descripcion": "Administrador programa Política Pública"
+    },
+    "POLITICA2026": {
+        "perfil": "POLITICA PUBLICA",
+        "programa": "Política Pública",
+        "programas_permitidos": ["Política Pública"],
+        "descripcion": "Administrador programa Política Pública"
+    }
 }
 
+
+# ======================================================
+# CLAVES DE CONSULTA PARA USUARIOS POR PROGRAMA
+# ======================================================
 
 CLAVES_USUARIO_PROGRAMA = {
     "DPPP": {
@@ -99,14 +200,15 @@ CLAVES_USUARIO_PROGRAMA = {
 }
 
 
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1O-HNa1c4ppF0-ND7BUqKA2OzZDc1O0kTxZOMVDeA-GY/edit?gid=0#gid=0"
-HOJA_REGISTRO = "REGISTRO_PUMI_2026"
-
+# ======================================================
+# ENCABEZADOS OFICIALES
+# ======================================================
 
 ENCABEZADOS = [
     "ID",
     "Fecha Registro",
     "Fecha Actividad",
+    "Hora Actividad",
     "Dirección Regional",
     "Delegación",
     "Programa",
@@ -131,13 +233,18 @@ ENCABEZADOS = [
     "Edad 46 en adelante",
     "Instituciones Participantes",
     "Plan Estratégico Relacionado",
-    "Evidencia",
+    "Número de Referencia",
+    "Número de Expediente Referencia",
     "Observaciones",
     "Estado Revisión",
     "Observación de Revisión",
     "Usuario Registra"
 ]
 
+
+# ======================================================
+# CATÁLOGOS BASE
+# ======================================================
 
 PROGRAMAS = [
     "DARE",
@@ -187,6 +294,29 @@ ESTADOS_REVISION = [
     "Rechazado"
 ]
 
+
+# ======================================================
+# COLORES BANDERA DE COSTA RICA
+# ======================================================
+
+COLOR_AZUL = "#002B7F"
+COLOR_AZUL_MEDIO = "#1E4FA3"
+COLOR_AZUL_CLARO = "#DCE8FF"
+
+COLOR_ROJO = "#CE1126"
+COLOR_ROJO_OSCURO = "#9B0D1C"
+COLOR_ROJO_CLARO = "#F7D6DA"
+
+COLOR_BLANCO = "#FFFFFF"
+COLOR_GRIS = "#F4F6F8"
+COLOR_GRIS_OSCURO = "#2F3542"
+
+# Compatibilidad con partes anteriores
+COLOR_VERDE = COLOR_ROJO
+COLOR_VERDE_CLARO = COLOR_ROJO_CLARO
+COLOR_DORADO = COLOR_ROJO
+
+
 COLORES_PROGRAMA = {
     "DARE": "purple",
     "GREAT": "orange",
@@ -198,16 +328,9 @@ COLORES_PROGRAMA = {
 }
 
 
-COLOR_AZUL = "#003366"
-COLOR_AZUL_MEDIO = "#005B96"
-COLOR_AZUL_CLARO = "#0B84C6"
-COLOR_VERDE = "#1B7F3A"
-COLOR_VERDE_CLARO = "#2EAD5F"
-COLOR_DORADO = "#C9A227"
-COLOR_GRIS = "#F4F6F8"
-COLOR_GRIS_OSCURO = "#2F3542"
-COLOR_BLANCO = "#FFFFFF"
-
+# ======================================================
+# ESTILOS CSS
+# ======================================================
 
 st.markdown(
     f"""
@@ -215,26 +338,26 @@ st.markdown(
 
     .stApp {{
         background:
-            radial-gradient(circle at top left, #DFF3FF 0, transparent 32%),
-            radial-gradient(circle at top right, #E4F8EA 0, transparent 28%),
-            linear-gradient(180deg, #F4F8FB 0%, #EAF2F8 45%, #F7FAFC 100%);
+            radial-gradient(circle at top left, #FFFFFF 0, transparent 28%),
+            radial-gradient(circle at top right, #DCE8FF 0, transparent 30%),
+            linear-gradient(180deg, #FFFFFF 0%, #F4F7FB 48%, #FFFFFF 100%);
     }}
 
     section[data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, #FFFFFF 0%, #EAF4FB 45%, #E6F5EC 100%);
-        border-right: 5px solid {COLOR_AZUL};
+        background: linear-gradient(180deg, #FFFFFF 0%, #EAF1FF 45%, #FFFFFF 100%);
+        border-right: 5px solid {COLOR_ROJO};
         box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
     }}
 
     .titulo-principal {{
-        background: linear-gradient(135deg, {COLOR_AZUL}, {COLOR_VERDE});
+        background: linear-gradient(135deg, {COLOR_AZUL}, {COLOR_ROJO});
         padding: 38px;
         border-radius: 22px;
         text-align: center;
         color: white;
         margin-bottom: 30px;
         box-shadow: 0px 8px 22px rgba(0,0,0,0.28);
-        border: 2px solid rgba(255,255,255,0.35);
+        border: 3px solid {COLOR_BLANCO};
     }}
 
     .titulo-principal h1 {{
@@ -242,6 +365,7 @@ st.markdown(
         margin-bottom: 8px;
         font-weight: 900;
         letter-spacing: 1.5px;
+        color: white;
         text-shadow: 1px 2px 5px rgba(0,0,0,0.35);
     }}
 
@@ -249,7 +373,7 @@ st.markdown(
         font-size: 27px;
         margin-top: 8px;
         font-weight: 600;
-        color: #F4FFF8;
+        color: white;
     }}
 
     .card-pumi, .card-azul, .card-dorado {{
@@ -257,25 +381,23 @@ st.markdown(
         border-radius: 20px;
         box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
         margin-bottom: 20px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFF 100%);
     }}
 
     .card-pumi {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #F0FAF4 100%);
-        border-left: 9px solid {COLOR_VERDE};
-    }}
-
-    .card-azul {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #EEF7FF 100%);
         border-left: 9px solid {COLOR_AZUL};
     }}
 
+    .card-azul {{
+        border-left: 9px solid {COLOR_ROJO};
+    }}
+
     .card-dorado {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8DC 100%);
-        border-left: 9px solid {COLOR_DORADO};
+        border-left: 9px solid {COLOR_AZUL};
     }}
 
     .bloque-datos {{
-        background: linear-gradient(135deg, #F0F7FF 0%, #FFFFFF 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #EEF4FF 100%);
         padding: 18px;
         border-radius: 18px;
         border-left: 7px solid {COLOR_AZUL};
@@ -283,26 +405,26 @@ st.markdown(
     }}
 
     .bloque-territorio {{
-        background: linear-gradient(135deg, #EFFAF3 0%, #FFFFFF 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF3F5 100%);
         padding: 18px;
         border-radius: 18px;
-        border-left: 7px solid {COLOR_VERDE};
+        border-left: 7px solid {COLOR_ROJO};
         margin-bottom: 18px;
     }}
 
     .bloque-actividad {{
-        background: linear-gradient(135deg, #FFF8DC 0%, #FFFFFF 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #EEF4FF 100%);
         padding: 18px;
         border-radius: 18px;
-        border-left: 7px solid {COLOR_DORADO};
+        border-left: 7px solid {COLOR_AZUL};
         margin-bottom: 18px;
     }}
 
     .bloque-mapa {{
-        background: linear-gradient(135deg, #EAF7FF 0%, #FFFFFF 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #F4F7FB 100%);
         padding: 18px;
         border-radius: 18px;
-        border-left: 7px solid {COLOR_AZUL_CLARO};
+        border-left: 7px solid {COLOR_ROJO};
         margin-bottom: 18px;
     }}
 
@@ -311,42 +433,44 @@ st.markdown(
         font-weight: 900;
         font-size: 30px;
         margin-bottom: 12px;
+        text-align: center;
     }}
 
     .texto-pumi {{
         color: {COLOR_GRIS_OSCURO};
         font-size: 17px;
         line-height: 1.7;
+        text-align: justify;
     }}
 
     div[data-testid="stMetric"] {{
-        background: linear-gradient(145deg, #FFFFFF 0%, #F0F7FB 100%);
+        background: linear-gradient(145deg, #FFFFFF 0%, #F3F6FF 100%);
         padding: 20px;
         border-radius: 20px;
         box-shadow: 0px 5px 15px rgba(0,0,0,0.13);
-        border-bottom: 6px solid {COLOR_VERDE};
+        border-bottom: 6px solid {COLOR_ROJO};
     }}
 
     div[data-baseweb="select"] > div {{
-        background-color: #F7FBFF !important;
+        background-color: #FFFFFF !important;
         border-radius: 12px !important;
-        border: 1.8px solid #9FC5E8 !important;
+        border: 1.8px solid #AFC3EE !important;
     }}
 
     input {{
-        background-color: #F8FFF9 !important;
+        background-color: #FFFFFF !important;
         border-radius: 12px !important;
-        border: 1.8px solid #A9D6B8 !important;
+        border: 1.8px solid #AFC3EE !important;
     }}
 
     textarea {{
-        background-color: #FFFDF3 !important;
+        background-color: #FFFFFF !important;
         border-radius: 12px !important;
-        border: 1.8px solid #E1C75F !important;
+        border: 1.8px solid #D8A2AA !important;
     }}
 
     .stButton > button {{
-        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE});
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_ROJO});
         color: white;
         border-radius: 12px;
         border: none;
@@ -356,7 +480,7 @@ st.markdown(
     }}
 
     .stDownloadButton > button {{
-        background: linear-gradient(90deg, {COLOR_VERDE}, {COLOR_AZUL});
+        background: linear-gradient(90deg, {COLOR_ROJO}, {COLOR_AZUL});
         color: white;
         border-radius: 12px;
         border: none;
@@ -375,12 +499,13 @@ st.markdown(
     iframe {{
         border-radius: 18px !important;
         box-shadow: 0px 5px 16px rgba(0,0,0,0.13);
+        width: 100% !important;
     }}
 
     hr {{
         border: none;
-        height: 2px;
-        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_VERDE}, {COLOR_DORADO});
+        height: 3px;
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_BLANCO}, {COLOR_ROJO});
         margin-top: 25px;
         margin-bottom: 25px;
     }}
@@ -395,6 +520,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
+# ======================================================
+# LOGO
+# ======================================================
 
 def mostrar_logo():
     if os.path.exists("logo_pumi.jpeg"):
@@ -411,9 +540,9 @@ def mostrar_logo():
 
     else:
         st.sidebar.warning("Logo PUMI no encontrado.")
-# ======================================================
-# PARTE 2 DE 5
-# CONEXIÓN GOOGLE SHEETS, BASES AUXILIARES, CRUD, MAPA Y FILTROS
+        # ======================================================
+# PARTE 2 DE 12
+# CONEXIÓN GOOGLE SHEETS, FUNCIONES BASE Y DATOS IMPORTANTES
 # ======================================================
 
 @st.cache_resource
@@ -477,8 +606,10 @@ def inicializar_hoja():
     primera_fila = datos[0]
 
     if primera_fila != ENCABEZADOS:
-        hoja.clear()
-        hoja.append_row(ENCABEZADOS)
+        hoja.update(
+            f"A1:{chr(64 + len(ENCABEZADOS))}1",
+            [ENCABEZADOS]
+        )
 
     return hoja
 
@@ -562,6 +693,9 @@ def aplicar_filtro_perfil_admin(df):
 
 # ======================================================
 # BASE DATOS IMPORTANTES
+# Provincia - Cantón - Distrito
+# Dirección Regional - Delegación
+# Programa - Actividad Realizada
 # ======================================================
 
 @st.cache_data
@@ -582,13 +716,40 @@ def cargar_datos_importantes():
     try:
         df_original = pd.read_excel(ARCHIVO_DATOS_IMPORTANTES)
 
-        col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
-        col_canton = obtener_columna_por_nombre(df_original, ["Cantón", "Canton"])
-        col_distrito = obtener_columna_por_nombre(df_original, ["Distrito", "Distritos"])
-        col_region = obtener_columna_por_nombre(df_original, ["Dirección Regional", "Direccion Regional"])
-        col_delegacion = obtener_columna_por_nombre(df_original, ["Delegación", "Delegacion"])
-        col_actividad = obtener_columna_por_nombre(df_original, ["Actividad Realizada", "Actividad"])
-        col_programa = obtener_columna_por_nombre(df_original, ["Programa"])
+        col_provincia = obtener_columna_por_nombre(
+            df_original,
+            ["Provincia"]
+        )
+
+        col_canton = obtener_columna_por_nombre(
+            df_original,
+            ["Cantón", "Canton"]
+        )
+
+        col_distrito = obtener_columna_por_nombre(
+            df_original,
+            ["Distrito", "Distritos"]
+        )
+
+        col_region = obtener_columna_por_nombre(
+            df_original,
+            ["Dirección Regional", "Direccion Regional"]
+        )
+
+        col_delegacion = obtener_columna_por_nombre(
+            df_original,
+            ["Delegación", "Delegacion"]
+        )
+
+        col_actividad = obtener_columna_por_nombre(
+            df_original,
+            ["Actividad Realizada", "Actividad"]
+        )
+
+        col_programa = obtener_columna_por_nombre(
+            df_original,
+            ["Programa"]
+        )
 
         columnas_requeridas = [
             col_provincia,
@@ -601,7 +762,9 @@ def cargar_datos_importantes():
         ]
 
         if not all(columnas_requeridas):
-            st.warning("El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas.")
+            st.warning(
+                "El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas."
+            )
             return pd.DataFrame(columns=columnas_base)
 
         df = df_original[
@@ -764,10 +927,15 @@ def obtener_distritos_por_provincia_canton(provincia, canton):
     distritos = [x for x in distritos if str(x).strip() != ""]
 
     return sorted(distritos)
-
+    # ======================================================
+# PARTE 3 DE 12
+# BASE MEP, BASE DELEGACIONES, MAPA INTELIGENTE Y CRUD PRINCIPAL
+# ======================================================
 
 # ======================================================
 # BASE MEP
+# Lee la base de centros educativos y obtiene:
+# Provincia, nombre del centro educativo y código presupuestario.
 # ======================================================
 
 @st.cache_data
@@ -791,7 +959,14 @@ def cargar_base_mep():
 
         col_nombre = obtener_columna_por_nombre(
             df_original,
-            ["NOMBRE", "Nombre", "CENTRO EDUCATIVO", "Centro Educativo", "INSTITUCION", "Institución"]
+            [
+                "NOMBRE",
+                "Nombre",
+                "CENTRO EDUCATIVO",
+                "Centro Educativo",
+                "INSTITUCION",
+                "Institución"
+            ]
         )
 
         col_codigo = obtener_columna_por_nombre(
@@ -888,6 +1063,9 @@ def obtener_datos_centro_educativo(centro_mostrar):
 
 # ======================================================
 # BASE DELEGACIONES Y DISTRITOS
+# Se conserva como respaldo.
+# La lógica principal de provincia, cantón y distrito
+# sale de Datos Importantes.xlsx.
 # ======================================================
 
 @st.cache_data
@@ -895,49 +1073,77 @@ def cargar_base_delegaciones():
     if not os.path.exists(ARCHIVO_DELEGACIONES):
         return pd.DataFrame(columns=["Delegacion", "Distrito"])
 
-    df_original = pd.read_excel(ARCHIVO_DELEGACIONES)
+    try:
+        df_original = pd.read_excel(ARCHIVO_DELEGACIONES)
 
-    col_delegacion = obtener_columna_por_nombre(df_original, ["Delegacion", "Delegación"])
-    col_distrito = obtener_columna_por_nombre(df_original, ["Distrito"])
-    col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
-    col_canton = obtener_columna_por_nombre(df_original, ["Canton", "Cantón"])
+        col_delegacion = obtener_columna_por_nombre(
+            df_original,
+            ["Delegacion", "Delegación"]
+        )
 
-    columnas = {}
+        col_distrito = obtener_columna_por_nombre(
+            df_original,
+            ["Distrito"]
+        )
 
-    if col_delegacion:
-        columnas[col_delegacion] = "Delegacion"
+        col_provincia = obtener_columna_por_nombre(
+            df_original,
+            ["Provincia"]
+        )
 
-    if col_distrito:
-        columnas[col_distrito] = "Distrito"
+        col_canton = obtener_columna_por_nombre(
+            df_original,
+            ["Canton", "Cantón"]
+        )
 
-    if col_provincia:
-        columnas[col_provincia] = "Provincia"
+        columnas = {}
 
-    if col_canton:
-        columnas[col_canton] = "Cantón"
+        if col_delegacion:
+            columnas[col_delegacion] = "Delegacion"
 
-    if not col_delegacion and not col_distrito:
-        return pd.DataFrame(columns=["Delegacion", "Distrito", "Provincia", "Cantón"])
+        if col_distrito:
+            columnas[col_distrito] = "Distrito"
 
-    df = df_original[list(columnas.keys())].copy()
-    df = df.rename(columns=columnas)
+        if col_provincia:
+            columnas[col_provincia] = "Provincia"
 
-    for col in ["Delegacion", "Distrito", "Provincia", "Cantón"]:
-        if col not in df.columns:
-            df[col] = ""
+        if col_canton:
+            columnas[col_canton] = "Cantón"
 
-        df[col] = df[col].astype(str).str.strip()
+        if not col_delegacion and not col_distrito:
+            return pd.DataFrame(
+                columns=[
+                    "Delegacion",
+                    "Distrito",
+                    "Provincia",
+                    "Cantón"
+                ]
+            )
 
-    df = df.replace("nan", "")
+        df = df_original[list(columnas.keys())].copy()
+        df = df.rename(columns=columnas)
 
-    df["Delegacion_Normalizada"] = df["Delegacion"].apply(normalizar_texto)
-    df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
-    df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
-    df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+        for col in ["Delegacion", "Distrito", "Provincia", "Cantón"]:
+            if col not in df.columns:
+                df[col] = ""
 
-    df = df.drop_duplicates()
+            df[col] = df[col].fillna("").astype(str).str.strip()
 
-    return df
+        df = df.replace("nan", "")
+
+        df["Delegacion_Normalizada"] = df["Delegacion"].apply(normalizar_texto)
+        df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
+        df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
+        df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+
+        df = df.drop_duplicates()
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error leyendo {ARCHIVO_DELEGACIONES}")
+        st.exception(e)
+        return pd.DataFrame(columns=["Delegacion", "Distrito"])
 
 
 def obtener_delegaciones_unicas():
@@ -953,14 +1159,16 @@ def obtener_delegaciones_unicas():
     if df.empty or "Delegacion" not in df.columns:
         return []
 
-    df_tmp = df[["Delegacion", "Delegacion_Normalizada"]].drop_duplicates(
+    df_tmp = df[
+        ["Delegacion", "Delegacion_Normalizada"]
+    ].drop_duplicates(
         subset=["Delegacion_Normalizada"]
     )
 
     return sorted(
         [
             x for x in df_tmp["Delegacion"].dropna().tolist()
-            if x.strip() != ""
+            if str(x).strip() != ""
         ]
     )
 
@@ -978,14 +1186,16 @@ def obtener_distritos_unicos():
     if df.empty:
         return []
 
-    df_tmp = df[["Distrito", "Distrito_Normalizado"]].drop_duplicates(
+    df_tmp = df[
+        ["Distrito", "Distrito_Normalizado"]
+    ].drop_duplicates(
         subset=["Distrito_Normalizado"]
     )
 
     return sorted(
         [
             x for x in df_tmp["Distrito"].dropna().tolist()
-            if x.strip() != ""
+            if str(x).strip() != ""
         ]
     )
 
@@ -1059,7 +1269,12 @@ def preparar_dataframe_mapa(df):
     df_mapa["Latitud_Num"] = df_mapa["Latitud"].apply(limpiar_coordenada)
     df_mapa["Longitud_Num"] = df_mapa["Longitud"].apply(limpiar_coordenada)
 
-    df_mapa = df_mapa.dropna(subset=["Latitud_Num", "Longitud_Num"])
+    df_mapa = df_mapa.dropna(
+        subset=[
+            "Latitud_Num",
+            "Longitud_Num"
+        ]
+    )
 
     return df_mapa
 
@@ -1124,8 +1339,11 @@ def crear_mapa_registros(df, zoom_start=8):
 
         popup_html = f"""
         <div style="font-family: Arial; width: 280px;">
-            <h4 style="color:#003366; margin-bottom:6px;">Registro PUMI #{row.get("ID", "")}</h4>
+            <h4 style="color:#002B7F; margin-bottom:6px;">
+                Registro PUMI #{row.get("ID", "")}
+            </h4>
             <b>Fecha:</b> {row.get("Fecha Actividad", "")}<br>
+            <b>Hora:</b> {row.get("Hora Actividad", "")}<br>
             <b>Delegación:</b> {row.get("Delegación", "")}<br>
             <b>Programa:</b> {row.get("Programa", "")}<br>
             <b>Actividad:</b> {row.get("Actividad", "")}<br>
@@ -1136,8 +1354,9 @@ def crear_mapa_registros(df, zoom_start=8):
             <b>Participantes:</b> {row.get("Cantidad Participantes", "")}<br>
             <b>Hombres:</b> {row.get("Cantidad Hombres", "")}<br>
             <b>Mujeres:</b> {row.get("Cantidad Mujeres", "")}<br>
+            <b>Referencia:</b> {row.get("Número de Referencia", "")}<br>
+            <b>Expediente:</b> {row.get("Número de Expediente Referencia", "")}<br>
             <b>Estado:</b> {row.get("Estado Revisión", "")}<br>
-            <b>Observación revisión:</b> {row.get("Observación de Revisión", "")}
         </div>
         """
 
@@ -1145,17 +1364,20 @@ def crear_mapa_registros(df, zoom_start=8):
             location=[lat, lon],
             popup=folium.Popup(popup_html, max_width=330),
             tooltip=f'{row.get("Programa", "")} - {row.get("Delegación", "")}',
-            icon=folium.Icon(color=color, icon="info-sign")
+            icon=folium.Icon(
+                color=color,
+                icon="info-sign"
+            )
         ).add_to(mapa)
 
     if total_puntos == 1:
         folium.Circle(
             location=coordenadas[0],
             radius=1200,
-            color="#003366",
+            color=COLOR_AZUL,
             fill=True,
-            fill_color="#0B84C6",
-            fill_opacity=0.12,
+            fill_color=COLOR_ROJO,
+            fill_opacity=0.10,
             weight=2,
             popup="Área de referencia del registro filtrado"
         ).add_to(mapa)
@@ -1184,10 +1406,10 @@ def crear_mapa_registros(df, zoom_start=8):
         folium.Circle(
             location=[centro_lat, centro_lon],
             radius=radio,
-            color="#003366",
+            color=COLOR_AZUL,
             fill=True,
-            fill_color="#0B84C6",
-            fill_opacity=0.10,
+            fill_color=COLOR_ROJO,
+            fill_opacity=0.08,
             weight=2,
             popup=f"Área aproximada de {total_puntos} registros filtrados"
         ).add_to(mapa)
@@ -1195,18 +1417,21 @@ def crear_mapa_registros(df, zoom_start=8):
     return mapa
 
 
-def mostrar_mapa_registros(df, height=520, key="mapa_registros"):
+def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
     df_mapa = preparar_dataframe_mapa(df)
 
     if df_mapa.empty:
-        st.info("No hay registros con coordenadas para mostrar. Se mostrará la ubicación aproximada según provincia si está disponible.")
+        st.info(
+            "No hay registros con coordenadas para mostrar. "
+            "Se mostrará la ubicación aproximada según provincia si está disponible."
+        )
 
     mapa = crear_mapa_registros(df)
 
     st_folium(
         mapa,
-        width=1100,
         height=height,
+        use_container_width=True,
         key=key
     )
 
@@ -1273,7 +1498,10 @@ def generar_id_consecutivo():
     if df.empty:
         return 1
 
-    ids = pd.to_numeric(df["ID"], errors="coerce").dropna()
+    ids = pd.to_numeric(
+        df["ID"],
+        errors="coerce"
+    ).dropna()
 
     if ids.empty:
         return 1
@@ -1301,7 +1529,11 @@ def actualizar_registro_por_id(id_registro, nuevos_datos):
 
     for i, fila in enumerate(datos[1:], start=2):
         if len(fila) > 0 and str(fila[0]) == str(id_registro):
-            nueva_fila = [nuevos_datos.get(col, "") for col in ENCABEZADOS]
+            nueva_fila = [
+                nuevos_datos.get(col, "")
+                for col in ENCABEZADOS
+            ]
+
             rango = f"A{i}:{ultima_columna}{i}"
 
             try:
@@ -1380,22 +1612,48 @@ def limpiar_dataframe_para_metricas(df):
         df["Longitud"] = df["Longitud"].astype(str)
 
     return df
+    # ======================================================
+# PARTE 4 DE 12
+# INTERFAZ PRINCIPAL, LOGIN ADMINISTRATIVO, MENÚ E INICIO
 # ======================================================
-# PARTE 3 DE 5
-# INTERFAZ PRINCIPAL, LOGIN ADMIN, INICIO, REGISTRO, GPS, MAPA Y SEGUIMIENTO
+
+# ======================================================
+# FUNCIÓN PARA CREAR MAPA BASE
+# Se utiliza en el registro de actividades para seleccionar
+# o visualizar una ubicación específica.
 # ======================================================
 
 def crear_mapa_base(centro, zoom, tipo_mapa):
-    mapa = folium.Map(location=centro, zoom_start=zoom, tiles=None)
+    mapa = folium.Map(
+        location=centro,
+        zoom_start=zoom,
+        tiles=None
+    )
 
     if tipo_mapa == "OpenStreetMap":
-        folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(mapa)
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="OpenStreetMap"
+        ).add_to(mapa)
+
     elif tipo_mapa == "Mapa claro":
-        folium.TileLayer("CartoDB positron", name="Mapa claro").add_to(mapa)
+        folium.TileLayer(
+            "CartoDB positron",
+            name="Mapa claro"
+        ).add_to(mapa)
+
     elif tipo_mapa == "Mapa oscuro":
-        folium.TileLayer("CartoDB dark_matter", name="Mapa oscuro").add_to(mapa)
+        folium.TileLayer(
+            "CartoDB dark_matter",
+            name="Mapa oscuro"
+        ).add_to(mapa)
+
     elif tipo_mapa == "Topográfico":
-        folium.TileLayer("OpenTopoMap", name="Topográfico").add_to(mapa)
+        folium.TileLayer(
+            "OpenTopoMap",
+            name="Topográfico"
+        ).add_to(mapa)
+
     elif tipo_mapa == "Satélite":
         folium.TileLayer(
             tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -1404,10 +1662,16 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
         ).add_to(mapa)
 
     folium.LayerControl().add_to(mapa)
+
     return mapa
 
 
+# ======================================================
+# SIDEBAR, LOGO Y ACCESO ADMINISTRATIVO
+# ======================================================
+
 mostrar_logo()
+
 st.sidebar.markdown("## Sistema PUMI 2026")
 
 if "admin_autenticado" not in st.session_state:
@@ -1416,29 +1680,47 @@ if "admin_autenticado" not in st.session_state:
 if "admin_perfil" not in st.session_state:
     st.session_state.admin_perfil = {}
 
+
 with st.sidebar.expander("🔒 Acceso Administrativo"):
     if not st.session_state.admin_autenticado:
-        clave_ingresada = st.text_input("Clave administrativa", type="password")
+
+        clave_ingresada = st.text_input(
+            "Clave administrativa",
+            type="password"
+        )
 
         if st.button("Ingresar como administrador"):
             clave_normalizada = str(clave_ingresada).strip().upper()
 
             if clave_normalizada in CLAVES_ADMINISTRATIVAS:
                 st.session_state.admin_autenticado = True
-                st.session_state.admin_perfil = CLAVES_ADMINISTRATIVAS[clave_normalizada]
+                st.session_state.admin_perfil = CLAVES_ADMINISTRATIVAS[
+                    clave_normalizada
+                ]
+
                 st.success("Acceso concedido.")
                 st.rerun()
+
             else:
                 st.error("Clave incorrecta.")
+
     else:
         perfil_actual = st.session_state.get("admin_perfil", {})
-        st.success(f"Administrador autenticado: {perfil_actual.get('descripcion', 'Perfil administrativo')}")
+
+        st.success(
+            f"Administrador autenticado: "
+            f"{perfil_actual.get('descripcion', 'Perfil administrativo')}"
+        )
 
         if st.button("Cerrar sesión administrativa"):
             st.session_state.admin_autenticado = False
             st.session_state.admin_perfil = {}
             st.rerun()
 
+
+# ======================================================
+# MENÚ PRINCIPAL
+# ======================================================
 
 opciones_menu = [
     "Inicio",
@@ -1447,13 +1729,23 @@ opciones_menu = [
 ]
 
 if st.session_state.admin_autenticado:
-    opciones_menu.extend([
-        "Consulta / edición administrativa",
-        "Dashboard profesional",
-        "Configuración"
-    ])
+    opciones_menu.extend(
+        [
+            "Consulta / edición administrativa",
+            "Dashboard profesional",
+            "Configuración"
+        ]
+    )
 
-menu = st.sidebar.radio("Menú principal", opciones_menu)
+menu = st.sidebar.radio(
+    "Menú principal",
+    opciones_menu
+)
+
+
+# ======================================================
+# ENCABEZADO PRINCIPAL
+# ======================================================
 
 st.markdown(
     """
@@ -1468,6 +1760,9 @@ st.markdown(
 
 # ======================================================
 # INICIO
+# Página limpia.
+# Solo muestra mensaje institucional de bienvenida.
+# No muestra métricas ni registros.
 # ======================================================
 
 if menu == "Inicio":
@@ -1475,20 +1770,26 @@ if menu == "Inicio":
     st.markdown(
         """
         <div class="card-pumi">
-            <div class="subtitulo-pumi">Bienvenido al Sistema PUMI 2026</div>
+            <div class="subtitulo-pumi">
+                Bienvenido al Sistema PUMI 2026
+            </div>
             <div class="texto-pumi">
-                Esta aplicación permite registrar, consultar y dar seguimiento a las
-                actividades desarrolladas dentro del Proceso Unificado para el Manejo
-                de la Información.
+                Esta aplicación permite registrar, consultar y dar seguimiento
+                a las actividades desarrolladas dentro del Proceso Unificado
+                para el Manejo de la Información.
+                <br><br>
+                El sistema facilita la trazabilidad de los registros,
+                la revisión administrativa, la consulta por programa,
+                el análisis territorial y la generación de reportes
+                institucionales.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-
-# ======================================================
-# REGISTRAR ACTIVIDAD
+    # ======================================================
+# PARTE 5 DE 12
+# REGISTRO DE ACTIVIDADES
 # ======================================================
 
 elif menu == "Registrar actividad":
@@ -1499,7 +1800,8 @@ elif menu == "Registrar actividad":
         """
         <div class="card-azul">
             <div class="texto-pumi">
-                Complete la información de la actividad.
+                Complete la información de la actividad. Los campos se despliegan
+                de forma dependiente según la base Datos Importantes.xlsx.
             </div>
         </div>
         """,
@@ -1511,6 +1813,11 @@ elif menu == "Registrar actividad":
 
     if "longitud_registro" not in st.session_state:
         st.session_state.longitud_registro = ""
+
+
+    # ======================================================
+    # DATOS GENERALES
+    # ======================================================
 
     st.markdown(
         """
@@ -1532,18 +1839,28 @@ elif menu == "Registrar actividad":
             format="DD/MM/YYYY"
         )
 
+        hora_actividad = st.time_input(
+            "Hora de la actividad",
+            value=time(8, 0)
+        )
+
         direccion_regional = st.selectbox(
             "Dirección Regional",
             regiones_lista if regiones_lista else REGIONES
         )
 
-        delegaciones_filtradas = obtener_delegaciones_por_region(direccion_regional)
+        delegaciones_filtradas = obtener_delegaciones_por_region(
+            direccion_regional
+        )
 
         delegacion = st.selectbox(
             "Delegación",
-            delegaciones_filtradas if delegaciones_filtradas else ["Sin datos disponibles"]
+            delegaciones_filtradas
+            if delegaciones_filtradas
+            else ["Sin datos disponibles"]
         )
 
+    with col2:
         programas_lista = obtener_programas_datos()
 
         programa = st.selectbox(
@@ -1551,64 +1868,103 @@ elif menu == "Registrar actividad":
             programas_lista if programas_lista else PROGRAMAS
         )
 
-    with col2:
         actividades_filtradas = obtener_actividades_por_programa(programa)
 
         actividad = st.selectbox(
             "Actividad realizada",
-            actividades_filtradas if actividades_filtradas else ["Sin datos disponibles"]
+            actividades_filtradas
+            if actividades_filtradas
+            else ["Sin datos disponibles"]
         )
 
         responsable = st.text_input("Funcionario responsable")
+
         usuario = st.text_input("Usuario que registra")
 
+
+    # ======================================================
+    # PARTICIPANTES
+    # ======================================================
+
+    st.markdown(
+        """
+        <div class="bloque-datos">
+            <b>Participación registrada</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    colp1, colp2, colp3 = st.columns(3)
+
+    with colp1:
         cantidad = st.number_input(
-            "Cantidad de participantes",
+            "Cantidad total de participantes",
             min_value=0,
             step=1
         )
 
-    st.markdown("### Distribución de participantes")
-
-    colh1, colh2 = st.columns(2)
-
-    with colh1:
+    with colp2:
         cantidad_hombres = st.number_input(
             "Cantidad de hombres",
             min_value=0,
             step=1
         )
 
-    with colh2:
+    with colp3:
         cantidad_mujeres = st.number_input(
             "Cantidad de mujeres",
             min_value=0,
             step=1
         )
 
+    st.markdown("### Rangos de edad")
+
     colr1, colr2, colr3, colr4 = st.columns(4)
 
     with colr1:
-        edad_10_18 = st.number_input("Edad 10 a 18", min_value=0, step=1)
+        edad_10_18 = st.number_input(
+            "Edad 10 a 18",
+            min_value=0,
+            step=1
+        )
 
     with colr2:
-        edad_19_30 = st.number_input("Edad 19 a 30", min_value=0, step=1)
+        edad_19_30 = st.number_input(
+            "Edad 19 a 30",
+            min_value=0,
+            step=1
+        )
 
     with colr3:
-        edad_31_45 = st.number_input("Edad 31 a 45", min_value=0, step=1)
+        edad_31_45 = st.number_input(
+            "Edad 31 a 45",
+            min_value=0,
+            step=1
+        )
 
     with colr4:
-        edad_46_mas = st.number_input("Edad 46 en adelante", min_value=0, step=1)
+        edad_46_mas = st.number_input(
+            "Edad 46 en adelante",
+            min_value=0,
+            step=1
+        )
 
     suma_sexo = cantidad_hombres + cantidad_mujeres
     suma_edades = edad_10_18 + edad_19_30 + edad_31_45 + edad_46_mas
 
     if cantidad > 0:
         if suma_sexo != cantidad:
-            st.warning(f"La suma de hombres y mujeres ({suma_sexo}) no coincide con la cantidad total de participantes ({cantidad}).")
+            st.warning(
+                f"La suma de hombres y mujeres ({suma_sexo}) no coincide "
+                f"con la cantidad total de participantes ({cantidad})."
+            )
 
         if suma_edades != cantidad:
-            st.warning(f"La suma de los rangos de edad ({suma_edades}) no coincide con la cantidad total de participantes ({cantidad}).")
+            st.warning(
+                f"La suma de los rangos de edad ({suma_edades}) no coincide "
+                f"con la cantidad total de participantes ({cantidad})."
+            )
 
 
     # ======================================================
@@ -1639,20 +1995,27 @@ elif menu == "Registrar actividad":
 
         canton = st.selectbox(
             "Cantón",
-            cantones_filtrados if cantones_filtrados else ["Sin datos disponibles"]
+            cantones_filtrados
+            if cantones_filtrados
+            else ["Sin datos disponibles"]
         )
 
     with col5:
-        distritos_filtrados = obtener_distritos_por_provincia_canton(provincia, canton)
+        distritos_filtrados = obtener_distritos_por_provincia_canton(
+            provincia,
+            canton
+        )
 
         distrito = st.selectbox(
             "Distrito",
-            distritos_filtrados if distritos_filtrados else ["Sin datos disponibles"]
+            distritos_filtrados
+            if distritos_filtrados
+            else ["Sin datos disponibles"]
         )
 
 
     # ======================================================
-    # LUGAR
+    # LUGAR DE REALIZACIÓN
     # ======================================================
 
     st.markdown(
@@ -1683,18 +2046,33 @@ elif menu == "Registrar actividad":
                 centros
             )
 
-            centro_educativo, codigo_presupuestario = obtener_datos_centro_educativo(centro_mostrar)
+            centro_educativo, codigo_presupuestario = obtener_datos_centro_educativo(
+                centro_mostrar
+            )
 
             st.info(f"Centro educativo: {centro_educativo}")
-            st.info(f"Código presupuestario: {codigo_presupuestario if codigo_presupuestario else 'No disponible'}")
+            st.info(
+                "Código presupuestario: "
+                f"{codigo_presupuestario if codigo_presupuestario else 'No disponible'}"
+            )
 
             lugar = centro_educativo
 
         else:
-            st.warning("No se encontraron centros educativos para la provincia seleccionada.")
-            centro_educativo = st.text_input("Digite el centro educativo manualmente")
-            codigo_presupuestario = st.text_input("Código presupuestario")
+            st.warning(
+                "No se encontraron centros educativos para la provincia seleccionada."
+            )
+
+            centro_educativo = st.text_input(
+                "Digite el centro educativo manualmente"
+            )
+
+            codigo_presupuestario = st.text_input(
+                "Código presupuestario"
+            )
+
             lugar = centro_educativo
+
     else:
         lugar = st.text_input("Lugar donde se realizó la actividad")
         centro_educativo = ""
@@ -1702,7 +2080,7 @@ elif menu == "Registrar actividad":
 
 
     # ======================================================
-    # MAPA
+    # MAPA Y GEOREFERENCIA
     # ======================================================
 
     st.markdown(
@@ -1716,7 +2094,13 @@ elif menu == "Registrar actividad":
 
     tipo_mapa_registro = st.selectbox(
         "Tipo de mapa",
-        ["OpenStreetMap", "Mapa claro", "Mapa oscuro", "Topográfico", "Satélite"],
+        [
+            "OpenStreetMap",
+            "Mapa claro",
+            "Mapa oscuro",
+            "Topográfico",
+            "Satélite"
+        ],
         key="tipo_mapa_registro"
     )
 
@@ -1739,18 +2123,26 @@ elif menu == "Registrar actividad":
 
     if metodo_ubicacion == "Buscar por nombre del lugar":
         if st.button("Buscar ubicación en el mapa"):
-            lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(direccion_mapa)
+            lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(
+                direccion_mapa
+            )
 
             if lat_busqueda and lon_busqueda:
                 st.session_state.latitud_registro = str(lat_busqueda)
                 st.session_state.longitud_registro = str(lon_busqueda)
+
                 st.success("Ubicación encontrada automáticamente.")
                 st.caption(direccion_encontrada)
             else:
-                st.warning("No se logró ubicar el lugar automáticamente. Puede usar la opción Marcar punto en el mapa.")
+                st.warning(
+                    "No se logró ubicar el lugar automáticamente. "
+                    "Puede usar la opción Marcar punto en el mapa."
+                )
 
     elif metodo_ubicacion == "Usar GPS del dispositivo":
-        st.info("El navegador puede solicitar permiso para acceder a la ubicación del dispositivo.")
+        st.info(
+            "El navegador puede solicitar permiso para acceder a la ubicación del dispositivo."
+        )
 
         ubicacion_gps = get_geolocation()
 
@@ -1765,7 +2157,9 @@ elif menu == "Registrar actividad":
             else:
                 st.warning("No se recibieron coordenadas válidas desde el GPS.")
         else:
-            st.warning("No se obtuvo ubicación GPS. Puede usar la opción Marcar punto en el mapa.")
+            st.warning(
+                "No se obtuvo ubicación GPS. Puede usar la opción Marcar punto en el mapa."
+            )
 
     elif metodo_ubicacion == "Ingresar coordenadas manualmente":
         col_lat, col_lon = st.columns(2)
@@ -1785,7 +2179,9 @@ elif menu == "Registrar actividad":
             )
 
     elif metodo_ubicacion == "Marcar punto en el mapa":
-        st.info("Haga clic sobre el mapa para seleccionar la ubicación de la actividad.")
+        st.info(
+            "Haga clic sobre el mapa para seleccionar la ubicación de la actividad."
+        )
 
     elif metodo_ubicacion == "No registrar ubicación":
         st.session_state.latitud_registro = ""
@@ -1820,8 +2216,8 @@ elif menu == "Registrar actividad":
 
     resultado_mapa = st_folium(
         mapa_seleccion,
-        width=1100,
-        height=560,
+        height=650,
+        use_container_width=True,
         key=f"mapa_registro_{tipo_mapa_registro}_{metodo_ubicacion}"
     )
 
@@ -1850,10 +2246,40 @@ elif menu == "Registrar actividad":
         unsafe_allow_html=True
     )
 
-    instituciones = st.text_area("Instituciones participantes")
-    plan = st.text_input("Plan estratégico relacionado")
-    evidencia = st.text_input("Evidencia")
-    observaciones = st.text_area("Observaciones")
+    instituciones = st.text_area(
+        "Instituciones participantes",
+        max_chars=8000,
+        height=130
+    )
+
+    plan = st.text_area(
+        "Plan estratégico relacionado",
+        max_chars=8000,
+        height=130
+    )
+
+    numero_referencia = st.text_area(
+        "Número de Referencia",
+        max_chars=8000,
+        height=100
+    )
+
+    numero_expediente_referencia = st.text_area(
+        "Número de Expediente Referencia",
+        max_chars=8000,
+        height=100
+    )
+
+    observaciones = st.text_area(
+        "Observaciones",
+        max_chars=8000,
+        height=170
+    )
+
+
+    # ======================================================
+    # GUARDAR REGISTRO
+    # ======================================================
 
     if st.button("Guardar registro"):
 
@@ -1864,13 +2290,20 @@ elif menu == "Registrar actividad":
             or programa == "Sin datos disponibles"
             or not responsable
         ):
-            st.warning("Debe completar al menos Delegación, Programa, Actividad realizada y Funcionario responsable.")
+            st.warning(
+                "Debe completar al menos Delegación, Programa, "
+                "Actividad realizada y Funcionario responsable."
+            )
 
         elif cantidad > 0 and suma_sexo != cantidad:
-            st.warning("La suma de hombres y mujeres debe coincidir con la cantidad total de participantes.")
+            st.warning(
+                "La suma de hombres y mujeres debe coincidir con la cantidad total de participantes."
+            )
 
         elif cantidad > 0 and suma_edades != cantidad:
-            st.warning("La suma de los rangos de edad debe coincidir con la cantidad total de participantes.")
+            st.warning(
+                "La suma de los rangos de edad debe coincidir con la cantidad total de participantes."
+            )
 
         else:
             nuevo_id = generar_id_consecutivo()
@@ -1879,6 +2312,7 @@ elif menu == "Registrar actividad":
                 "ID": nuevo_id,
                 "Fecha Registro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "Fecha Actividad": fecha_actividad.strftime("%d/%m/%Y"),
+                "Hora Actividad": hora_actividad.strftime("%H:%M"),
                 "Dirección Regional": direccion_regional,
                 "Delegación": delegacion,
                 "Programa": programa,
@@ -1903,7 +2337,8 @@ elif menu == "Registrar actividad":
                 "Edad 46 en adelante": edad_46_mas,
                 "Instituciones Participantes": instituciones,
                 "Plan Estratégico Relacionado": plan,
-                "Evidencia": evidencia,
+                "Número de Referencia": numero_referencia,
+                "Número de Expediente Referencia": numero_expediente_referencia,
                 "Observaciones": observaciones,
                 "Estado Revisión": "Pendiente de revisión",
                 "Observación de Revisión": "",
@@ -1916,11 +2351,9 @@ elif menu == "Registrar actividad":
             st.session_state.longitud_registro = ""
 
             st.success(f"Registro guardado correctamente con el ID #{nuevo_id}.")
-
-
-# ======================================================
-# SEGUIMIENTO DE REGISTROS
-# VISTA PARA USUARIOS CON CLAVE POR PROGRAMA
+            # ======================================================
+# PARTE 6 DE 12
+# SEGUIMIENTO DE REGISTROS CON CLAVE POR PROGRAMA
 # ======================================================
 
 elif menu == "Seguimiento de registros":
@@ -1932,11 +2365,16 @@ elif menu == "Seguimiento de registros":
         <div class="card-azul">
             <div class="texto-pumi">
                 Para consultar registros, seleccione el programa e ingrese la clave correspondiente.
+                Las claves por programa permiten visualizar únicamente los registros autorizados.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    # ======================================================
+    # CONTROL DE ACCESO POR PROGRAMA
+    # ======================================================
 
     programa_consulta = st.selectbox(
         "Seleccione el programa a consultar",
@@ -1954,7 +2392,10 @@ elif menu == "Seguimiento de registros":
     if programa_consulta != "Seleccione" and clave_usuario:
         clave_normalizada = str(clave_usuario).strip().upper()
 
-        claves_dppp = [c.upper() for c in CLAVES_USUARIO_PROGRAMA["DPPP"]["claves"]]
+        claves_dppp = [
+            c.upper()
+            for c in CLAVES_USUARIO_PROGRAMA["DPPP"]["claves"]
+        ]
 
         if clave_normalizada in claves_dppp:
             acceso_valido = True
@@ -1962,11 +2403,17 @@ elif menu == "Seguimiento de registros":
 
         elif programa_consulta != "Todos":
             datos_programa = CLAVES_USUARIO_PROGRAMA.get(programa_consulta, {})
-            claves_validas = [c.upper() for c in datos_programa.get("claves", [])]
+            claves_validas = [
+                c.upper()
+                for c in datos_programa.get("claves", [])
+            ]
 
             if clave_normalizada in claves_validas:
                 acceso_valido = True
-                programas_permitidos_usuario = datos_programa.get("programas_permitidos", [])
+                programas_permitidos_usuario = datos_programa.get(
+                    "programas_permitidos",
+                    []
+                )
 
         if not acceso_valido:
             st.error("Clave incorrecta para el programa seleccionado.")
@@ -1987,6 +2434,10 @@ elif menu == "Seguimiento de registros":
         else:
             df_seguimiento = limpiar_dataframe_para_metricas(df)
 
+            # ======================================================
+            # APLICAR FILTRO DE PERMISOS SEGÚN CLAVE
+            # ======================================================
+
             if programas_permitidos_usuario != "TODOS":
                 df_seguimiento = df_seguimiento[
                     df_seguimiento["Programa"].isin(programas_permitidos_usuario)
@@ -2004,6 +2455,10 @@ elif menu == "Seguimiento de registros":
 
             st.success("Acceso concedido.")
 
+            # ======================================================
+            # FILTROS DE SEGUIMIENTO
+            # ======================================================
+
             st.markdown("### Filtros de seguimiento")
 
             col1, col2, col3 = st.columns(3)
@@ -2013,46 +2468,69 @@ elif menu == "Seguimiento de registros":
 
                 filtro_delegacion = st.selectbox(
                     "Delegación",
-                    ["Todas"] + sorted(df_seguimiento["Delegación"].dropna().astype(str).unique().tolist())
+                    ["Todas"] + sorted(
+                        df_seguimiento["Delegación"].dropna().astype(str).unique().tolist()
+                    )
                 )
 
             with col2:
                 filtro_estado = st.selectbox(
                     "Estado de revisión",
-                    ["Todos"] + sorted(df_seguimiento["Estado Revisión"].dropna().astype(str).unique().tolist())
+                    ["Todos"] + sorted(
+                        df_seguimiento["Estado Revisión"].dropna().astype(str).unique().tolist()
+                    )
                 )
 
                 filtro_provincia = st.selectbox(
                     "Provincia",
-                    ["Todas"] + sorted(df_seguimiento["Provincia"].dropna().astype(str).unique().tolist())
+                    ["Todas"] + sorted(
+                        df_seguimiento["Provincia"].dropna().astype(str).unique().tolist()
+                    )
                 )
 
             with col3:
                 filtro_distrito = st.selectbox(
                     "Distrito",
-                    ["Todos"] + sorted(df_seguimiento["Distrito"].dropna().astype(str).unique().tolist())
+                    ["Todos"] + sorted(
+                        df_seguimiento["Distrito"].dropna().astype(str).unique().tolist()
+                    )
                 )
 
-                usar_fechas_seg = st.checkbox("Filtrar por rango de fechas", key="fechas_seguimiento")
+                usar_fechas_seg = st.checkbox(
+                    "Filtrar por rango de fechas",
+                    key="fechas_seguimiento"
+                )
 
             df_usuario = df_seguimiento.copy()
 
             if filtro_id:
                 df_usuario = df_usuario[
-                    df_usuario["ID"].astype(str).str.contains(filtro_id, case=False, na=False)
+                    df_usuario["ID"].astype(str).str.contains(
+                        filtro_id,
+                        case=False,
+                        na=False
+                    )
                 ]
 
             if filtro_delegacion != "Todas":
-                df_usuario = df_usuario[df_usuario["Delegación"] == filtro_delegacion]
+                df_usuario = df_usuario[
+                    df_usuario["Delegación"] == filtro_delegacion
+                ]
 
             if filtro_estado != "Todos":
-                df_usuario = df_usuario[df_usuario["Estado Revisión"] == filtro_estado]
+                df_usuario = df_usuario[
+                    df_usuario["Estado Revisión"] == filtro_estado
+                ]
 
             if filtro_provincia != "Todas":
-                df_usuario = df_usuario[df_usuario["Provincia"] == filtro_provincia]
+                df_usuario = df_usuario[
+                    df_usuario["Provincia"] == filtro_provincia
+                ]
 
             if filtro_distrito != "Todos":
-                df_usuario = df_usuario[df_usuario["Distrito"] == filtro_distrito]
+                df_usuario = df_usuario[
+                    df_usuario["Distrito"] == filtro_distrito
+                ]
 
             if usar_fechas_seg:
                 fechas_validas = df_usuario["Fecha Actividad"].dropna()
@@ -2080,48 +2558,96 @@ elif menu == "Seguimiento de registros":
                         )
 
                     df_usuario = df_usuario[
-                        (df_usuario["Fecha Actividad"].dt.date >= fecha_inicio_seg) &
+                        (df_usuario["Fecha Actividad"].dt.date >= fecha_inicio_seg)
+                        &
                         (df_usuario["Fecha Actividad"].dt.date <= fecha_fin_seg)
                     ]
 
+            # ======================================================
+            # RESUMEN DEL SEGUIMIENTO
+            # ======================================================
+
             st.markdown("### Resumen del seguimiento")
 
-            total_participantes = int(df_usuario["Cantidad Participantes"].sum()) if not df_usuario.empty else 0
-            total_hombres = int(df_usuario["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_usuario.columns else 0
-            total_mujeres = int(df_usuario["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_usuario.columns else 0
+            total_participantes = (
+                int(df_usuario["Cantidad Participantes"].sum())
+                if not df_usuario.empty else 0
+            )
+
+            total_hombres = (
+                int(df_usuario["Cantidad Hombres"].sum())
+                if "Cantidad Hombres" in df_usuario.columns else 0
+            )
+
+            total_mujeres = (
+                int(df_usuario["Cantidad Mujeres"].sum())
+                if "Cantidad Mujeres" in df_usuario.columns else 0
+            )
 
             colm1, colm2, colm3, colm4 = st.columns(4)
 
             colm1.metric("Registros", len(df_usuario))
             colm2.metric("Participantes", total_participantes)
-            colm3.metric("Hombres", f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})")
-            colm4.metric("Mujeres", f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})")
+            colm3.metric(
+                "Hombres",
+                f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})"
+            )
+            colm4.metric(
+                "Mujeres",
+                f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})"
+            )
 
             colm5, colm6, colm7, colm8 = st.columns(4)
 
-            colm5.metric("Aprobados", len(df_usuario[df_usuario["Estado Revisión"] == "Aprobado"]))
-            colm6.metric("Con observaciones", len(df_usuario[df_usuario["Estado Revisión"] == "Con observaciones"]))
-            colm7.metric("Rechazados", len(df_usuario[df_usuario["Estado Revisión"] == "Rechazado"]))
-            colm8.metric("Pendientes", len(df_usuario[df_usuario["Estado Revisión"] == "Pendiente de revisión"]))
+            colm5.metric(
+                "Aprobados",
+                len(df_usuario[df_usuario["Estado Revisión"] == "Aprobado"])
+            )
+
+            colm6.metric(
+                "Con observaciones",
+                len(df_usuario[df_usuario["Estado Revisión"] == "Con observaciones"])
+            )
+
+            colm7.metric(
+                "Rechazados",
+                len(df_usuario[df_usuario["Estado Revisión"] == "Rechazado"])
+            )
+
+            colm8.metric(
+                "Pendientes",
+                len(df_usuario[df_usuario["Estado Revisión"] == "Pendiente de revisión"])
+            )
+
+            # ======================================================
+            # MAPA DE SEGUIMIENTO
+            # ======================================================
 
             st.markdown("### Mapa general de actividades")
 
             mostrar_mapa_registros(
                 df_usuario,
-                height=560,
+                height=650,
                 key="mapa_seguimiento_usuarios"
             )
+
+            # ======================================================
+            # TABLA DE REGISTROS
+            # ======================================================
 
             st.markdown("### Estado de los registros")
 
             df_mostrar_usuario = df_usuario.copy()
 
             if "Fecha Actividad" in df_mostrar_usuario.columns:
-                df_mostrar_usuario["Fecha Actividad"] = df_mostrar_usuario["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+                df_mostrar_usuario["Fecha Actividad"] = df_mostrar_usuario[
+                    "Fecha Actividad"
+                ].dt.strftime("%d/%m/%Y")
 
             columnas_usuario = [
                 "ID",
                 "Fecha Actividad",
+                "Hora Actividad",
                 "Delegación",
                 "Programa",
                 "Actividad",
@@ -2138,6 +2664,8 @@ elif menu == "Seguimiento de registros":
                 "Edad 19 a 30",
                 "Edad 31 a 45",
                 "Edad 46 en adelante",
+                "Número de Referencia",
+                "Número de Expediente Referencia",
                 "Estado Revisión",
                 "Observación de Revisión"
             ]
@@ -2153,7 +2681,9 @@ elif menu == "Seguimiento de registros":
                 hide_index=True
             )
 
-            excel_seguimiento = convertir_excel(df_mostrar_usuario[columnas_existentes])
+            excel_seguimiento = convertir_excel(
+                df_mostrar_usuario[columnas_existentes]
+            )
 
             st.download_button(
                 label="Descargar seguimiento en Excel",
@@ -2161,9 +2691,9 @@ elif menu == "Seguimiento de registros":
                 file_name="seguimiento_registros_pumi.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-# ======================================================
-# PARTE 4 DE 5
-# CONSULTA, EDICIÓN ADMINISTRATIVA, REVISIÓN, MAPA Y ELIMINACIÓN
+            # ======================================================
+# PARTE 7 DE 12
+# CONSULTA ADMINISTRATIVA, FILTROS, MAPA Y TABLA GENERAL
 # ======================================================
 
 elif menu == "Consulta / edición administrativa":
@@ -2186,8 +2716,8 @@ elif menu == "Consulta / edición administrativa":
             """
             <div class="card-dorado">
                 <div class="texto-pumi">
-                    Esta sección permite consultar, editar, eliminar, revisar y corregir
-                    la ubicación geográfica de los registros.
+                    Esta sección permite consultar, filtrar, revisar, editar,
+                    corregir ubicación geográfica y eliminar registros.
                 </div>
             </div>
             """,
@@ -2200,6 +2730,10 @@ elif menu == "Consulta / edición administrativa":
                 st.success(f"Filas de encabezado duplicadas eliminadas: {eliminados}")
                 st.rerun()
 
+        # ======================================================
+        # FILTROS ADMINISTRATIVOS
+        # ======================================================
+
         st.markdown("### Filtros administrativos")
 
         col1, col2, col3 = st.columns(3)
@@ -2209,39 +2743,59 @@ elif menu == "Consulta / edición administrativa":
 
             filtro_programa = st.selectbox(
                 "Filtrar por programa",
-                ["Todos"] + sorted(df_consulta["Programa"].dropna().astype(str).unique().tolist())
+                ["Todos"] + sorted(
+                    df_consulta["Programa"].dropna().astype(str).unique().tolist()
+                )
             )
 
             filtro_delegacion = st.selectbox(
                 "Filtrar por delegación",
-                ["Todas"] + sorted(df_consulta["Delegación"].dropna().astype(str).unique().tolist())
+                ["Todas"] + sorted(
+                    df_consulta["Delegación"].dropna().astype(str).unique().tolist()
+                )
             )
 
         with col2:
             filtro_region = st.selectbox(
                 "Filtrar por región",
-                ["Todas"] + sorted(df_consulta["Dirección Regional"].dropna().astype(str).unique().tolist())
+                ["Todas"] + ordenar_regiones_numericamente(
+                    sorted(
+                        df_consulta["Dirección Regional"]
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
+                )
             )
 
             filtro_provincia = st.selectbox(
                 "Filtrar por provincia",
-                ["Todas"] + sorted(df_consulta["Provincia"].dropna().astype(str).unique().tolist())
+                ["Todas"] + sorted(
+                    df_consulta["Provincia"].dropna().astype(str).unique().tolist()
+                )
             )
 
             filtro_distrito = st.selectbox(
                 "Filtrar por distrito",
-                ["Todos"] + sorted(df_consulta["Distrito"].dropna().astype(str).unique().tolist())
+                ["Todos"] + sorted(
+                    df_consulta["Distrito"].dropna().astype(str).unique().tolist()
+                )
             )
 
         with col3:
             filtro_estado = st.selectbox(
                 "Filtrar por estado de revisión",
-                ["Todos"] + sorted(df_consulta["Estado Revisión"].dropna().astype(str).unique().tolist())
+                ["Todos"] + sorted(
+                    df_consulta["Estado Revisión"].dropna().astype(str).unique().tolist()
+                )
             )
 
             filtro_tipo_lugar = st.selectbox(
                 "Filtrar por tipo de lugar",
-                ["Todos"] + sorted(df_consulta["Tipo Lugar"].dropna().astype(str).unique().tolist())
+                ["Todos"] + sorted(
+                    df_consulta["Tipo Lugar"].dropna().astype(str).unique().tolist()
+                )
             )
 
             usar_fechas = st.checkbox("Filtrar por rango de fechas")
@@ -2258,25 +2812,39 @@ elif menu == "Consulta / edición administrativa":
             ]
 
         if filtro_programa != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Programa"] == filtro_programa]
+            df_filtrado = df_filtrado[
+                df_filtrado["Programa"] == filtro_programa
+            ]
 
         if filtro_delegacion != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Delegación"] == filtro_delegacion]
+            df_filtrado = df_filtrado[
+                df_filtrado["Delegación"] == filtro_delegacion
+            ]
 
         if filtro_region != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Dirección Regional"] == filtro_region]
+            df_filtrado = df_filtrado[
+                df_filtrado["Dirección Regional"] == filtro_region
+            ]
 
         if filtro_provincia != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Provincia"] == filtro_provincia]
+            df_filtrado = df_filtrado[
+                df_filtrado["Provincia"] == filtro_provincia
+            ]
 
         if filtro_distrito != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Distrito"] == filtro_distrito]
+            df_filtrado = df_filtrado[
+                df_filtrado["Distrito"] == filtro_distrito
+            ]
 
         if filtro_estado != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Estado Revisión"] == filtro_estado]
+            df_filtrado = df_filtrado[
+                df_filtrado["Estado Revisión"] == filtro_estado
+            ]
 
         if filtro_tipo_lugar != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Tipo Lugar"] == filtro_tipo_lugar]
+            df_filtrado = df_filtrado[
+                df_filtrado["Tipo Lugar"] == filtro_tipo_lugar
+            ]
 
         if usar_fechas:
             fechas_validas = df_filtrado["Fecha Actividad"].dropna()
@@ -2306,44 +2874,109 @@ elif menu == "Consulta / edición administrativa":
                     )
 
                 df_filtrado = df_filtrado[
-                    (df_filtrado["Fecha Actividad"].dt.date >= fecha_inicio) &
+                    (df_filtrado["Fecha Actividad"].dt.date >= fecha_inicio)
+                    &
                     (df_filtrado["Fecha Actividad"].dt.date <= fecha_fin)
                 ]
 
+        # ======================================================
+        # RESUMEN ADMINISTRATIVO
+        # ======================================================
+
         st.markdown("### Resumen administrativo")
 
-        total_participantes = int(df_filtrado["Cantidad Participantes"].sum()) if not df_filtrado.empty else 0
-        total_hombres = int(df_filtrado["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_filtrado.columns else 0
-        total_mujeres = int(df_filtrado["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_filtrado.columns else 0
+        total_registros = len(df_filtrado)
+
+        total_participantes = (
+            int(df_filtrado["Cantidad Participantes"].sum())
+            if not df_filtrado.empty else 0
+        )
+
+        total_hombres = (
+            int(df_filtrado["Cantidad Hombres"].sum())
+            if "Cantidad Hombres" in df_filtrado.columns else 0
+        )
+
+        total_mujeres = (
+            int(df_filtrado["Cantidad Mujeres"].sum())
+            if "Cantidad Mujeres" in df_filtrado.columns else 0
+        )
+
+        total_aprobados = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Aprobado"]
+        )
+
+        total_observaciones = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Con observaciones"]
+        )
+
+        total_rechazados = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Rechazado"]
+        )
+
+        total_pendientes = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Pendiente de revisión"]
+        )
 
         colm1, colm2, colm3, colm4 = st.columns(4)
 
-        colm1.metric("Registros filtrados", len(df_filtrado))
+        colm1.metric("Registros filtrados", total_registros)
         colm2.metric("Participantes", total_participantes)
-        colm3.metric("Hombres", f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})")
-        colm4.metric("Mujeres", f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})")
+        colm3.metric(
+            "Hombres",
+            f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})"
+        )
+        colm4.metric(
+            "Mujeres",
+            f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})"
+        )
 
         colm5, colm6, colm7, colm8 = st.columns(4)
 
-        colm5.metric("Aprobados", len(df_filtrado[df_filtrado["Estado Revisión"] == "Aprobado"]))
-        colm6.metric("Con observaciones", len(df_filtrado[df_filtrado["Estado Revisión"] == "Con observaciones"]))
-        colm7.metric("Rechazados", len(df_filtrado[df_filtrado["Estado Revisión"] == "Rechazado"]))
-        colm8.metric("Pendientes", len(df_filtrado[df_filtrado["Estado Revisión"] == "Pendiente de revisión"]))
+        colm5.metric(
+            "Aprobados",
+            f"{total_aprobados} ({porcentaje(total_aprobados, total_registros)})"
+        )
+
+        colm6.metric(
+            "Con observaciones",
+            f"{total_observaciones} ({porcentaje(total_observaciones, total_registros)})"
+        )
+
+        colm7.metric(
+            "Rechazados",
+            f"{total_rechazados} ({porcentaje(total_rechazados, total_registros)})"
+        )
+
+        colm8.metric(
+            "Pendientes",
+            f"{total_pendientes} ({porcentaje(total_pendientes, total_registros)})"
+        )
+
+        # ======================================================
+        # MAPA ADMINISTRATIVO
+        # ======================================================
 
         st.markdown("### Mapa administrativo de registros filtrados")
 
         mostrar_mapa_registros(
             df_filtrado,
-            height=520,
+            height=650,
             key="mapa_admin_registros"
         )
+
+        # ======================================================
+        # TABLA ADMINISTRATIVA
+        # ======================================================
 
         st.markdown("### Registros encontrados")
 
         df_mostrar = df_filtrado.copy()
 
         if "Fecha Actividad" in df_mostrar.columns:
-            df_mostrar["Fecha Actividad"] = df_mostrar["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+            df_mostrar["Fecha Actividad"] = df_mostrar["Fecha Actividad"].dt.strftime(
+                "%d/%m/%Y"
+            )
 
         st.dataframe(
             df_mostrar,
@@ -2365,6 +2998,11 @@ elif menu == "Consulta / edición administrativa":
 
         if df_filtrado.empty:
             st.info("No hay registros filtrados para editar, revisar o eliminar.")
+            # ======================================================
+# PARTE 8 DE 12
+# SELECCIÓN DE REGISTRO Y ACCIONES ADMINISTRATIVAS
+# ACTUALIZAR REVISIÓN Y CORREGIR UBICACIÓN
+# ======================================================
 
         else:
             ids = df_filtrado["ID"].astype(str).tolist()
@@ -2411,7 +3049,10 @@ elif menu == "Consulta / edición administrativa":
                     st.write(f"Programa: {registro_actual.get('Programa', '')}")
                     st.write(f"Actividad: {registro_actual.get('Actividad', '')}")
 
-                    estado_actual = registro_actual.get("Estado Revisión", "Pendiente de revisión")
+                    estado_actual = registro_actual.get(
+                        "Estado Revisión",
+                        "Pendiente de revisión"
+                    )
 
                     nuevo_estado = st.selectbox(
                         "Estado de revisión",
@@ -2423,10 +3064,14 @@ elif menu == "Consulta / edición administrativa":
                     observacion_revision = st.text_area(
                         "Observación de Revisión",
                         value=registro_actual.get("Observación de Revisión", ""),
+                        max_chars=8000,
+                        height=160,
                         help="Esta observación será visible para el usuario."
                     )
 
-                    guardar_revision = st.form_submit_button("Guardar revisión")
+                    guardar_revision = st.form_submit_button(
+                        "Guardar revisión"
+                    )
 
                     if guardar_revision:
                         nuevos_datos = registro_actual.copy()
@@ -2443,6 +3088,7 @@ elif menu == "Consulta / edición administrativa":
                             st.rerun()
                         else:
                             st.error("No se encontró el registro para actualizar.")
+
 
             # ==================================================
             # CORREGIR UBICACIÓN EN MAPA
@@ -2467,7 +3113,13 @@ elif menu == "Consulta / edición administrativa":
 
                 tipo_mapa_admin = st.selectbox(
                     "Tipo de mapa",
-                    ["OpenStreetMap", "Mapa claro", "Mapa oscuro", "Topográfico", "Satélite"],
+                    [
+                        "OpenStreetMap",
+                        "Mapa claro",
+                        "Mapa oscuro",
+                        "Topográfico",
+                        "Satélite"
+                    ],
                     key="tipo_mapa_admin_correccion"
                 )
 
@@ -2475,7 +3127,14 @@ elif menu == "Consulta / edición administrativa":
 
                 direccion_mapa_admin = st.text_input(
                     "Dirección o referencia para ubicar en mapa",
-                    value=direccion_actual if direccion_actual else f'{registro_actual.get("Lugar", "")}, {registro_actual.get("Distrito", "")}, {registro_actual.get("Cantón", "")}, {registro_actual.get("Provincia", "")}, Costa Rica'
+                    value=direccion_actual
+                    if direccion_actual
+                    else (
+                        f'{registro_actual.get("Lugar", "")}, '
+                        f'{registro_actual.get("Distrito", "")}, '
+                        f'{registro_actual.get("Cantón", "")}, '
+                        f'{registro_actual.get("Provincia", "")}, Costa Rica'
+                    )
                 )
 
                 metodo_admin = st.radio(
@@ -2491,12 +3150,15 @@ elif menu == "Consulta / edición administrativa":
 
                 if metodo_admin == "Buscar por nombre del lugar":
                     if st.button("Buscar ubicación"):
-                        lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(direccion_mapa_admin)
+                        lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(
+                            direccion_mapa_admin
+                        )
 
                         if lat_busqueda and lon_busqueda:
                             st.session_state.lat_admin = str(lat_busqueda)
                             st.session_state.lon_admin = str(lon_busqueda)
                             st.session_state.dir_admin = direccion_encontrada
+
                             st.success("Ubicación encontrada.")
                             st.caption(direccion_encontrada)
                         else:
@@ -2536,7 +3198,9 @@ elif menu == "Consulta / edición administrativa":
                         )
 
                 elif metodo_admin == "Marcar punto en el mapa":
-                    st.info("Haga clic sobre el mapa para seleccionar la ubicación correcta.")
+                    st.info(
+                        "Haga clic sobre el mapa para seleccionar la ubicación correcta."
+                    )
 
                 lat_num = limpiar_coordenada(st.session_state.lat_admin)
                 lon_num = limpiar_coordenada(st.session_state.lon_admin)
@@ -2559,21 +3223,27 @@ elif menu == "Consulta / edición administrativa":
                         location=[lat_num, lon_num],
                         popup=f"Registro PUMI #{registro_actual.get('ID', '')}",
                         icon=folium.Icon(
-                            color=obtener_color_programa(registro_actual.get("Programa", "")),
+                            color=obtener_color_programa(
+                                registro_actual.get("Programa", "")
+                            ),
                             icon="info-sign"
                         )
                     ).add_to(mapa_preview_admin)
 
                 resultado_admin = st_folium(
                     mapa_preview_admin,
-                    width=1100,
-                    height=520,
+                    height=650,
+                    use_container_width=True,
                     key=f"mapa_correccion_admin_{tipo_mapa_admin}_{metodo_admin}"
                 )
 
                 if resultado_admin and resultado_admin.get("last_clicked"):
-                    st.session_state.lat_admin = str(resultado_admin["last_clicked"]["lat"])
-                    st.session_state.lon_admin = str(resultado_admin["last_clicked"]["lng"])
+                    st.session_state.lat_admin = str(
+                        resultado_admin["last_clicked"]["lat"]
+                    )
+                    st.session_state.lon_admin = str(
+                        resultado_admin["last_clicked"]["lng"]
+                    )
 
                     st.success("Punto seleccionado en el mapa.")
                     st.write("Latitud:", st.session_state.lat_admin)
@@ -2602,6 +3272,10 @@ elif menu == "Consulta / edición administrativa":
                             st.rerun()
                         else:
                             st.error("No se encontró el registro para actualizar.")
+                            # ======================================================
+# PARTE 9 DE 12
+# EDICIÓN ADMINISTRATIVA COMPLETA Y ELIMINACIÓN
+# ======================================================
 
             # ==================================================
             # EDITAR REGISTRO COMPLETO
@@ -2634,6 +3308,13 @@ elif menu == "Consulta / edición administrativa":
                 else:
                     fecha_actividad_actual = fecha_actividad_actual.date()
 
+                hora_actual_texto = str(registro_actual.get("Hora Actividad", "08:00")).strip()
+
+                try:
+                    hora_actual = datetime.strptime(hora_actual_texto, "%H:%M").time()
+                except Exception:
+                    hora_actual = time(8, 0)
+
                 col1, col2 = st.columns(2)
 
                 with col1:
@@ -2641,6 +3322,11 @@ elif menu == "Consulta / edición administrativa":
                         "Fecha de la actividad",
                         value=fecha_actividad_actual,
                         format="DD/MM/YYYY"
+                    )
+
+                    hora_actividad_editada = st.time_input(
+                        "Hora de la actividad",
+                        value=hora_actual
                     )
 
                     regiones_lista = obtener_regiones_datos()
@@ -2661,7 +3347,11 @@ elif menu == "Consulta / edición administrativa":
                     delegaciones_filtradas = obtener_delegaciones_por_region(nueva_region)
 
                     delegacion_actual = registro_actual.get("Delegación", "")
-                    opciones_delegacion = delegaciones_filtradas if delegaciones_filtradas else obtener_delegaciones_unicas()
+                    opciones_delegacion = (
+                        delegaciones_filtradas
+                        if delegaciones_filtradas
+                        else obtener_delegaciones_unicas()
+                    )
 
                     if delegacion_actual and delegacion_actual not in opciones_delegacion:
                         opciones_delegacion = [delegacion_actual] + opciones_delegacion
@@ -2673,6 +3363,7 @@ elif menu == "Consulta / edición administrativa":
                         if delegacion_actual in opciones_delegacion else 0
                     )
 
+                with col2:
                     programas_lista = obtener_programas_datos()
 
                     programa_actual = registro_actual.get("Programa", "")
@@ -2688,7 +3379,6 @@ elif menu == "Consulta / edición administrativa":
                         if programa_actual in opciones_programa else 0
                     )
 
-                with col2:
                     actividades_filtradas = obtener_actividades_por_programa(nuevo_programa)
 
                     actividad_actual = registro_actual.get("Actividad", "")
@@ -2714,48 +3404,52 @@ elif menu == "Consulta / edición administrativa":
                         registro_actual.get("Usuario Registra", "")
                     )
 
-                    cantidad_actual = pd.to_numeric(
-                        registro_actual.get("Cantidad Participantes", 0),
-                        errors="coerce"
-                    )
+                st.markdown(
+                    """
+                    <div class="bloque-datos">
+                        <b>Participación registrada</b>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                    if pd.isna(cantidad_actual):
-                        cantidad_actual = 0
-
-                    nueva_cantidad = st.number_input(
-                        "Cantidad Participantes",
-                        min_value=0,
-                        step=1,
-                        value=int(cantidad_actual)
-                    )
-
-                st.markdown("### Distribución de participantes")
+                cantidad_actual = pd.to_numeric(
+                    registro_actual.get("Cantidad Participantes", 0),
+                    errors="coerce"
+                )
 
                 hombres_actual = pd.to_numeric(
                     registro_actual.get("Cantidad Hombres", 0),
                     errors="coerce"
                 )
+
                 mujeres_actual = pd.to_numeric(
                     registro_actual.get("Cantidad Mujeres", 0),
                     errors="coerce"
                 )
+
                 edad_10_18_actual = pd.to_numeric(
                     registro_actual.get("Edad 10 a 18", 0),
                     errors="coerce"
                 )
+
                 edad_19_30_actual = pd.to_numeric(
                     registro_actual.get("Edad 19 a 30", 0),
                     errors="coerce"
                 )
+
                 edad_31_45_actual = pd.to_numeric(
                     registro_actual.get("Edad 31 a 45", 0),
                     errors="coerce"
                 )
+
                 edad_46_actual = pd.to_numeric(
                     registro_actual.get("Edad 46 en adelante", 0),
                     errors="coerce"
                 )
 
+                if pd.isna(cantidad_actual):
+                    cantidad_actual = 0
                 if pd.isna(hombres_actual):
                     hombres_actual = 0
                 if pd.isna(mujeres_actual):
@@ -2769,9 +3463,17 @@ elif menu == "Consulta / edición administrativa":
                 if pd.isna(edad_46_actual):
                     edad_46_actual = 0
 
-                colh1, colh2 = st.columns(2)
+                colp1, colp2, colp3 = st.columns(3)
 
-                with colh1:
+                with colp1:
+                    nueva_cantidad = st.number_input(
+                        "Cantidad Participantes",
+                        min_value=0,
+                        step=1,
+                        value=int(cantidad_actual)
+                    )
+
+                with colp2:
                     nueva_cantidad_hombres = st.number_input(
                         "Cantidad Hombres",
                         min_value=0,
@@ -2779,13 +3481,15 @@ elif menu == "Consulta / edición administrativa":
                         value=int(hombres_actual)
                     )
 
-                with colh2:
+                with colp3:
                     nueva_cantidad_mujeres = st.number_input(
                         "Cantidad Mujeres",
                         min_value=0,
                         step=1,
                         value=int(mujeres_actual)
                     )
+
+                st.markdown("### Rangos de edad")
 
                 colr1, colr2, colr3, colr4 = st.columns(4)
 
@@ -2822,14 +3526,25 @@ elif menu == "Consulta / edición administrativa":
                     )
 
                 suma_sexo_editada = nueva_cantidad_hombres + nueva_cantidad_mujeres
-                suma_edades_editada = nueva_edad_10_18 + nueva_edad_19_30 + nueva_edad_31_45 + nueva_edad_46
+                suma_edades_editada = (
+                    nueva_edad_10_18
+                    + nueva_edad_19_30
+                    + nueva_edad_31_45
+                    + nueva_edad_46
+                )
 
                 if nueva_cantidad > 0:
                     if suma_sexo_editada != nueva_cantidad:
-                        st.warning(f"La suma de hombres y mujeres ({suma_sexo_editada}) no coincide con la cantidad total ({nueva_cantidad}).")
+                        st.warning(
+                            f"La suma de hombres y mujeres ({suma_sexo_editada}) no coincide "
+                            f"con la cantidad total ({nueva_cantidad})."
+                        )
 
                     if suma_edades_editada != nueva_cantidad:
-                        st.warning(f"La suma de rangos de edad ({suma_edades_editada}) no coincide con la cantidad total ({nueva_cantidad}).")
+                        st.warning(
+                            f"La suma de rangos de edad ({suma_edades_editada}) no coincide "
+                            f"con la cantidad total ({nueva_cantidad})."
+                        )
 
                 st.markdown(
                     """
@@ -2925,7 +3640,6 @@ elif menu == "Consulta / edición administrativa":
 
                     if centros:
                         opciones_centros = centros
-
                         centro_mostrar_actual = centro_actual
 
                         for centro_opcion in opciones_centros:
@@ -2945,10 +3659,15 @@ elif menu == "Consulta / edición administrativa":
                             if centro_mostrar_actual in opciones_centros else 0
                         )
 
-                        centro_editado, codigo_presupuestario_editado = obtener_datos_centro_educativo(centro_seleccionado)
+                        centro_editado, codigo_presupuestario_editado = obtener_datos_centro_educativo(
+                            centro_seleccionado
+                        )
 
                         st.info(f"Centro educativo: {centro_editado}")
-                        st.info(f"Código presupuestario: {codigo_presupuestario_editado if codigo_presupuestario_editado else 'No disponible'}")
+                        st.info(
+                            "Código presupuestario: "
+                            f"{codigo_presupuestario_editado if codigo_presupuestario_editado else 'No disponible'}"
+                        )
 
                     else:
                         centro_editado = st.text_input(
@@ -3006,22 +3725,37 @@ elif menu == "Consulta / edición administrativa":
 
                 nuevas_instituciones = st.text_area(
                     "Instituciones Participantes",
-                    registro_actual.get("Instituciones Participantes", "")
+                    registro_actual.get("Instituciones Participantes", ""),
+                    max_chars=8000,
+                    height=130
                 )
 
-                nuevo_plan = st.text_input(
+                nuevo_plan = st.text_area(
                     "Plan Estratégico Relacionado",
-                    registro_actual.get("Plan Estratégico Relacionado", "")
+                    registro_actual.get("Plan Estratégico Relacionado", ""),
+                    max_chars=8000,
+                    height=130
                 )
 
-                nueva_evidencia = st.text_input(
-                    "Evidencia",
-                    registro_actual.get("Evidencia", "")
+                nuevo_numero_referencia = st.text_area(
+                    "Número de Referencia",
+                    registro_actual.get("Número de Referencia", ""),
+                    max_chars=8000,
+                    height=100
+                )
+
+                nuevo_numero_expediente = st.text_area(
+                    "Número de Expediente Referencia",
+                    registro_actual.get("Número de Expediente Referencia", ""),
+                    max_chars=8000,
+                    height=100
                 )
 
                 nuevas_observaciones = st.text_area(
                     "Observaciones del registro",
-                    registro_actual.get("Observaciones", "")
+                    registro_actual.get("Observaciones", ""),
+                    max_chars=8000,
+                    height=160
                 )
 
                 nuevo_estado = st.selectbox(
@@ -3033,22 +3767,29 @@ elif menu == "Consulta / edición administrativa":
 
                 nueva_observacion_revision = st.text_area(
                     "Observación de Revisión",
-                    registro_actual.get("Observación de Revisión", "")
+                    registro_actual.get("Observación de Revisión", ""),
+                    max_chars=8000,
+                    height=160
                 )
 
                 if st.button("Guardar cambios completos"):
 
                     if nueva_cantidad > 0 and suma_sexo_editada != nueva_cantidad:
-                        st.warning("La suma de hombres y mujeres debe coincidir con la cantidad total de participantes.")
+                        st.warning(
+                            "La suma de hombres y mujeres debe coincidir con la cantidad total de participantes."
+                        )
 
                     elif nueva_cantidad > 0 and suma_edades_editada != nueva_cantidad:
-                        st.warning("La suma de los rangos de edad debe coincidir con la cantidad total de participantes.")
+                        st.warning(
+                            "La suma de los rangos de edad debe coincidir con la cantidad total de participantes."
+                        )
 
                     else:
                         nuevos_datos = {
                             "ID": registro_actual.get("ID", ""),
                             "Fecha Registro": fecha_registro,
                             "Fecha Actividad": fecha_actividad_editada.strftime("%d/%m/%Y"),
+                            "Hora Actividad": hora_actividad_editada.strftime("%H:%M"),
                             "Dirección Regional": nueva_region,
                             "Delegación": nueva_delegacion,
                             "Programa": nuevo_programa,
@@ -3073,7 +3814,8 @@ elif menu == "Consulta / edición administrativa":
                             "Edad 46 en adelante": nueva_edad_46,
                             "Instituciones Participantes": nuevas_instituciones,
                             "Plan Estratégico Relacionado": nuevo_plan,
-                            "Evidencia": nueva_evidencia,
+                            "Número de Referencia": nuevo_numero_referencia,
+                            "Número de Expediente Referencia": nuevo_numero_expediente,
                             "Observaciones": nuevas_observaciones,
                             "Estado Revisión": nuevo_estado,
                             "Observación de Revisión": nueva_observacion_revision,
@@ -3113,9 +3855,9 @@ elif menu == "Consulta / edición administrativa":
                             st.error("No se encontró el registro para eliminar.")
                     else:
                         st.warning("Debe marcar la confirmación antes de eliminar.")
-# ======================================================
-# PARTE 5 DE 5
-# DASHBOARD PROFESIONAL, MAPA ADMINISTRATIVO, INFORME PDF Y CONFIGURACIÓN
+                        # ======================================================
+# PARTE 10 DE 12
+# DASHBOARD PROFESIONAL: FILTROS, MÉTRICAS, MAPA Y GRÁFICOS
 # ======================================================
 
 elif menu == "Dashboard profesional":
@@ -3150,7 +3892,9 @@ elif menu == "Dashboard profesional":
         perfil_actual = st.session_state.get("admin_perfil", {})
 
         if perfil_actual:
-            st.info(f"Perfil activo: {perfil_actual.get('descripcion', 'Perfil administrativo')}")
+            st.info(
+                f"Perfil activo: {perfil_actual.get('descripcion', 'Perfil administrativo')}"
+            )
 
         # ======================================================
         # FILTROS DASHBOARD
@@ -3163,13 +3907,17 @@ elif menu == "Dashboard profesional":
         with col1:
             filtro_programa_dash = st.selectbox(
                 "Programa",
-                ["Todos"] + sorted(df_dash["Programa"].dropna().astype(str).unique().tolist()),
+                ["Todos"] + sorted(
+                    df_dash["Programa"].dropna().astype(str).unique().tolist()
+                ),
                 key="dash_programa"
             )
 
             filtro_delegacion_dash = st.selectbox(
                 "Delegación",
-                ["Todas"] + sorted(df_dash["Delegación"].dropna().astype(str).unique().tolist()),
+                ["Todas"] + sorted(
+                    df_dash["Delegación"].dropna().astype(str).unique().tolist()
+                ),
                 key="dash_delegacion"
             )
 
@@ -3177,21 +3925,31 @@ elif menu == "Dashboard profesional":
             filtro_region_dash = st.selectbox(
                 "Región",
                 ["Todas"] + ordenar_regiones_numericamente(
-                    sorted(df_dash["Dirección Regional"].dropna().astype(str).unique().tolist())
+                    sorted(
+                        df_dash["Dirección Regional"]
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
                 ),
                 key="dash_region"
             )
 
             filtro_provincia_dash = st.selectbox(
                 "Provincia",
-                ["Todas"] + sorted(df_dash["Provincia"].dropna().astype(str).unique().tolist()),
+                ["Todas"] + sorted(
+                    df_dash["Provincia"].dropna().astype(str).unique().tolist()
+                ),
                 key="dash_provincia"
             )
 
         with col3:
             filtro_estado_dash = st.selectbox(
                 "Estado de revisión",
-                ["Todos"] + sorted(df_dash["Estado Revisión"].dropna().astype(str).unique().tolist()),
+                ["Todos"] + sorted(
+                    df_dash["Estado Revisión"].dropna().astype(str).unique().tolist()
+                ),
                 key="dash_estado"
             )
 
@@ -3203,19 +3961,29 @@ elif menu == "Dashboard profesional":
         df_filtrado = df_dash.copy()
 
         if filtro_programa_dash != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Programa"] == filtro_programa_dash]
+            df_filtrado = df_filtrado[
+                df_filtrado["Programa"] == filtro_programa_dash
+            ]
 
         if filtro_delegacion_dash != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Delegación"] == filtro_delegacion_dash]
+            df_filtrado = df_filtrado[
+                df_filtrado["Delegación"] == filtro_delegacion_dash
+            ]
 
         if filtro_region_dash != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Dirección Regional"] == filtro_region_dash]
+            df_filtrado = df_filtrado[
+                df_filtrado["Dirección Regional"] == filtro_region_dash
+            ]
 
         if filtro_provincia_dash != "Todas":
-            df_filtrado = df_filtrado[df_filtrado["Provincia"] == filtro_provincia_dash]
+            df_filtrado = df_filtrado[
+                df_filtrado["Provincia"] == filtro_provincia_dash
+            ]
 
         if filtro_estado_dash != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Estado Revisión"] == filtro_estado_dash]
+            df_filtrado = df_filtrado[
+                df_filtrado["Estado Revisión"] == filtro_estado_dash
+            ]
 
         if usar_fechas_dash:
             fechas_validas = df_filtrado["Fecha Actividad"].dropna()
@@ -3245,7 +4013,8 @@ elif menu == "Dashboard profesional":
                     )
 
                 df_filtrado = df_filtrado[
-                    (df_filtrado["Fecha Actividad"].dt.date >= fecha_inicio_dash) &
+                    (df_filtrado["Fecha Actividad"].dt.date >= fecha_inicio_dash)
+                    &
                     (df_filtrado["Fecha Actividad"].dt.date <= fecha_fin_dash)
                 ]
 
@@ -3258,20 +4027,57 @@ elif menu == "Dashboard profesional":
         total_registros = len(df_filtrado)
         total_programas = df_filtrado["Programa"].nunique()
         total_delegaciones = df_filtrado["Delegación"].nunique()
-        total_participantes = int(df_filtrado["Cantidad Participantes"].sum()) if not df_filtrado.empty else 0
 
-        total_hombres = int(df_filtrado["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_filtrado.columns else 0
-        total_mujeres = int(df_filtrado["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_filtrado.columns else 0
+        total_participantes = (
+            int(df_filtrado["Cantidad Participantes"].sum())
+            if not df_filtrado.empty else 0
+        )
 
-        edad_10_18 = int(df_filtrado["Edad 10 a 18"].sum()) if "Edad 10 a 18" in df_filtrado.columns else 0
-        edad_19_30 = int(df_filtrado["Edad 19 a 30"].sum()) if "Edad 19 a 30" in df_filtrado.columns else 0
-        edad_31_45 = int(df_filtrado["Edad 31 a 45"].sum()) if "Edad 31 a 45" in df_filtrado.columns else 0
-        edad_46 = int(df_filtrado["Edad 46 en adelante"].sum()) if "Edad 46 en adelante" in df_filtrado.columns else 0
+        total_hombres = (
+            int(df_filtrado["Cantidad Hombres"].sum())
+            if "Cantidad Hombres" in df_filtrado.columns else 0
+        )
 
-        total_aprobados = len(df_filtrado[df_filtrado["Estado Revisión"] == "Aprobado"])
-        total_pendientes = len(df_filtrado[df_filtrado["Estado Revisión"] == "Pendiente de revisión"])
-        total_observaciones = len(df_filtrado[df_filtrado["Estado Revisión"] == "Con observaciones"])
-        total_rechazados = len(df_filtrado[df_filtrado["Estado Revisión"] == "Rechazado"])
+        total_mujeres = (
+            int(df_filtrado["Cantidad Mujeres"].sum())
+            if "Cantidad Mujeres" in df_filtrado.columns else 0
+        )
+
+        edad_10_18 = (
+            int(df_filtrado["Edad 10 a 18"].sum())
+            if "Edad 10 a 18" in df_filtrado.columns else 0
+        )
+
+        edad_19_30 = (
+            int(df_filtrado["Edad 19 a 30"].sum())
+            if "Edad 19 a 30" in df_filtrado.columns else 0
+        )
+
+        edad_31_45 = (
+            int(df_filtrado["Edad 31 a 45"].sum())
+            if "Edad 31 a 45" in df_filtrado.columns else 0
+        )
+
+        edad_46 = (
+            int(df_filtrado["Edad 46 en adelante"].sum())
+            if "Edad 46 en adelante" in df_filtrado.columns else 0
+        )
+
+        total_aprobados = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Aprobado"]
+        )
+
+        total_pendientes = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Pendiente de revisión"]
+        )
+
+        total_observaciones = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Con observaciones"]
+        )
+
+        total_rechazados = len(
+            df_filtrado[df_filtrado["Estado Revisión"] == "Rechazado"]
+        )
 
         colm1, colm2, colm3, colm4 = st.columns(4)
 
@@ -3282,22 +4088,52 @@ elif menu == "Dashboard profesional":
 
         colm5, colm6, colm7, colm8 = st.columns(4)
 
-        colm5.metric("Hombres", f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})")
-        colm6.metric("Mujeres", f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})")
-        colm7.metric("Edad 10 a 18", f"{edad_10_18} ({porcentaje(edad_10_18, total_participantes)})")
-        colm8.metric("Edad 19 a 30", f"{edad_19_30} ({porcentaje(edad_19_30, total_participantes)})")
+        colm5.metric(
+            "Hombres",
+            f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})"
+        )
+        colm6.metric(
+            "Mujeres",
+            f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})"
+        )
+        colm7.metric(
+            "Edad 10 a 18",
+            f"{edad_10_18} ({porcentaje(edad_10_18, total_participantes)})"
+        )
+        colm8.metric(
+            "Edad 19 a 30",
+            f"{edad_19_30} ({porcentaje(edad_19_30, total_participantes)})"
+        )
 
         colm9, colm10, colm11, colm12 = st.columns(4)
 
-        colm9.metric("Edad 31 a 45", f"{edad_31_45} ({porcentaje(edad_31_45, total_participantes)})")
-        colm10.metric("Edad 46 en adelante", f"{edad_46} ({porcentaje(edad_46, total_participantes)})")
-        colm11.metric("Aprobados", f"{total_aprobados} ({porcentaje(total_aprobados, total_registros)})")
-        colm12.metric("Pendientes", f"{total_pendientes} ({porcentaje(total_pendientes, total_registros)})")
+        colm9.metric(
+            "Edad 31 a 45",
+            f"{edad_31_45} ({porcentaje(edad_31_45, total_participantes)})"
+        )
+        colm10.metric(
+            "Edad 46 en adelante",
+            f"{edad_46} ({porcentaje(edad_46, total_participantes)})"
+        )
+        colm11.metric(
+            "Aprobados",
+            f"{total_aprobados} ({porcentaje(total_aprobados, total_registros)})"
+        )
+        colm12.metric(
+            "Pendientes",
+            f"{total_pendientes} ({porcentaje(total_pendientes, total_registros)})"
+        )
 
         colm13, colm14 = st.columns(2)
 
-        colm13.metric("Con observaciones", f"{total_observaciones} ({porcentaje(total_observaciones, total_registros)})")
-        colm14.metric("Rechazados", f"{total_rechazados} ({porcentaje(total_rechazados, total_registros)})")
+        colm13.metric(
+            "Con observaciones",
+            f"{total_observaciones} ({porcentaje(total_observaciones, total_registros)})"
+        )
+        colm14.metric(
+            "Rechazados",
+            f"{total_rechazados} ({porcentaje(total_rechazados, total_registros)})"
+        )
 
         st.markdown("---")
 
@@ -3314,7 +4150,7 @@ elif menu == "Dashboard profesional":
 
             mostrar_mapa_registros(
                 df_filtrado,
-                height=560,
+                height=650,
                 key="mapa_dashboard_admin"
             )
 
@@ -3329,10 +4165,15 @@ elif menu == "Dashboard profesional":
             with colg1:
                 st.markdown("### Actividades por programa")
 
-                data_programa = df_filtrado.groupby("Programa", as_index=False)["ID"].count()
+                data_programa = df_filtrado.groupby(
+                    "Programa",
+                    as_index=False
+                )["ID"].count()
+
                 data_programa["Porcentaje"] = data_programa["ID"].apply(
                     lambda x: porcentaje(x, data_programa["ID"].sum())
                 )
+
                 data_programa["Etiqueta"] = data_programa.apply(
                     lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
                     axis=1
@@ -3348,8 +4189,15 @@ elif menu == "Dashboard profesional":
                     template="plotly_white"
                 )
 
-                fig_programa.update_layout(showlegend=False)
-                st.plotly_chart(fig_programa, use_container_width=True)
+                fig_programa.update_layout(
+                    showlegend=False,
+                    title_x=0.5
+                )
+
+                st.plotly_chart(
+                    fig_programa,
+                    use_container_width=True
+                )
 
             with colg2:
                 st.markdown("### Participantes por programa")
@@ -3359,11 +4207,20 @@ elif menu == "Dashboard profesional":
                     as_index=False
                 )["Cantidad Participantes"].sum()
 
-                data_participantes["Porcentaje"] = data_participantes["Cantidad Participantes"].apply(
-                    lambda x: porcentaje(x, data_participantes["Cantidad Participantes"].sum())
+                data_participantes["Porcentaje"] = data_participantes[
+                    "Cantidad Participantes"
+                ].apply(
+                    lambda x: porcentaje(
+                        x,
+                        data_participantes["Cantidad Participantes"].sum()
+                    )
                 )
+
                 data_participantes["Etiqueta"] = data_participantes.apply(
-                    lambda row: f"{int(row['Cantidad Participantes'])} ({row['Porcentaje']})",
+                    lambda row: (
+                        f"{int(row['Cantidad Participantes'])} "
+                        f"({row['Porcentaje']})"
+                    ),
                     axis=1
                 )
 
@@ -3376,8 +4233,15 @@ elif menu == "Dashboard profesional":
                     template="plotly_white"
                 )
 
-                fig_participantes.update_layout(showlegend=False)
-                st.plotly_chart(fig_participantes, use_container_width=True)
+                fig_participantes.update_layout(
+                    showlegend=False,
+                    title_x=0.5
+                )
+
+                st.plotly_chart(
+                    fig_participantes,
+                    use_container_width=True
+                )
 
             colg3, colg4 = st.columns(2)
 
@@ -3395,15 +4259,23 @@ elif menu == "Dashboard profesional":
                     textinfo="label+value+percent"
                 )
 
-                st.plotly_chart(fig_estado, use_container_width=True)
+                st.plotly_chart(
+                    fig_estado,
+                    use_container_width=True
+                )
 
             with colg4:
                 st.markdown("### Actividades por provincia")
 
-                data_provincia = df_filtrado.groupby("Provincia", as_index=False)["ID"].count()
+                data_provincia = df_filtrado.groupby(
+                    "Provincia",
+                    as_index=False
+                )["ID"].count()
+
                 data_provincia["Porcentaje"] = data_provincia["ID"].apply(
                     lambda x: porcentaje(x, data_provincia["ID"].sum())
                 )
+
                 data_provincia["Etiqueta"] = data_provincia.apply(
                     lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
                     axis=1
@@ -3419,8 +4291,19 @@ elif menu == "Dashboard profesional":
                     template="plotly_white"
                 )
 
-                fig_provincia.update_layout(showlegend=False)
-                st.plotly_chart(fig_provincia, use_container_width=True)
+                fig_provincia.update_layout(
+                    showlegend=False,
+                    title_x=0.5
+                )
+
+                st.plotly_chart(
+                    fig_provincia,
+                    use_container_width=True
+                )
+                # ======================================================
+# PARTE 11 DE 12
+# DASHBOARD PROFESIONAL: GRÁFICOS COMPLEMENTARIOS, TABLA E INFORME PDF
+# ======================================================
 
             colg5, colg6 = st.columns(2)
 
@@ -3430,11 +4313,15 @@ elif menu == "Dashboard profesional":
                 data_delegacion = df_filtrado.groupby(
                     "Delegación",
                     as_index=False
-                )["ID"].count().sort_values("ID", ascending=False).head(15)
+                )["ID"].count().sort_values(
+                    "ID",
+                    ascending=False
+                ).head(15)
 
                 data_delegacion["Porcentaje"] = data_delegacion["ID"].apply(
                     lambda x: porcentaje(x, data_delegacion["ID"].sum())
                 )
+
                 data_delegacion["Etiqueta"] = data_delegacion.apply(
                     lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
                     axis=1
@@ -3451,7 +4338,12 @@ elif menu == "Dashboard profesional":
                     template="plotly_white"
                 )
 
-                st.plotly_chart(fig_delegacion, use_container_width=True)
+                fig_delegacion.update_layout(title_x=0.5)
+
+                st.plotly_chart(
+                    fig_delegacion,
+                    use_container_width=True
+                )
 
             with colg6:
                 st.markdown("### Registros por tipo de lugar")
@@ -3468,7 +4360,10 @@ elif menu == "Dashboard profesional":
                         textinfo="label+value+percent"
                     )
 
-                    st.plotly_chart(fig_tipo_lugar, use_container_width=True)
+                    st.plotly_chart(
+                        fig_tipo_lugar,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No existe la columna Tipo Lugar.")
 
@@ -3477,10 +4372,12 @@ elif menu == "Dashboard profesional":
             with colg7:
                 st.markdown("### Distribución por sexo")
 
-                data_sexo = pd.DataFrame({
-                    "Sexo": ["Hombres", "Mujeres"],
-                    "Cantidad": [total_hombres, total_mujeres]
-                })
+                data_sexo = pd.DataFrame(
+                    {
+                        "Sexo": ["Hombres", "Mujeres"],
+                        "Cantidad": [total_hombres, total_mujeres]
+                    }
+                )
 
                 if data_sexo["Cantidad"].sum() > 0:
                     fig_sexo = px.pie(
@@ -3490,35 +4387,43 @@ elif menu == "Dashboard profesional":
                         hole=0.40,
                         template="plotly_white"
                     )
+
                     fig_sexo.update_traces(
                         textinfo="label+value+percent"
                     )
-                    st.plotly_chart(fig_sexo, use_container_width=True)
+
+                    st.plotly_chart(
+                        fig_sexo,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No hay datos de sexo registrados.")
 
             with colg8:
                 st.markdown("### Distribución por rangos de edad")
 
-                data_edades = pd.DataFrame({
-                    "Rango de edad": [
-                        "10 a 18",
-                        "19 a 30",
-                        "31 a 45",
-                        "46 en adelante"
-                    ],
-                    "Cantidad": [
-                        edad_10_18,
-                        edad_19_30,
-                        edad_31_45,
-                        edad_46
-                    ]
-                })
+                data_edades = pd.DataFrame(
+                    {
+                        "Rango de edad": [
+                            "10 a 18",
+                            "19 a 30",
+                            "31 a 45",
+                            "46 en adelante"
+                        ],
+                        "Cantidad": [
+                            edad_10_18,
+                            edad_19_30,
+                            edad_31_45,
+                            edad_46
+                        ]
+                    }
+                )
 
                 if data_edades["Cantidad"].sum() > 0:
                     data_edades["Porcentaje"] = data_edades["Cantidad"].apply(
                         lambda x: porcentaje(x, data_edades["Cantidad"].sum())
                     )
+
                     data_edades["Etiqueta"] = data_edades.apply(
                         lambda row: f"{int(row['Cantidad'])} ({row['Porcentaje']})",
                         axis=1
@@ -3533,23 +4438,42 @@ elif menu == "Dashboard profesional":
                         template="plotly_white"
                     )
 
-                    fig_edades.update_layout(showlegend=False)
-                    st.plotly_chart(fig_edades, use_container_width=True)
+                    fig_edades.update_layout(
+                        showlegend=False,
+                        title_x=0.5
+                    )
+
+                    st.plotly_chart(
+                        fig_edades,
+                        use_container_width=True
+                    )
                 else:
                     st.info("No hay datos de rangos de edad registrados.")
 
+            # ======================================================
+            # EVOLUCIÓN MENSUAL
+            # ======================================================
+
             st.markdown("### Evolución mensual de actividades")
 
-            df_mensual = df_filtrado.dropna(subset=["Fecha Actividad"]).copy()
+            df_mensual = df_filtrado.dropna(
+                subset=["Fecha Actividad"]
+            ).copy()
 
             if not df_mensual.empty:
-                df_mensual["Mes"] = df_mensual["Fecha Actividad"].dt.to_period("M").astype(str)
+                df_mensual["Mes"] = df_mensual[
+                    "Fecha Actividad"
+                ].dt.to_period("M").astype(str)
 
-                data_mensual = df_mensual.groupby("Mes", as_index=False)["ID"].count()
+                data_mensual = df_mensual.groupby(
+                    "Mes",
+                    as_index=False
+                )["ID"].count()
 
                 data_mensual["Porcentaje"] = data_mensual["ID"].apply(
                     lambda x: porcentaje(x, data_mensual["ID"].sum())
                 )
+
                 data_mensual["Etiqueta"] = data_mensual.apply(
                     lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
                     axis=1
@@ -3565,7 +4489,12 @@ elif menu == "Dashboard profesional":
                     template="plotly_white"
                 )
 
-                st.plotly_chart(fig_mensual, use_container_width=True)
+                fig_mensual.update_layout(title_x=0.5)
+
+                st.plotly_chart(
+                    fig_mensual,
+                    use_container_width=True
+                )
             else:
                 st.info("No hay fechas válidas para generar evolución mensual.")
 
@@ -3578,7 +4507,9 @@ elif menu == "Dashboard profesional":
             df_mostrar = df_filtrado.copy()
 
             if "Fecha Actividad" in df_mostrar.columns:
-                df_mostrar["Fecha Actividad"] = df_mostrar["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+                df_mostrar["Fecha Actividad"] = df_mostrar[
+                    "Fecha Actividad"
+                ].dt.strftime("%d/%m/%Y")
 
             st.dataframe(
                 df_mostrar,
@@ -3587,19 +4518,197 @@ elif menu == "Dashboard profesional":
             )
 
             # ======================================================
-            # INFORME PDF
+            # CONFIGURACIÓN DEL INFORME PDF
             # ======================================================
 
-            def generar_pdf_profesional(df_pdf):
+            st.markdown("---")
+            st.markdown("## Generar informe PDF")
+
+            col_pdf1, col_pdf2 = st.columns(2)
+
+            with col_pdf1:
+                dirigido_a = st.text_input(
+                    "Informe dirigido a",
+                    placeholder="Ejemplo: Delegación Policial D88-Limón o Dirección Regional R9 Limón"
+                )
+
+                fecha_informe = st.date_input(
+                    "Fecha del informe",
+                    value=date.today(),
+                    format="DD/MM/YYYY",
+                    key="fecha_informe_pdf"
+                )
+
+            with col_pdf2:
+                hora_informe = st.time_input(
+                    "Hora del informe",
+                    value=datetime.now().time().replace(second=0, microsecond=0),
+                    key="hora_informe_pdf"
+                )
+
+                incluir_detalle = st.checkbox(
+                    "Incluir tabla de detalle de registros",
+                    value=True
+                )
+
+            graficos_pdf = st.multiselect(
+                "Seleccione los gráficos que desea incluir en el informe",
+                [
+                    "Actividades por programa",
+                    "Participantes por programa",
+                    "Estado de revisión",
+                    "Actividades por provincia",
+                    "Ranking de delegaciones",
+                    "Tipo de lugar",
+                    "Distribución por sexo",
+                    "Distribución por rangos de edad",
+                    "Evolución mensual"
+                ],
+                default=[
+                    "Actividades por programa",
+                    "Participantes por programa",
+                    "Estado de revisión",
+                    "Distribución por sexo",
+                    "Distribución por rangos de edad"
+                ]
+            )
+
+            # ======================================================
+            # FUNCIONES AUXILIARES PARA PDF
+            # ======================================================
+
+            def agregar_marco_y_paginacion(canvas, doc):
+                canvas.saveState()
+
+                width, height = letter
+
+                canvas.setStrokeColor(colors.HexColor(COLOR_AZUL))
+                canvas.setLineWidth(2)
+                canvas.rect(24, 24, width - 48, height - 48)
+
+                canvas.setStrokeColor(colors.HexColor(COLOR_ROJO))
+                canvas.setLineWidth(1)
+                canvas.rect(30, 30, width - 60, height - 60)
+
+                canvas.setFont("Helvetica", 8)
+                canvas.setFillColor(colors.HexColor(COLOR_GRIS_OSCURO))
+                canvas.drawCentredString(
+                    width / 2,
+                    16,
+                    f"Página {doc.page}"
+                )
+
+                canvas.restoreState()
+
+
+            def crear_tabla_estilizada(data, col_widths=None, header_color=None):
+                if header_color is None:
+                    header_color = COLOR_AZUL
+
+                tabla = Table(
+                    data,
+                    colWidths=col_widths,
+                    repeatRows=1
+                )
+
+                tabla.setStyle(
+                    TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(header_color)),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                            ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("FONTSIZE", (0, 0), (-1, -1), 7),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                            ("TOPPADDING", (0, 0), (-1, -1), 5),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                        ]
+                    )
+                )
+
+                return tabla
+
+
+            def agregar_imagen_plotly_al_pdf(elementos_pdf, figura, titulo_grafico, estilo_subtitulo):
+                try:
+                    img_buffer = BytesIO()
+
+                    figura.update_layout(
+                        title=None,
+                        margin=dict(l=40, r=40, t=40, b=40),
+                        paper_bgcolor="white",
+                        plot_bgcolor="white"
+                    )
+
+                    figura.write_image(
+                        img_buffer,
+                        format="png",
+                        width=900,
+                        height=500,
+                        scale=2
+                    )
+
+                    img_buffer.seek(0)
+
+                    imagen = RLImage(
+                        img_buffer,
+                        width=460,
+                        height=250
+                    )
+
+                    imagen.hAlign = "CENTER"
+
+                    elementos_pdf.append(
+                        KeepTogether(
+                            [
+                                Paragraph(titulo_grafico, estilo_subtitulo),
+                                imagen,
+                                Spacer(1, 12)
+                            ]
+                        )
+                    )
+
+                except Exception:
+                    elementos_pdf.append(
+                        KeepTogether(
+                            [
+                                Paragraph(titulo_grafico, estilo_subtitulo),
+                                Paragraph(
+                                    "No fue posible insertar el gráfico como imagen. "
+                                    "Verifique que el paquete kaleido esté incluido en requirements.txt.",
+                                    getSampleStyleSheet()["Normal"]
+                                ),
+                                Spacer(1, 10)
+                            ]
+                        )
+                    )
+
+
+            # ======================================================
+            # GENERACIÓN DEL PDF PROFESIONAL
+            # ======================================================
+
+            def generar_pdf_profesional(
+                df_pdf,
+                dirigido_a_pdf,
+                fecha_pdf,
+                hora_pdf,
+                graficos_seleccionados,
+                incluir_detalle_pdf
+            ):
                 buffer = BytesIO()
 
                 doc = SimpleDocTemplate(
                     buffer,
                     pagesize=letter,
-                    rightMargin=40,
-                    leftMargin=40,
-                    topMargin=40,
-                    bottomMargin=40
+                    rightMargin=42,
+                    leftMargin=42,
+                    topMargin=52,
+                    bottomMargin=52
                 )
 
                 elementos = []
@@ -3610,15 +4719,19 @@ elif menu == "Dashboard profesional":
                     parent=estilos["Title"],
                     alignment=TA_CENTER,
                     textColor=colors.HexColor(COLOR_AZUL),
-                    fontSize=22,
-                    spaceAfter=20
+                    fontSize=21,
+                    leading=25,
+                    spaceAfter=12
                 )
 
                 subtitulo = ParagraphStyle(
                     "SubtituloPUMI",
                     parent=estilos["Heading2"],
-                    textColor=colors.HexColor(COLOR_VERDE),
-                    fontSize=15,
+                    alignment=TA_CENTER,
+                    textColor=colors.HexColor(COLOR_ROJO),
+                    fontSize=14,
+                    leading=18,
+                    spaceBefore=8,
                     spaceAfter=10
                 )
 
@@ -3626,23 +4739,70 @@ elif menu == "Dashboard profesional":
                     "TextoPUMI",
                     parent=estilos["Normal"],
                     alignment=TA_JUSTIFY,
-                    fontSize=10,
-                    leading=14
+                    fontSize=9,
+                    leading=13
+                )
+
+                texto_centrado = ParagraphStyle(
+                    "TextoCentradoPUMI",
+                    parent=estilos["Normal"],
+                    alignment=TA_CENTER,
+                    fontSize=9,
+                    leading=13
                 )
 
                 logo_path = None
 
-                for posible_logo in ["logo_pumi.jpeg", "logo_pumi.jpg", "logo_pumi.png"]:
+                for posible_logo in [
+                    "logo_pumi.jpeg",
+                    "logo_pumi.jpg",
+                    "logo_pumi.png"
+                ]:
                     if os.path.exists(posible_logo):
                         logo_path = posible_logo
                         break
 
                 if logo_path:
-                    elementos.append(RLImage(logo_path, width=120, height=120))
+                    logo = RLImage(
+                        logo_path,
+                        width=90,
+                        height=90
+                    )
+                    logo.hAlign = "CENTER"
+                    elementos.append(logo)
+                    elementos.append(Spacer(1, 8))
 
-                elementos.append(Paragraph("INFORME ADMINISTRATIVO PUMI 2026", titulo))
-                elementos.append(Paragraph("Proceso Unificado para el Manejo de la Información", subtitulo))
-                elementos.append(Spacer(1, 12))
+                elementos.append(
+                    Paragraph(
+                        "INFORME ADMINISTRATIVO PUMI 2026",
+                        titulo
+                    )
+                )
+
+                elementos.append(
+                    Paragraph(
+                        "Proceso Unificado para el Manejo de la Información",
+                        subtitulo
+                    )
+                )
+
+                if dirigido_a_pdf:
+                    elementos.append(
+                        Paragraph(
+                            f"<b>Dirigido a:</b> {dirigido_a_pdf}",
+                            texto_centrado
+                        )
+                    )
+
+                elementos.append(
+                    Paragraph(
+                        f"<b>Fecha y hora del informe:</b> "
+                        f"{fecha_pdf.strftime('%d/%m/%Y')} {hora_pdf.strftime('%H:%M')}",
+                        texto_centrado
+                    )
+                )
+
+                elementos.append(Spacer(1, 14))
 
                 introduccion = """
                 El presente informe consolida la información registrada en el Sistema PUMI 2026,
@@ -3653,7 +4813,7 @@ elif menu == "Dashboard profesional":
                 """
 
                 elementos.append(Paragraph(introduccion, texto))
-                elementos.append(Spacer(1, 18))
+                elementos.append(Spacer(1, 16))
 
                 total_registros_pdf = len(df_pdf)
                 total_programas_pdf = df_pdf["Programa"].nunique()
@@ -3691,118 +4851,287 @@ elif menu == "Dashboard profesional":
                     ["Rechazados", f"{total_rechazados_pdf} ({porcentaje(total_rechazados_pdf, total_registros_pdf)})"]
                 ]
 
-                tabla_resumen = Table(resumen, colWidths=[260, 180])
-                tabla_resumen.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("ALIGN", (1, 1), (-1, -1), "CENTER")
-                ]))
+                tabla_resumen = crear_tabla_estilizada(
+                    resumen,
+                    col_widths=[260, 190],
+                    header_color=COLOR_AZUL
+                )
 
-                elementos.append(Paragraph("Resumen general", subtitulo))
-                elementos.append(tabla_resumen)
+                elementos.append(
+                    KeepTogether(
+                        [
+                            Paragraph("Resumen general", subtitulo),
+                            tabla_resumen
+                        ]
+                    )
+                )
+
                 elementos.append(Spacer(1, 18))
 
-                elementos.append(Paragraph("Distribución por programa", subtitulo))
+                # ==================================================
+                # DISTRIBUCIÓN POR PROGRAMA
+                # ==================================================
 
-                tabla_programas = [["Programa", "Actividades", "% Actividades", "Participantes", "% Participantes"]]
+                resumen_programa = df_pdf.groupby("Programa").agg(
+                    {
+                        "ID": "count",
+                        "Cantidad Participantes": "sum"
+                    }
+                ).reset_index()
 
-                resumen_programa = df_pdf.groupby("Programa").agg({
-                    "ID": "count",
-                    "Cantidad Participantes": "sum"
-                }).reset_index()
+                tabla_programas = [
+                    [
+                        "Programa",
+                        "Actividades",
+                        "% Actividades",
+                        "Participantes",
+                        "% Participantes"
+                    ]
+                ]
 
                 total_actividades_programa = resumen_programa["ID"].sum()
-                total_participantes_programa = resumen_programa["Cantidad Participantes"].sum()
+                total_participantes_programa = resumen_programa[
+                    "Cantidad Participantes"
+                ].sum()
 
                 for _, row in resumen_programa.iterrows():
-                    tabla_programas.append([
-                        row["Programa"],
-                        int(row["ID"]),
-                        porcentaje(row["ID"], total_actividades_programa),
-                        int(row["Cantidad Participantes"]),
-                        porcentaje(row["Cantidad Participantes"], total_participantes_programa)
-                    ])
+                    tabla_programas.append(
+                        [
+                            row["Programa"],
+                            int(row["ID"]),
+                            porcentaje(row["ID"], total_actividades_programa),
+                            int(row["Cantidad Participantes"]),
+                            porcentaje(
+                                row["Cantidad Participantes"],
+                                total_participantes_programa
+                            )
+                        ]
+                    )
 
-                tabla_prog = Table(tabla_programas, colWidths=[130, 75, 75, 90, 90])
-                tabla_prog.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_VERDE)),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8)
-                ]))
+                tabla_prog = crear_tabla_estilizada(
+                    tabla_programas,
+                    col_widths=[120, 75, 80, 90, 90],
+                    header_color=COLOR_ROJO
+                )
 
-                elementos.append(tabla_prog)
+                elementos.append(
+                    KeepTogether(
+                        [
+                            Paragraph("Distribución por programa", subtitulo),
+                            tabla_prog
+                        ]
+                    )
+                )
+
                 elementos.append(Spacer(1, 18))
 
-                elementos.append(Paragraph("Detalle de registros", subtitulo))
+                # ==================================================
+                # GRÁFICOS SELECCIONADOS
+                # ==================================================
 
-                columnas_detalle = [
-                    "ID",
-                    "Fecha Actividad",
-                    "Delegación",
-                    "Programa",
-                    "Actividad",
-                    "Provincia",
-                    "Cantón",
-                    "Distrito",
-                    "Centro Educativo",
-                    "Código Presupuestario",
-                    "Cantidad Participantes",
-                    "Cantidad Hombres",
-                    "Cantidad Mujeres",
-                    "Edad 10 a 18",
-                    "Edad 19 a 30",
-                    "Edad 31 a 45",
-                    "Edad 46 en adelante",
-                    "Estado Revisión"
-                ]
+                if graficos_seleccionados:
+                    elementos.append(PageBreak())
+                    elementos.append(
+                        Paragraph("Gráficos seleccionados", titulo)
+                    )
 
-                columnas_detalle = [
-                    col for col in columnas_detalle
-                    if col in df_pdf.columns
-                ]
+                    if "Actividades por programa" in graficos_seleccionados:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_programa,
+                            "Actividades por programa",
+                            subtitulo
+                        )
 
-                detalle = [columnas_detalle]
+                    if "Participantes por programa" in graficos_seleccionados:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_participantes,
+                            "Participantes por programa",
+                            subtitulo
+                        )
 
-                df_detalle = df_pdf.copy()
+                    if "Estado de revisión" in graficos_seleccionados:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_estado,
+                            "Estado de revisión",
+                            subtitulo
+                        )
 
-                if "Fecha Actividad" in df_detalle.columns:
-                    df_detalle["Fecha Actividad"] = df_detalle["Fecha Actividad"].dt.strftime("%d/%m/%Y")
+                    if "Actividades por provincia" in graficos_seleccionados:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_provincia,
+                            "Actividades por provincia",
+                            subtitulo
+                        )
 
-                for _, row in df_detalle[columnas_detalle].head(30).iterrows():
-                    detalle.append([str(row[col]) for col in columnas_detalle])
+                    if "Ranking de delegaciones" in graficos_seleccionados:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_delegacion,
+                            "Ranking de delegaciones",
+                            subtitulo
+                        )
 
-                tabla_detalle = Table(detalle, repeatRows=1)
-                tabla_detalle.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL_CLARO)),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 5)
-                ]))
+                    if "Tipo de lugar" in graficos_seleccionados and "Tipo Lugar" in df_pdf.columns:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_tipo_lugar,
+                            "Registros por tipo de lugar",
+                            subtitulo
+                        )
 
-                elementos.append(tabla_detalle)
-                elementos.append(Spacer(1, 15))
+                    if "Distribución por sexo" in graficos_seleccionados and data_sexo["Cantidad"].sum() > 0:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_sexo,
+                            "Distribución por sexo",
+                            subtitulo
+                        )
 
-                cierre = """
-                Informe generado automáticamente por el Sistema PUMI 2026.
-                La información presentada corresponde a los registros disponibles
-                en la base de datos conectada a Google Sheets al momento de la descarga.
-                """
+                    if "Distribución por rangos de edad" in graficos_seleccionados and data_edades["Cantidad"].sum() > 0:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_edades,
+                            "Distribución por rangos de edad",
+                            subtitulo
+                        )
 
-                elementos.append(Paragraph(cierre, texto))
+                    if "Evolución mensual" in graficos_seleccionados and not df_mensual.empty:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_mensual,
+                            "Evolución mensual de actividades",
+                            subtitulo
+                        )
 
-                doc.build(elementos)
+                # ==================================================
+                # TABLA DETALLE DE REGISTROS
+                # ==================================================
+
+                if incluir_detalle_pdf:
+                    elementos.append(PageBreak())
+                    elementos.append(
+                        Paragraph("Detalle de registros", titulo)
+                    )
+
+                    columnas_detalle = [
+                        "ID",
+                        "Fecha Actividad",
+                        "Hora Actividad",
+                        "Dirección Regional",
+                        "Delegación",
+                        "Programa",
+                        "Actividad",
+                        "Provincia",
+                        "Cantón",
+                        "Distrito",
+                        "Lugar",
+                        "Cantidad Participantes",
+                        "Cantidad Hombres",
+                        "Cantidad Mujeres",
+                        "Estado Revisión"
+                    ]
+
+                    columnas_detalle = [
+                        col for col in columnas_detalle
+                        if col in df_pdf.columns
+                    ]
+
+                    df_detalle = df_pdf.copy()
+
+                    if "Fecha Actividad" in df_detalle.columns:
+                        df_detalle["Fecha Actividad"] = df_detalle[
+                            "Fecha Actividad"
+                        ].dt.strftime("%d/%m/%Y")
+
+                    detalle = [columnas_detalle]
+
+                    for _, row in df_detalle[columnas_detalle].head(35).iterrows():
+                        detalle.append(
+                            [
+                                str(row[col])[:60]
+                                for col in columnas_detalle
+                            ]
+                        )
+
+                    tabla_detalle = crear_tabla_estilizada(
+                        detalle,
+                        col_widths=None,
+                        header_color=COLOR_AZUL
+                    )
+
+                    elementos.append(tabla_detalle)
+
+                    if len(df_detalle) > 35:
+                        elementos.append(Spacer(1, 10))
+                        elementos.append(
+                            Paragraph(
+                                f"Nota: se muestran los primeros 35 registros de un total de {len(df_detalle)} registros filtrados.",
+                                texto
+                            )
+                        )
+
+                # ==================================================
+                # PÁGINA FINAL INSTITUCIONAL
+                # ==================================================
+
+                elementos.append(PageBreak())
+
+                if logo_path:
+                    logo_final = RLImage(
+                        logo_path,
+                        width=130,
+                        height=130
+                    )
+                    logo_final.hAlign = "CENTER"
+                    elementos.append(Spacer(1, 80))
+                    elementos.append(logo_final)
+                    elementos.append(Spacer(1, 24))
+
+                elementos.append(
+                    Paragraph(
+                        "Sistema PUMI 2026",
+                        titulo
+                    )
+                )
+
+                elementos.append(
+                    Paragraph(
+                        "Informe generado automáticamente.",
+                        texto_centrado
+                    )
+                )
+
+                elementos.append(Spacer(1, 20))
+
+                elementos.append(
+                    Paragraph(
+                        "Elaborado por la Estrategia Integral de Prevención para la Seguridad Pública.",
+                        texto_centrado
+                    )
+                )
+
+                doc.build(
+                    elementos,
+                    onFirstPage=agregar_marco_y_paginacion,
+                    onLaterPages=agregar_marco_y_paginacion
+                )
+
                 buffer.seek(0)
-
                 return buffer.getvalue()
 
-            pdf = generar_pdf_profesional(df_filtrado)
+
+            pdf = generar_pdf_profesional(
+                df_filtrado,
+                dirigido_a,
+                fecha_informe,
+                hora_informe,
+                graficos_pdf,
+                incluir_detalle
+            )
 
             st.download_button(
                 label="Descargar informe administrativo en PDF",
@@ -3810,15 +5139,14 @@ elif menu == "Dashboard profesional":
                 file_name="informe_administrativo_pumi_2026.pdf",
                 mime="application/pdf"
             )
-
-
-# ======================================================
-# CONFIGURACIÓN
+            # ======================================================
+# PARTE 12 DE 12
+# CONFIGURACIÓN, DIAGNÓSTICO, RESPALDOS Y CIERRE DEL SISTEMA
 # ======================================================
 
 elif menu == "Configuración":
 
-    st.markdown("## Configuración del sistema")
+    st.markdown("## Configuración y diagnóstico del sistema")
 
     if not st.session_state.admin_autenticado:
         st.error("Debe ingresar la clave administrativa para acceder a esta sección.")
@@ -3828,87 +5156,218 @@ elif menu == "Configuración":
         """
         <div class="card-pumi">
             <div class="texto-pumi">
-                En este apartado se verifica la conexión con Google Sheets,
-                la existencia de la hoja principal, la estructura de encabezados,
-                la disponibilidad de las bases auxiliares y los campos de georreferencia.
+                Esta sección permite verificar el estado general del sistema,
+                revisar la conexión con Google Sheets, validar los archivos base,
+                consultar la estructura de columnas y descargar respaldos generales.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    # ======================================================
+    # ESTADO DE CONEXIÓN
+    # ======================================================
+
+    st.markdown("### Estado de conexión")
+
     try:
         spreadsheet = conectar_google_sheets()
         hoja = inicializar_hoja()
 
-        st.success("Conexión exitosa con Google Sheets.")
+        st.success("Conexión activa con Google Sheets.")
         st.write("Archivo conectado:", spreadsheet.title)
         st.write("Hoja principal:", HOJA_REGISTRO)
-        st.write("Total de columnas esperadas:", len(ENCABEZADOS))
 
-        perfil_actual = st.session_state.get("admin_perfil", {})
+    except Exception as e:
+        st.error("Error en la conexión con Google Sheets.")
+        st.exception(e)
+        st.stop()
 
-        if perfil_actual:
-            st.write("Perfil administrativo activo:", perfil_actual.get("descripcion", ""))
+    # ======================================================
+    # VALIDACIÓN DE ARCHIVOS BASE
+    # ======================================================
 
-        st.markdown("### Bases auxiliares")
+    st.markdown("### Archivos base del sistema")
 
-        df_mep = cargar_base_mep()
-        df_delegaciones = cargar_base_delegaciones()
-        df_importantes = cargar_datos_importantes()
+    archivos_base = {
+        "Base MEP": ARCHIVO_MEP,
+        "Delegaciones y Distritos": ARCHIVO_DELEGACIONES,
+        "Datos Importantes": ARCHIVO_DATOS_IMPORTANTES
+    }
 
-        st.write("Registros base MEP:", len(df_mep))
-        st.write("Registros base delegaciones/distritos:", len(df_delegaciones))
-        st.write("Registros Datos Importantes:", len(df_importantes))
+    for nombre, archivo in archivos_base.items():
+        if os.path.exists(archivo):
+            st.success(f"{nombre}: encontrado ({archivo})")
+        else:
+            st.error(f"{nombre}: no encontrado ({archivo})")
 
-        if not df_mep.empty:
-            st.write("Columnas base MEP:", list(df_mep.columns))
+    # ======================================================
+    # VALIDACIÓN DE DATOS CARGADOS
+    # ======================================================
 
-        if not df_importantes.empty:
-            st.write("Columnas Datos Importantes:", list(df_importantes.columns))
+    st.markdown("### Validación de bases auxiliares")
 
-        st.markdown("### Georreferencia")
+    df_mep = cargar_base_mep()
+    df_delegaciones = cargar_base_delegaciones()
+    df_importantes = cargar_datos_importantes()
 
-        df_config = cargar_datos()
-        df_mapa_config = preparar_dataframe_mapa(df_config)
+    colv1, colv2, colv3 = st.columns(3)
 
-        st.write("Registros totales visibles según perfil:", len(df_config))
-        st.write("Registros con coordenadas válidas:", len(df_mapa_config))
-        st.write("Registros sin coordenadas:", len(df_config) - len(df_mapa_config))
+    colv1.metric("Registros MEP", len(df_mep))
+    colv2.metric("Registros Delegaciones", len(df_delegaciones))
+    colv3.metric("Registros Datos Importantes", len(df_importantes))
 
-        st.markdown("### Validación de nuevos campos")
+    with st.expander("Ver columnas detectadas en bases auxiliares"):
+        st.write("Columnas Base MEP:")
+        st.write(list(df_mep.columns))
 
-        nuevos_campos = [
-            "Código Presupuestario",
-            "Cantidad Hombres",
-            "Cantidad Mujeres",
-            "Edad 10 a 18",
-            "Edad 19 a 30",
-            "Edad 31 a 45",
-            "Edad 46 en adelante"
+        st.write("Columnas Delegaciones:")
+        st.write(list(df_delegaciones.columns))
+
+        st.write("Columnas Datos Importantes:")
+        st.write(list(df_importantes.columns))
+
+    # ======================================================
+    # VALIDACIÓN DE BASE PRINCIPAL
+    # ======================================================
+
+    st.markdown("### Base principal de registros")
+
+    df_config = cargar_datos()
+    df_config_limpio = limpiar_dataframe_para_metricas(df_config)
+    df_mapa_config = preparar_dataframe_mapa(df_config_limpio)
+
+    colb1, colb2, colb3, colb4 = st.columns(4)
+
+    colb1.metric("Registros totales", len(df_config))
+    colb2.metric("Columnas esperadas", len(ENCABEZADOS))
+    colb3.metric("Con coordenadas", len(df_mapa_config))
+    colb4.metric("Sin coordenadas", len(df_config) - len(df_mapa_config))
+
+    st.markdown("### Validación de encabezados oficiales")
+
+    encabezados_actuales = hoja.row_values(1)
+
+    faltantes = [col for col in ENCABEZADOS if col not in encabezados_actuales]
+    sobrantes = [col for col in encabezados_actuales if col not in ENCABEZADOS]
+
+    if not faltantes and not sobrantes:
+        st.success("Los encabezados de la hoja coinciden con la estructura oficial.")
+    else:
+        if faltantes:
+            st.error("Columnas faltantes:")
+            st.write(faltantes)
+
+        if sobrantes:
+            st.warning("Columnas adicionales encontradas:")
+            st.write(sobrantes)
+
+    with st.expander("Ver encabezados oficiales"):
+        st.write(ENCABEZADOS)
+
+    # ======================================================
+    # HERRAMIENTAS DE LIMPIEZA
+    # ======================================================
+
+    st.markdown("### Herramientas de mantenimiento")
+
+    if st.button("Eliminar encabezados duplicados"):
+        eliminados = limpiar_encabezados_duplicados_en_sheet()
+        st.success(f"Filas de encabezado duplicadas eliminadas: {eliminados}")
+        st.rerun()
+
+    # ======================================================
+    # RESPALDOS
+    # ======================================================
+
+    st.markdown("### Respaldos de información")
+
+    if df_config.empty:
+        st.info("No existen registros para respaldar.")
+    else:
+        excel_completo = convertir_excel(df_config)
+
+        st.download_button(
+            label="Descargar respaldo completo en Excel",
+            data=excel_completo,
+            file_name="respaldo_completo_pumi_2026.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        df_aprobados = df_config[
+            df_config["Estado Revisión"] == "Aprobado"
         ]
 
-        for campo in nuevos_campos:
-            if campo in df_config.columns:
-                st.success(f"Campo encontrado: {campo}")
-            else:
-                st.error(f"Campo faltante: {campo}")
+        df_pendientes = df_config[
+            df_config["Estado Revisión"] == "Pendiente de revisión"
+        ]
 
-        st.markdown("### Limpieza de encabezados duplicados")
+        colr1, colr2 = st.columns(2)
 
-        if st.button("Eliminar encabezados duplicados"):
-            eliminados = limpiar_encabezados_duplicados_en_sheet()
-            st.success(f"Filas eliminadas: {eliminados}")
-            st.rerun()
+        with colr1:
+            excel_aprobados = convertir_excel(df_aprobados)
 
-        st.markdown("### Vista previa de la base de datos")
+            st.download_button(
+                label="Descargar registros aprobados",
+                data=excel_aprobados,
+                file_name="registros_aprobados_pumi_2026.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
+        with colr2:
+            excel_pendientes = convertir_excel(df_pendientes)
+
+            st.download_button(
+                label="Descargar registros pendientes",
+                data=excel_pendientes,
+                file_name="registros_pendientes_pumi_2026.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+    # ======================================================
+    # VISTA PREVIA
+    # ======================================================
+
+    st.markdown("### Vista previa de registros")
+
+    if df_config.empty:
+        st.info("No hay registros disponibles.")
+    else:
         st.dataframe(
-            df_config.head(10),
+            df_config.head(20),
             use_container_width=True,
             hide_index=True
         )
 
-    except Exception as e:
-        st.error("Error en la conexión o configuración.")
-        st.exception(e)
+    # ======================================================
+    # INFORMACIÓN DEL SISTEMA
+    # ======================================================
+
+    st.markdown("### Información del sistema")
+
+    st.markdown(
+        f"""
+        <div class="card-azul">
+            <div class="texto-pumi">
+                <b>Sistema:</b> PUMI 2026<br>
+                <b>Nombre:</b> Proceso Unificado para el Manejo de la Información<br>
+                <b>Fecha de revisión:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}<br>
+                <b>Paleta institucional:</b> Azul, blanco y rojo, en referencia a la bandera de Costa Rica.<br>
+                <b>Estado:</b> Sistema operativo.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("---")
+
+    st.markdown(
+        """
+        <div style="text-align:center; color:#002B7F; font-weight:800;">
+            Sistema PUMI 2026 · Proceso Unificado para el Manejo de la Información
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
