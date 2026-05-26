@@ -603,14 +603,6 @@ def inicializar_hoja():
         hoja.append_row(ENCABEZADOS)
         return hoja
 
-    primera_fila = datos[0]
-
-    if primera_fila != ENCABEZADOS:
-        hoja.update(
-            values=[ENCABEZADOS],
-            range_name="A1"
-        )
-
     return hoja
 
     primera_fila = datos[0]
@@ -1535,8 +1527,6 @@ def actualizar_registro_por_id(id_registro, nuevos_datos):
     hoja = inicializar_hoja()
     datos = hoja.get_all_values()
 
-    ultima_columna = chr(64 + len(ENCABEZADOS))
-
     for i, fila in enumerate(datos[1:], start=2):
         if len(fila) > 0 and str(fila[0]) == str(id_registro):
             nueva_fila = [
@@ -1544,10 +1534,11 @@ def actualizar_registro_por_id(id_registro, nuevos_datos):
                 for col in ENCABEZADOS
             ]
 
-            rango = f"A{i}:{ultima_columna}{i}"
-
             try:
-                hoja.update(rango, [nueva_fila])
+                hoja.update(
+                    values=[nueva_fila],
+                    range_name=f"A{i}"
+                )
                 return True
             except Exception as e:
                 st.error("No se pudo actualizar el registro.")
