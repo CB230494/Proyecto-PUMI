@@ -607,6 +607,16 @@ def inicializar_hoja():
 
     if primera_fila != ENCABEZADOS:
         hoja.update(
+            values=[ENCABEZADOS],
+            range_name="A1"
+        )
+
+    return hoja
+
+    primera_fila = datos[0]
+
+    if primera_fila != ENCABEZADOS:
+        hoja.update(
             f"A1:{chr(64 + len(ENCABEZADOS))}1",
             [ENCABEZADOS]
         )
