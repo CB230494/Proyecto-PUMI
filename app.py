@@ -929,7 +929,7 @@ def obtener_distritos_por_provincia_canton(provincia, canton):
     distritos = [x for x in distritos if str(x).strip() != ""]
 
     return sorted(distritos)
-   # ======================================================
+    # ======================================================
 # PARTE 3 DE 12
 # BASE MEP, BASE DELEGACIONES, MAPA INTELIGENTE Y CRUD PRINCIPAL
 # ======================================================
@@ -1440,9 +1440,6 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 
 # ======================================================
 # DATOS PRINCIPALES GOOGLE SHEETS
-# Lee los registros por nombre de encabezado.
-# Esto evita que los datos se corran si la hoja tiene
-# columnas antiguas, nuevas o en distinto orden.
 # ======================================================
 
 def cargar_datos():
@@ -1458,34 +1455,24 @@ def cargar_datos():
     if len(datos) <= 1:
         return pd.DataFrame(columns=ENCABEZADOS)
 
-    encabezados_hoja = datos[0]
     filas = datos[1:]
-
-    registros = []
+    filas_limpias = []
 
     for fila in filas:
-        if all(str(celda).strip() == "" for celda in fila):
+        fila_ajustada = fila[:len(ENCABEZADOS)]
+
+        while len(fila_ajustada) < len(ENCABEZADOS):
+            fila_ajustada.append("")
+
+        if all(str(celda).strip() == "" for celda in fila_ajustada):
             continue
 
-        if len(fila) > 0 and str(fila[0]).strip().upper() == "ID":
+        if str(fila_ajustada[0]).strip().upper() == "ID":
             continue
 
-        registro = {}
+        filas_limpias.append(fila_ajustada)
 
-        for col in ENCABEZADOS:
-            if col in encabezados_hoja:
-                idx = encabezados_hoja.index(col)
-
-                if idx < len(fila):
-                    registro[col] = fila[idx]
-                else:
-                    registro[col] = ""
-            else:
-                registro[col] = ""
-
-        registros.append(registro)
-
-    df = pd.DataFrame(registros, columns=ENCABEZADOS)
+    df = pd.DataFrame(filas_limpias, columns=ENCABEZADOS)
     df = aplicar_filtro_perfil_admin(df)
 
     return df
