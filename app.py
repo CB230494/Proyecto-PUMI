@@ -929,7 +929,7 @@ def obtener_distritos_por_provincia_canton(provincia, canton):
     distritos = [x for x in distritos if str(x).strip() != ""]
 
     return sorted(distritos)
-    # ======================================================
+# ======================================================
 # PARTE 3 DE 12
 # BASE MEP, BASE DELEGACIONES, MAPA INTELIGENTE Y CRUD PRINCIPAL
 # ======================================================
@@ -1440,6 +1440,7 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 
 # ======================================================
 # DATOS PRINCIPALES GOOGLE SHEETS
+# Lee registros nuevos y antiguos sin correr columnas.
 # ======================================================
 
 def cargar_datos():
@@ -1455,24 +1456,61 @@ def cargar_datos():
     if len(datos) <= 1:
         return pd.DataFrame(columns=ENCABEZADOS)
 
+    encabezados_hoja = datos[0]
     filas = datos[1:]
-    filas_limpias = []
+    registros = []
+
+    def parece_hora(valor):
+        valor = str(valor).strip()
+
+        if ":" not in valor:
+            return False
+
+        partes = valor.split(":")
+
+        if len(partes) != 2:
+            return False
+
+        return partes[0].isdigit() and partes[1].isdigit()
 
     for fila in filas:
-        fila_ajustada = fila[:len(ENCABEZADOS)]
-
-        while len(fila_ajustada) < len(ENCABEZADOS):
-            fila_ajustada.append("")
-
-        if all(str(celda).strip() == "" for celda in fila_ajustada):
+        if all(str(celda).strip() == "" for celda in fila):
             continue
 
-        if str(fila_ajustada[0]).strip().upper() == "ID":
+        if len(fila) > 0 and str(fila[0]).strip().upper() == "ID":
             continue
 
-        filas_limpias.append(fila_ajustada)
+        registro = {}
 
-    df = pd.DataFrame(filas_limpias, columns=ENCABEZADOS)
+        # Registro nuevo: ya tiene Hora Actividad en la posición correcta.
+        if len(fila) > 3 and parece_hora(fila[3]):
+            fila_ajustada = fila[:len(ENCABEZADOS)]
+
+            while len(fila_ajustada) < len(ENCABEZADOS):
+                fila_ajustada.append("")
+
+            registro = dict(zip(ENCABEZADOS, fila_ajustada))
+
+        # Registro antiguo o encabezados desordenados:
+        # se intenta leer por nombre de columna.
+        else:
+            for col in ENCABEZADOS:
+                if col in encabezados_hoja:
+                    idx = encabezados_hoja.index(col)
+
+                    if idx < len(fila):
+                        registro[col] = fila[idx]
+                    else:
+                        registro[col] = ""
+                else:
+                    registro[col] = ""
+
+            if "Hora Actividad" not in encabezados_hoja:
+                registro["Hora Actividad"] = ""
+
+        registros.append(registro)
+
+    df = pd.DataFrame(registros, columns=ENCABEZADOS)
     df = aplicar_filtro_perfil_admin(df)
 
     return df
