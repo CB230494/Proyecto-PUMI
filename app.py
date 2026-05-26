@@ -4812,15 +4812,15 @@ elif menu == "Dashboard profesional":
             def crear_tabla_logos_pdf(logo_fp, logo_min, logo_pumi):
                 tabla_logos_data = [
                     [
-                        RLImage(logo_min, width=135, height=38) if logo_min else "",
-                        RLImage(logo_fp, width=130, height=130) if logo_fp else "",
-                        RLImage(logo_pumi, width=135, height=100) if logo_pumi else ""
+                        RLImage(logo_min, width=155, height=45) if logo_min else "",
+                        RLImage(logo_fp, width=150, height=50) if logo_fp else "",
+                        RLImage(logo_pumi, width=155, height=58) if logo_pumi else ""
                     ]
                 ]
 
                 tabla_logos = Table(
                     tabla_logos_data,
-                    colWidths=[150, 170, 150]
+                    colWidths=[165, 160, 165]
                 )
 
                 tabla_logos.setStyle(
