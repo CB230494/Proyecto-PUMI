@@ -5,11 +5,11 @@ gspread
 google-auth
 openpyxl
 Pillow
-plotly
+plotly==5.24.1
 xlsxwriter
 reportlab
 folium
 streamlit-folium
 geopy
 streamlit-js-eval
-kaleido
+kaleido==0.2.1
