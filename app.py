@@ -4815,8 +4815,8 @@ elif menu == "Dashboard profesional":
                 tabla_logos_data = [
                     [
                         RLImage(logo_min, width=100, height=40) if logo_min else "",
-                        RLImage(logo_pumi, width=140, height=47) if logo_pumi else "",
-                        RLImage(logo_fp, width=180, height=68) if logo_fp else ""
+                        RLImage(logo_pumi, width=135, height=40) if logo_pumi else "",
+                        RLImage(logo_fp, width=170, height=60) if logo_fp else ""
                     ]
                 ]
 
