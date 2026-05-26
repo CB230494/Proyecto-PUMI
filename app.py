@@ -61,18 +61,11 @@ ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 
 # ======================================================
 # LOGOS INSTITUCIONALES
-# Deben estar al mismo nivel del archivo app.py
 # ======================================================
 
-LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
 LOGO_MINISTERIO = "Logo2.jpeg"
 LOGO_PUMI = "logo_pumi.jpeg"
-
-LOGOS_INSTITUCIONALES = [
-    LOGO_FUERZA_PUBLICA,
-    LOGO_MINISTERIO,
-    LOGO_PUMI
-]
+LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
 
 
 # ======================================================
@@ -100,7 +93,6 @@ CLAVES_ADMINISTRATIVAS = {
         "programas_permitidos": "TODOS",
         "descripcion": "Administrador general"
     },
-
     "DARE23": {
         "perfil": "DARE",
         "programa": "DARE",
@@ -113,7 +105,6 @@ CLAVES_ADMINISTRATIVAS = {
         "programas_permitidos": ["DARE"],
         "descripcion": "Administrador programa DARE"
     },
-
     "GREAT23": {
         "perfil": "GREAT",
         "programa": "GREAT",
@@ -126,7 +117,6 @@ CLAVES_ADMINISTRATIVAS = {
         "programas_permitidos": ["GREAT", "GREAT CAMP"],
         "descripcion": "Administrador programa GREAT"
     },
-
     "MPAS23": {
         "perfil": "MPAS",
         "programa": "MPAS",
@@ -139,7 +129,6 @@ CLAVES_ADMINISTRATIVAS = {
         "programas_permitidos": ["MPAS"],
         "descripcion": "Administrador programa MPAS"
     },
-
     "PSCC23": {
         "perfil": "PSCC",
         "programa": "PSCC",
@@ -152,7 +141,6 @@ CLAVES_ADMINISTRATIVAS = {
         "programas_permitidos": ["PSCC"],
         "descripcion": "Administrador programa PSCC"
     },
-
     "VIF23": {
         "perfil": "VIF",
         "programa": "VIF",
@@ -165,7 +153,6 @@ CLAVES_ADMINISTRATIVAS = {
         "programas_permitidos": ["VIF"],
         "descripcion": "Administrador programa VIF"
     },
-
     "POLITICA23": {
         "perfil": "POLITICA PUBLICA",
         "programa": "Política Pública",
@@ -328,7 +315,6 @@ COLOR_BLANCO = "#FFFFFF"
 COLOR_GRIS = "#F4F6F8"
 COLOR_GRIS_OSCURO = "#2F3542"
 
-# Compatibilidad con partes anteriores
 COLOR_ROJO = COLOR_DORADO
 COLOR_ROJO_OSCURO = COLOR_DORADO_OSCURO
 COLOR_ROJO_CLARO = COLOR_DORADO_CLARO
@@ -402,15 +388,15 @@ st.markdown(
     .encabezado-institucional {{
         background: #FFFFFF;
         border-radius: 22px;
-        padding: 22px 32px;
+        padding: 22px 34px;
         margin-bottom: 24px;
         box-shadow: 0px 8px 22px rgba(0,0,0,0.11);
         border-bottom: 7px solid {COLOR_DORADO};
         display: grid;
-        grid-template-columns: 1.25fr 1fr 1.25fr;
+        grid-template-columns: 1fr 1.2fr 1fr;
         align-items: center;
-        gap: 24px;
-        min-height: 145px;
+        gap: 28px;
+        min-height: 150px;
     }}
 
     .encabezado-logo-izq {{
@@ -432,21 +418,22 @@ st.markdown(
     }}
 
     .logo-ministerio-app {{
-        max-height: 62px;
-        max-width: 310px;
+        max-height: 48px;
+        max-width: 285px;
+        width: auto;
+        object-fit: contain;
+    }}
+
+    .logo-pumi-app {{
+        max-height: 128px;
+        max-width: 340px;
         width: auto;
         object-fit: contain;
     }}
 
     .logo-fp-app {{
         max-height: 112px;
-        width: auto;
-        object-fit: contain;
-    }}
-
-    .logo-pumi-app {{
-        max-height: 118px;
-        max-width: 310px;
+        max-width: 155px;
         width: auto;
         object-fit: contain;
     }}
@@ -631,15 +618,18 @@ st.markdown(
         }}
 
         .logo-ministerio-app {{
-            max-height: 52px;
+            max-height: 48px;
+            max-width: 260px;
+        }}
+
+        .logo-pumi-app {{
+            max-height: 105px;
+            max-width: 280px;
         }}
 
         .logo-fp-app {{
             max-height: 95px;
-        }}
-
-        .logo-pumi-app {{
-            max-height: 100px;
+            max-width: 135px;
         }}
     }}
 
@@ -651,14 +641,10 @@ st.markdown(
 
 # ======================================================
 # LOGO EN SIDEBAR
-# Solo se muestra el logo PUMI
+# SOLO PUMI
 # ======================================================
 
 def mostrar_logo():
-    """
-    Muestra únicamente el logo PUMI en el sidebar.
-    """
-
     logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
 
     if logo_pumi_b64:
@@ -675,32 +661,28 @@ def mostrar_logo():
 
 
 # ======================================================
-# ENCABEZADO INSTITUCIONAL SUPERIOR DE LA APP
-# Ministerio izquierda, Fuerza Pública centro, PUMI derecha
+# ENCABEZADO INSTITUCIONAL SUPERIOR
+# IZQUIERDA: MINISTERIO | CENTRO: PUMI | DERECHA: FUERZA PÚBLICA
 # ======================================================
 
 def mostrar_encabezado_institucional():
-    """
-    Encabezado superior para todas las páginas de la app.
-    """
-
     logo_min_b64 = imagen_a_base64(LOGO_MINISTERIO)
-    logo_fp_b64 = imagen_a_base64(LOGO_FUERZA_PUBLICA)
     logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
+    logo_fp_b64 = imagen_a_base64(LOGO_FUERZA_PUBLICA)
 
     img_min = (
         f'<img class="logo-ministerio-app" src="data:image/jpeg;base64,{logo_min_b64}">'
         if logo_min_b64 else ""
     )
 
-    img_fp = (
-        f'<img class="logo-fp-app" src="data:image/jpeg;base64,{logo_fp_b64}">'
-        if logo_fp_b64 else ""
-    )
-
     img_pumi = (
         f'<img class="logo-pumi-app" src="data:image/jpeg;base64,{logo_pumi_b64}">'
         if logo_pumi_b64 else ""
+    )
+
+    img_fp = (
+        f'<img class="logo-fp-app" src="data:image/jpeg;base64,{logo_fp_b64}">'
+        if logo_fp_b64 else ""
     )
 
     st.markdown(
@@ -710,10 +692,10 @@ def mostrar_encabezado_institucional():
                 {img_min}
             </div>
             <div class="encabezado-logo-centro">
-                {img_fp}
+                {img_pumi}
             </div>
             <div class="encabezado-logo-der">
-                {img_pumi}
+                {img_fp}
             </div>
         </div>
         """,
@@ -722,9 +704,7 @@ def mostrar_encabezado_institucional():
 
 
 # ======================================================
-# FUNCIÓN DE COMPATIBILIDAD
-# Para que no falle si en Parte 4 todavía existe:
-# mostrar_logos_encabezado()
+# COMPATIBILIDAD
 # ======================================================
 
 def mostrar_logos_encabezado():
