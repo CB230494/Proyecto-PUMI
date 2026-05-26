@@ -5096,87 +5096,127 @@ elif menu == "Dashboard profesional":
                         )
 
                 # ==================================================
-                # TABLA DETALLE DE REGISTROS
-                # ==================================================
+# TABLA DETALLE DE REGISTROS
+# ==================================================
 
-                if incluir_detalle_pdf:
-                    elementos.append(PageBreak())
-                    elementos.append(
-                        Paragraph("Detalle de registros", titulo)
-                    )
+if incluir_detalle_pdf:
+    elementos.append(PageBreak())
+    elementos.append(
+        Paragraph("Detalle de registros", titulo)
+    )
 
-                    columnas_detalle = [
-                        "ID",
-                        "Fecha Actividad",
-                        "Hora Actividad",
-                        "Delegación",
-                        "Programa",
-                        "Actividad",
-                        "Provincia",
-                        "Cantón",
-                        "Distrito",
-                        "Lugar",
-                        "Cantidad Participantes",
-                        "Estado Revisión"
-                    ]
+    estilo_celda = ParagraphStyle(
+        "CeldaTablaPDF",
+        parent=estilos["Normal"],
+        fontSize=5.8,
+        leading=7,
+        alignment=TA_CENTER,
+        wordWrap="CJK"
+    )
 
-                    columnas_detalle = [
-                        col for col in columnas_detalle
-                        if col in df_pdf.columns
-                    ]
+    estilo_celda_izquierda = ParagraphStyle(
+        "CeldaTablaPDFIzquierda",
+        parent=estilos["Normal"],
+        fontSize=5.8,
+        leading=7,
+        alignment=TA_JUSTIFY,
+        wordWrap="CJK"
+    )
 
-                    df_detalle = df_pdf.copy()
+    columnas_detalle = [
+        "ID",
+        "Fecha Actividad",
+        "Hora Actividad",
+        "Delegación",
+        "Programa",
+        "Actividad",
+        "Provincia",
+        "Cantón",
+        "Distrito",
+        "Lugar",
+        "Cantidad Participantes",
+        "Estado Revisión"
+    ]
 
-                    if "Fecha Actividad" in df_detalle.columns:
-                        df_detalle["Fecha Actividad"] = df_detalle[
-                            "Fecha Actividad"
-                        ].dt.strftime("%d/%m/%Y")
+    columnas_detalle = [
+        col for col in columnas_detalle
+        if col in df_pdf.columns
+    ]
 
-                    detalle = [columnas_detalle]
+    df_detalle = df_pdf.copy()
 
-                    for _, row in df_detalle[columnas_detalle].head(40).iterrows():
-                        detalle.append(
-                            [
-                                cortar_texto_pdf(row[col], 24)
-                                for col in columnas_detalle
-                            ]
-                        )
+    if "Fecha Actividad" in df_detalle.columns:
+        df_detalle["Fecha Actividad"] = df_detalle[
+            "Fecha Actividad"
+        ].dt.strftime("%d/%m/%Y")
 
-                    anchos_detalle = [
-                        25,
-                        50,
-                        35,
-                        55,
-                        55,
-                        80,
-                        45,
-                        45,
-                        45,
-                        55,
-                        45,
-                        55
-                    ]
+    detalle = [
+        [
+            Paragraph(str(col), estilo_celda)
+            for col in columnas_detalle
+        ]
+    ]
 
-                    anchos_detalle = anchos_detalle[:len(columnas_detalle)]
+    for _, row in df_detalle[columnas_detalle].head(40).iterrows():
+        fila = []
 
-                    tabla_detalle = crear_tabla_estilizada(
-                        detalle,
-                        col_widths=anchos_detalle,
-                        header_color=COLOR_AZUL,
-                        font_size=5.7
-                    )
+        for col in columnas_detalle:
+            valor = str(row[col]).replace("\n", " ").strip()
 
-                    elementos.append(tabla_detalle)
+            if col in ["Delegación", "Programa", "Actividad", "Lugar", "Estado Revisión"]:
+                fila.append(
+                    Paragraph(valor, estilo_celda_izquierda)
+                )
+            else:
+                fila.append(
+                    Paragraph(valor, estilo_celda)
+                )
 
-                    if len(df_detalle) > 40:
-                        elementos.append(Spacer(1, 10))
-                        elementos.append(
-                            Paragraph(
-                                f"Nota: se muestran los primeros 40 registros de un total de {len(df_detalle)} registros filtrados.",
-                                texto
-                            )
-                        )
+        detalle.append(fila)
 
+    anchos_detalle = [
+        22,   # ID
+        48,   # Fecha
+        35,   # Hora
+        58,   # Delegación
+        60,   # Programa
+        85,   # Actividad
+        45,   # Provincia
+        45,   # Cantón
+        45,   # Distrito
+        65,   # Lugar
+        42,   # Participantes
+        55    # Estado
+    ]
+
+    anchos_detalle = anchos_detalle[:len(columnas_detalle)]
+
+    tabla_detalle = crear_tabla_estilizada(
+        detalle,
+        col_widths=anchos_detalle,
+        header_color=COLOR_AZUL,
+        font_size=5.8
+    )
+
+    tabla_detalle.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+            ]
+        )
+    )
+
+    elementos.append(tabla_detalle)
+
+    if len(df_detalle) > 40:
+        elementos.append(Spacer(1, 10))
+        elementos.append(
+            Paragraph(
+                f"Nota: se muestran los primeros 40 registros de un total de {len(df_detalle)} registros filtrados.",
+                texto
+            )
+        )
                 # ==================================================
                 # PÁGINA FINAL INSTITUCIONAL
                 # ==================================================
