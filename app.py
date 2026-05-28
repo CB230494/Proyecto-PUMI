@@ -121,11 +121,13 @@ CLAVES_USUARIO_PROGRAMA = {
 
 # ======================================================
 # ENCABEZADOS OFICIALES
+# ORDEN ACTUALIZADO:
+# Dirección Regional → Delegación → Responde a → Programa → Actividad
 # ======================================================
 
 ENCABEZADOS = [
     "ID", "Fecha Registro", "Fecha Actividad", "Hora Actividad",
-    "Dirección Regional", "Delegación", "Programa", "Actividad",
+    "Dirección Regional", "Delegación", "Responde a", "Programa", "Actividad",
     "Provincia", "Cantón", "Distrito", "Tipo Lugar", "Lugar",
     "Centro Educativo", "Código Presupuestario", "Dirección Mapa",
     "Latitud", "Longitud", "Responsable", "Cantidad Participantes",
@@ -629,17 +631,45 @@ def inicializar_hoja():
         st.exception(e)
         st.stop()
 
-    # Si la hoja está vacía, agrega encabezados oficiales
     if len(datos) == 0:
         hoja.append_row(ENCABEZADOS)
         return hoja
 
-    primera_fila = datos[0]
+    encabezados_actuales = datos[0]
 
-    # Si la primera fila no corresponde a encabezados oficiales,
-    # se inserta una fila de encabezados arriba sin borrar datos existentes.
-    if primera_fila != ENCABEZADOS:
-        hoja.insert_row(ENCABEZADOS, index=1)
+    if encabezados_actuales == ENCABEZADOS:
+        return hoja
+
+    encabezados_normalizados = [
+        normalizar_texto(col) for col in encabezados_actuales
+    ]
+
+    encabezados_oficiales_normalizados = [
+        normalizar_texto(col) for col in ENCABEZADOS
+    ]
+
+    # Si la hoja ya tiene encabezados, pero le falta "Responde a",
+    # se actualiza únicamente la fila 1 con el orden oficial.
+    # No borra datos existentes.
+    if "ID" in encabezados_actuales:
+        try:
+            hoja.update(
+                values=[ENCABEZADOS],
+                range_name="A1"
+            )
+        except Exception as e:
+            st.error("No se pudieron actualizar los encabezados oficiales.")
+            st.exception(e)
+            st.stop()
+
+    # Si la primera fila no parece encabezado, inserta encabezados arriba.
+    elif encabezados_normalizados != encabezados_oficiales_normalizados:
+        try:
+            hoja.insert_row(ENCABEZADOS, index=1)
+        except Exception as e:
+            st.error("No se pudieron insertar los encabezados oficiales.")
+            st.exception(e)
+            st.stop()
 
     return hoja
 
@@ -722,10 +752,44 @@ def aplicar_filtro_perfil_admin(df):
 
 
 # ======================================================
+# FUNCIONES PARA RESPONDE A
+# Maneja celdas divididas por barra inclinada /
+# ======================================================
+
+def separar_responde_a(valor):
+    if pd.isna(valor):
+        return []
+
+    texto = str(valor).strip()
+
+    if texto == "" or texto.lower() == "nan":
+        return []
+
+    partes = texto.split("/")
+
+    return [
+        parte.strip()
+        for parte in partes
+        if parte.strip() != ""
+    ]
+
+
+def fila_responde_a_contiene(valor_celda, responde_a_seleccionado):
+    opciones = separar_responde_a(valor_celda)
+
+    opciones_norm = [
+        normalizar_texto(opcion)
+        for opcion in opciones
+    ]
+
+    return normalizar_texto(responde_a_seleccionado) in opciones_norm
+
+
+# ======================================================
 # BASE DATOS IMPORTANTES
 # Provincia - Cantón - Distrito
 # Dirección Regional - Delegación
-# Programa - Actividad Realizada
+# Responde a - Programa - Actividad Realizada
 # ======================================================
 
 @st.cache_data
@@ -736,6 +800,7 @@ def cargar_datos_importantes():
         "Distrito",
         "Dirección Regional",
         "Delegación",
+        "Responde a",
         "Actividad Realizada",
         "Programa"
     ]
@@ -771,6 +836,11 @@ def cargar_datos_importantes():
             ["Delegación", "Delegacion"]
         )
 
+        col_responde_a = obtener_columna_por_nombre(
+            df_original,
+            ["Responde a", "Responde a:", "Responde", "Responda a", "Responda a:"]
+        )
+
         col_actividad = obtener_columna_por_nombre(
             df_original,
             ["Actividad Realizada", "Actividad"]
@@ -787,13 +857,16 @@ def cargar_datos_importantes():
             col_distrito,
             col_region,
             col_delegacion,
+            col_responde_a,
             col_actividad,
             col_programa
         ]
 
         if not all(columnas_requeridas):
             st.warning(
-                "El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas."
+                "El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas. "
+                "Debe incluir: Provincia, Cantón, Distrito, Dirección Regional, Delegación, "
+                "Responde a, Actividad Realizada y Programa."
             )
             return pd.DataFrame(columns=columnas_base)
 
@@ -804,6 +877,7 @@ def cargar_datos_importantes():
                 col_distrito,
                 col_region,
                 col_delegacion,
+                col_responde_a,
                 col_actividad,
                 col_programa
             ]
@@ -822,8 +896,29 @@ def cargar_datos_importantes():
         df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
         df["Región_Normalizada"] = df["Dirección Regional"].apply(normalizar_texto)
         df["Delegación_Normalizada"] = df["Delegación"].apply(normalizar_texto)
+        df["Responde_a_Normalizado"] = df["Responde a"].apply(normalizar_texto)
         df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(normalizar_texto)
         df["Programa_Normalizado"] = df["Programa"].apply(normalizar_texto)
+
+        # Se crea una versión expandida para los casos donde Responde a viene con "/".
+        # Ejemplo: Plan A / Plan B queda como dos filas lógicas.
+        filas_expandidas = []
+
+        for _, fila in df.iterrows():
+            opciones_responde = separar_responde_a(fila["Responde a"])
+
+            if not opciones_responde:
+                opciones_responde = [fila["Responde a"]]
+
+            for opcion in opciones_responde:
+                nueva_fila = fila.copy()
+                nueva_fila["Responde a"] = opcion
+                nueva_fila["Responde_a_Normalizado"] = normalizar_texto(opcion)
+                filas_expandidas.append(nueva_fila)
+
+        if filas_expandidas:
+            df = pd.DataFrame(filas_expandidas)
+            df = df.drop_duplicates()
 
         return df
 
@@ -861,6 +956,84 @@ def obtener_delegaciones_por_region(region):
 
     return sorted(delegaciones)
 
+
+# ======================================================
+# NUEVA CASCADA:
+# Responde a → Programa → Actividad realizada
+# ======================================================
+
+def obtener_responde_a_datos():
+    df = cargar_datos_importantes()
+
+    if df.empty or "Responde a" not in df.columns:
+        return []
+
+    responde_a = df["Responde a"].dropna().unique().tolist()
+    responde_a = [x for x in responde_a if str(x).strip() != ""]
+
+    return sorted(responde_a)
+
+
+def obtener_programas_por_responde_a(responde_a):
+    df = cargar_datos_importantes()
+
+    if df.empty or not responde_a:
+        return obtener_programas_datos()
+
+    responde_norm = normalizar_texto(responde_a)
+
+    programas = df[
+        df["Responde_a_Normalizado"] == responde_norm
+    ]["Programa"].dropna().unique().tolist()
+
+    programas = [x for x in programas if str(x).strip() != ""]
+
+    if not programas:
+        return []
+
+    programas_limpios = []
+
+    for programa in programas:
+        if normalizar_texto(programa) == "GREAT CAMP":
+            if "GREAT" not in programas_limpios:
+                programas_limpios.append("GREAT")
+        elif programa not in programas_limpios:
+            programas_limpios.append(programa)
+
+    orden_oficial = [p for p in PROGRAMAS if p in programas_limpios]
+    extras = sorted([p for p in programas_limpios if p not in orden_oficial])
+
+    return orden_oficial + extras
+
+
+def obtener_actividades_por_responde_a_programa(responde_a, programa):
+    df = cargar_datos_importantes()
+
+    if df.empty or not responde_a or not programa:
+        return []
+
+    responde_norm = normalizar_texto(responde_a)
+    programa_norm = normalizar_texto(programa)
+
+    if programa_norm == "GREAT":
+        actividades = df[
+            (df["Responde_a_Normalizado"] == responde_norm) &
+            (df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"]))
+        ]["Actividad Realizada"].dropna().unique().tolist()
+    else:
+        actividades = df[
+            (df["Responde_a_Normalizado"] == responde_norm) &
+            (df["Programa_Normalizado"] == programa_norm)
+        ]["Actividad Realizada"].dropna().unique().tolist()
+
+    actividades = [x for x in actividades if str(x).strip() != ""]
+
+    return sorted(actividades)
+
+
+# ======================================================
+# FUNCIONES ANTERIORES CONSERVADAS COMO RESPALDO
+# ======================================================
 
 def obtener_programas_datos():
     df = cargar_datos_importantes()
@@ -1859,7 +2032,7 @@ if menu == "Inicio":
         """,
         unsafe_allow_html=True
     )
-    # ======================================================
+# ======================================================
 # PARTE 5 DE 12
 # REGISTRO DE ACTIVIDADES
 # ======================================================
@@ -1933,14 +2106,28 @@ elif menu == "Registrar actividad":
         )
 
     with col2:
-        programas_lista = obtener_programas_datos()
+        responde_a_lista = obtener_responde_a_datos()
+
+        responde_a = st.selectbox(
+            "Responde a",
+            responde_a_lista
+            if responde_a_lista
+            else ["Sin datos disponibles"]
+        )
+
+        programas_lista = obtener_programas_por_responde_a(responde_a)
 
         programa = st.selectbox(
             "Programa",
-            programas_lista if programas_lista else PROGRAMAS
+            programas_lista
+            if programas_lista
+            else ["Sin datos disponibles"]
         )
 
-        actividades_filtradas = obtener_actividades_por_programa(programa)
+        actividades_filtradas = obtener_actividades_por_responde_a_programa(
+            responde_a,
+            programa
+        )
 
         actividad = st.selectbox(
             "Actividad realizada",
@@ -2358,12 +2545,13 @@ elif menu == "Registrar actividad":
         if (
             not delegacion
             or delegacion == "Sin datos disponibles"
-            or actividad == "Sin datos disponibles"
+            or responde_a == "Sin datos disponibles"
             or programa == "Sin datos disponibles"
+            or actividad == "Sin datos disponibles"
             or not responsable
         ):
             st.warning(
-                "Debe completar al menos Delegación, Programa, "
+                "Debe completar al menos Delegación, Responde a, Programa, "
                 "Actividad realizada y Funcionario responsable."
             )
 
@@ -2387,6 +2575,7 @@ elif menu == "Registrar actividad":
                 "Hora Actividad": hora_actividad.strftime("%H:%M"),
                 "Dirección Regional": direccion_regional,
                 "Delegación": delegacion,
+                "Responde a": responde_a,
                 "Programa": programa,
                 "Actividad": actividad,
                 "Provincia": provincia,
@@ -2423,7 +2612,7 @@ elif menu == "Registrar actividad":
             st.session_state.longitud_registro = ""
 
             st.success(f"Registro guardado correctamente con el ID #{nuevo_id}.")
-            # ======================================================
+# ======================================================
 # PARTE 6 DE 12
 # SEGUIMIENTO DE REGISTROS CON CLAVE POR PROGRAMA
 # ======================================================
@@ -2443,10 +2632,6 @@ elif menu == "Seguimiento de registros":
         """,
         unsafe_allow_html=True
     )
-
-    # ======================================================
-    # CONTROL DE ACCESO POR PROGRAMA
-    # ======================================================
 
     programa_consulta = st.selectbox(
         "Seleccione el programa a consultar",
@@ -2506,9 +2691,8 @@ elif menu == "Seguimiento de registros":
         else:
             df_seguimiento = limpiar_dataframe_para_metricas(df)
 
-            # ======================================================
-            # APLICAR FILTRO DE PERMISOS SEGÚN CLAVE
-            # ======================================================
+            if "Responde a" not in df_seguimiento.columns:
+                df_seguimiento["Responde a"] = ""
 
             if programas_permitidos_usuario != "TODOS":
                 df_seguimiento = df_seguimiento[
@@ -2538,6 +2722,14 @@ elif menu == "Seguimiento de registros":
             with col1:
                 filtro_id = st.text_input("Buscar por ID")
 
+                filtro_responde_a = st.selectbox(
+                    "Responde a",
+                    ["Todos"] + sorted(
+                        df_seguimiento["Responde a"].dropna().astype(str).unique().tolist()
+                    )
+                )
+
+            with col2:
                 filtro_delegacion = st.selectbox(
                     "Delegación",
                     ["Todas"] + sorted(
@@ -2545,7 +2737,6 @@ elif menu == "Seguimiento de registros":
                     )
                 )
 
-            with col2:
                 filtro_estado = st.selectbox(
                     "Estado de revisión",
                     ["Todos"] + sorted(
@@ -2553,6 +2744,7 @@ elif menu == "Seguimiento de registros":
                     )
                 )
 
+            with col3:
                 filtro_provincia = st.selectbox(
                     "Provincia",
                     ["Todas"] + sorted(
@@ -2560,7 +2752,6 @@ elif menu == "Seguimiento de registros":
                     )
                 )
 
-            with col3:
                 filtro_distrito = st.selectbox(
                     "Distrito",
                     ["Todos"] + sorted(
@@ -2582,6 +2773,11 @@ elif menu == "Seguimiento de registros":
                         case=False,
                         na=False
                     )
+                ]
+
+            if filtro_responde_a != "Todos":
+                df_usuario = df_usuario[
+                    df_usuario["Responde a"] == filtro_responde_a
                 ]
 
             if filtro_delegacion != "Todas":
@@ -2721,6 +2917,7 @@ elif menu == "Seguimiento de registros":
                 "Fecha Actividad",
                 "Hora Actividad",
                 "Delegación",
+                "Responde a",
                 "Programa",
                 "Actividad",
                 "Provincia",
@@ -2763,7 +2960,7 @@ elif menu == "Seguimiento de registros":
                 file_name="seguimiento_registros_pumi.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-            # ======================================================
+# ======================================================
 # PARTE 7 DE 12
 # CONSULTA ADMINISTRATIVA, FILTROS, MAPA Y TABLA GENERAL
 # ======================================================
@@ -2783,6 +2980,9 @@ elif menu == "Consulta / edición administrativa":
 
     else:
         df_consulta = limpiar_dataframe_para_metricas(df)
+
+        if "Responde a" not in df_consulta.columns:
+            df_consulta["Responde a"] = ""
 
         st.markdown(
             """
@@ -2813,6 +3013,13 @@ elif menu == "Consulta / edición administrativa":
         with col1:
             filtro_id_admin = st.text_input("Buscar por ID")
 
+            filtro_responde_a_admin = st.selectbox(
+                "Filtrar por Responde a",
+                ["Todos"] + sorted(
+                    df_consulta["Responde a"].dropna().astype(str).unique().tolist()
+                )
+            )
+
             filtro_programa = st.selectbox(
                 "Filtrar por programa",
                 ["Todos"] + sorted(
@@ -2820,6 +3027,7 @@ elif menu == "Consulta / edición administrativa":
                 )
             )
 
+        with col2:
             filtro_delegacion = st.selectbox(
                 "Filtrar por delegación",
                 ["Todas"] + sorted(
@@ -2827,7 +3035,6 @@ elif menu == "Consulta / edición administrativa":
                 )
             )
 
-        with col2:
             filtro_region = st.selectbox(
                 "Filtrar por región",
                 ["Todas"] + ordenar_regiones_numericamente(
@@ -2848,6 +3055,7 @@ elif menu == "Consulta / edición administrativa":
                 )
             )
 
+        with col3:
             filtro_distrito = st.selectbox(
                 "Filtrar por distrito",
                 ["Todos"] + sorted(
@@ -2855,7 +3063,6 @@ elif menu == "Consulta / edición administrativa":
                 )
             )
 
-        with col3:
             filtro_estado = st.selectbox(
                 "Filtrar por estado de revisión",
                 ["Todos"] + sorted(
@@ -2881,6 +3088,11 @@ elif menu == "Consulta / edición administrativa":
                     case=False,
                     na=False
                 )
+            ]
+
+        if filtro_responde_a_admin != "Todos":
+            df_filtrado = df_filtrado[
+                df_filtrado["Responde a"] == filtro_responde_a_admin
             ]
 
         if filtro_programa != "Todos":
@@ -3050,13 +3262,56 @@ elif menu == "Consulta / edición administrativa":
                 "%d/%m/%Y"
             )
 
+        columnas_admin = [
+            "ID",
+            "Fecha Registro",
+            "Fecha Actividad",
+            "Hora Actividad",
+            "Dirección Regional",
+            "Delegación",
+            "Responde a",
+            "Programa",
+            "Actividad",
+            "Provincia",
+            "Cantón",
+            "Distrito",
+            "Tipo Lugar",
+            "Lugar",
+            "Centro Educativo",
+            "Código Presupuestario",
+            "Dirección Mapa",
+            "Latitud",
+            "Longitud",
+            "Responsable",
+            "Cantidad Participantes",
+            "Cantidad Hombres",
+            "Cantidad Mujeres",
+            "Edad 10 a 18",
+            "Edad 19 a 30",
+            "Edad 31 a 45",
+            "Edad 46 en adelante",
+            "Instituciones Participantes",
+            "Plan Estratégico Relacionado",
+            "Número de Referencia",
+            "Número de Expediente Referencia",
+            "Observaciones",
+            "Estado Revisión",
+            "Observación de Revisión",
+            "Usuario Registra"
+        ]
+
+        columnas_admin_existentes = [
+            col for col in columnas_admin
+            if col in df_mostrar.columns
+        ]
+
         st.dataframe(
-            df_mostrar,
+            df_mostrar[columnas_admin_existentes],
             use_container_width=True,
             hide_index=True
         )
 
-        excel = convertir_excel(df_mostrar)
+        excel = convertir_excel(df_mostrar[columnas_admin_existentes])
 
         st.download_button(
             label="Descargar registros administrativos en Excel",
@@ -3344,7 +3599,7 @@ elif menu == "Consulta / edición administrativa":
                             st.rerun()
                         else:
                             st.error("No se encontró el registro para actualizar.")
-                            # ======================================================
+# ======================================================
 # PARTE 9 DE 12
 # EDICIÓN ADMINISTRATIVA COMPLETA Y ELIMINACIÓN
 # ======================================================
@@ -3380,10 +3635,15 @@ elif menu == "Consulta / edición administrativa":
                 else:
                     fecha_actividad_actual = fecha_actividad_actual.date()
 
-                hora_actual_texto = str(registro_actual.get("Hora Actividad", "08:00")).strip()
+                hora_actual_texto = str(
+                    registro_actual.get("Hora Actividad", "08:00")
+                ).strip()
 
                 try:
-                    hora_actual = datetime.strptime(hora_actual_texto, "%H:%M").time()
+                    hora_actual = datetime.strptime(
+                        hora_actual_texto,
+                        "%H:%M"
+                    ).time()
                 except Exception:
                     hora_actual = time(8, 0)
 
@@ -3416,7 +3676,9 @@ elif menu == "Consulta / edición administrativa":
                         if region_actual in opciones_region else 0
                     )
 
-                    delegaciones_filtradas = obtener_delegaciones_por_region(nueva_region)
+                    delegaciones_filtradas = obtener_delegaciones_por_region(
+                        nueva_region
+                    )
 
                     delegacion_actual = registro_actual.get("Delegación", "")
                     opciones_delegacion = (
@@ -3430,38 +3692,78 @@ elif menu == "Consulta / edición administrativa":
 
                     nueva_delegacion = st.selectbox(
                         "Delegación",
-                        opciones_delegacion if opciones_delegacion else ["Sin datos disponibles"],
+                        opciones_delegacion
+                        if opciones_delegacion
+                        else ["Sin datos disponibles"],
                         index=opciones_delegacion.index(delegacion_actual)
                         if delegacion_actual in opciones_delegacion else 0
                     )
 
                 with col2:
-                    programas_lista = obtener_programas_datos()
+                    responde_a_lista = obtener_responde_a_datos()
+
+                    responde_a_actual = registro_actual.get("Responde a", "")
+                    opciones_responde_a = (
+                        responde_a_lista
+                        if responde_a_lista
+                        else [responde_a_actual]
+                    )
+
+                    if responde_a_actual and responde_a_actual not in opciones_responde_a:
+                        opciones_responde_a = [responde_a_actual] + opciones_responde_a
+
+                    nuevo_responde_a = st.selectbox(
+                        "Responde a",
+                        opciones_responde_a
+                        if opciones_responde_a
+                        else ["Sin datos disponibles"],
+                        index=opciones_responde_a.index(responde_a_actual)
+                        if responde_a_actual in opciones_responde_a else 0
+                    )
+
+                    programas_filtrados = obtener_programas_por_responde_a(
+                        nuevo_responde_a
+                    )
 
                     programa_actual = registro_actual.get("Programa", "")
-                    opciones_programa = programas_lista if programas_lista else PROGRAMAS
+                    opciones_programa = (
+                        programas_filtrados
+                        if programas_filtrados
+                        else obtener_programas_datos()
+                    )
 
                     if programa_actual and programa_actual not in opciones_programa:
                         opciones_programa = [programa_actual] + opciones_programa
 
                     nuevo_programa = st.selectbox(
                         "Programa",
-                        opciones_programa,
+                        opciones_programa
+                        if opciones_programa
+                        else ["Sin datos disponibles"],
                         index=opciones_programa.index(programa_actual)
                         if programa_actual in opciones_programa else 0
                     )
 
-                    actividades_filtradas = obtener_actividades_por_programa(nuevo_programa)
+                    actividades_filtradas = obtener_actividades_por_responde_a_programa(
+                        nuevo_responde_a,
+                        nuevo_programa
+                    )
 
                     actividad_actual = registro_actual.get("Actividad", "")
-                    opciones_actividad = actividades_filtradas if actividades_filtradas else [actividad_actual]
+                    opciones_actividad = (
+                        actividades_filtradas
+                        if actividades_filtradas
+                        else [actividad_actual]
+                    )
 
                     if actividad_actual and actividad_actual not in opciones_actividad:
                         opciones_actividad = [actividad_actual] + opciones_actividad
 
                     nueva_actividad = st.selectbox(
                         "Actividad realizada",
-                        opciones_actividad if opciones_actividad else ["Sin datos disponibles"],
+                        opciones_actividad
+                        if opciones_actividad
+                        else ["Sin datos disponibles"],
                         index=opciones_actividad.index(actividad_actual)
                         if actividad_actual in opciones_actividad else 0
                     )
@@ -3597,7 +3899,11 @@ elif menu == "Consulta / edición administrativa":
                         value=int(edad_46_actual)
                     )
 
-                suma_sexo_editada = nueva_cantidad_hombres + nueva_cantidad_mujeres
+                suma_sexo_editada = (
+                    nueva_cantidad_hombres
+                    + nueva_cantidad_mujeres
+                )
+
                 suma_edades_editada = (
                     nueva_edad_10_18
                     + nueva_edad_19_30
@@ -3646,17 +3952,25 @@ elif menu == "Consulta / edición administrativa":
                     )
 
                 with col4:
-                    cantones_filtrados = obtener_cantones_por_provincia(nueva_provincia)
+                    cantones_filtrados = obtener_cantones_por_provincia(
+                        nueva_provincia
+                    )
 
                     canton_actual = registro_actual.get("Cantón", "")
-                    opciones_canton = cantones_filtrados if cantones_filtrados else [canton_actual]
+                    opciones_canton = (
+                        cantones_filtrados
+                        if cantones_filtrados
+                        else [canton_actual]
+                    )
 
                     if canton_actual and canton_actual not in opciones_canton:
                         opciones_canton = [canton_actual] + opciones_canton
 
                     nuevo_canton = st.selectbox(
                         "Cantón",
-                        opciones_canton if opciones_canton else ["Sin datos disponibles"],
+                        opciones_canton
+                        if opciones_canton
+                        else ["Sin datos disponibles"],
                         index=opciones_canton.index(canton_actual)
                         if canton_actual in opciones_canton else 0
                     )
@@ -3668,14 +3982,20 @@ elif menu == "Consulta / edición administrativa":
                     )
 
                     distrito_actual = registro_actual.get("Distrito", "")
-                    opciones_distrito = distritos_filtrados if distritos_filtrados else [distrito_actual]
+                    opciones_distrito = (
+                        distritos_filtrados
+                        if distritos_filtrados
+                        else [distrito_actual]
+                    )
 
                     if distrito_actual and distrito_actual not in opciones_distrito:
                         opciones_distrito = [distrito_actual] + opciones_distrito
 
                     nuevo_distrito = st.selectbox(
                         "Distrito",
-                        opciones_distrito if opciones_distrito else ["Sin datos disponibles"],
+                        opciones_distrito
+                        if opciones_distrito
+                        else ["Sin datos disponibles"],
                         index=opciones_distrito.index(distrito_actual)
                         if distrito_actual in opciones_distrito else 0
                     )
@@ -3703,7 +4023,10 @@ elif menu == "Consulta / edición administrativa":
 
                 lugar_editado = ""
                 centro_editado = ""
-                codigo_presupuestario_editado = registro_actual.get("Código Presupuestario", "")
+                codigo_presupuestario_editado = registro_actual.get(
+                    "Código Presupuestario",
+                    ""
+                )
 
                 if tipo_lugar_editado == "Centro educativo":
 
@@ -3715,9 +4038,13 @@ elif menu == "Consulta / edición administrativa":
                         centro_mostrar_actual = centro_actual
 
                         for centro_opcion in opciones_centros:
-                            nombre_tmp, codigo_tmp = obtener_datos_centro_educativo(centro_opcion)
+                            nombre_tmp, codigo_tmp = obtener_datos_centro_educativo(
+                                centro_opcion
+                            )
 
-                            if normalizar_texto(nombre_tmp) == normalizar_texto(centro_actual):
+                            if normalizar_texto(nombre_tmp) == normalizar_texto(
+                                centro_actual
+                            ):
                                 centro_mostrar_actual = centro_opcion
                                 break
 
@@ -3833,7 +4160,9 @@ elif menu == "Consulta / edición administrativa":
                 nuevo_estado = st.selectbox(
                     "Estado Revisión",
                     ESTADOS_REVISION,
-                    index=ESTADOS_REVISION.index(registro_actual.get("Estado Revisión", ""))
+                    index=ESTADOS_REVISION.index(
+                        registro_actual.get("Estado Revisión", "")
+                    )
                     if registro_actual.get("Estado Revisión", "") in ESTADOS_REVISION else 0
                 )
 
@@ -3846,7 +4175,17 @@ elif menu == "Consulta / edición administrativa":
 
                 if st.button("Guardar cambios completos"):
 
-                    if nueva_cantidad > 0 and suma_sexo_editada != nueva_cantidad:
+                    if (
+                        nueva_delegacion == "Sin datos disponibles"
+                        or nuevo_responde_a == "Sin datos disponibles"
+                        or nuevo_programa == "Sin datos disponibles"
+                        or nueva_actividad == "Sin datos disponibles"
+                    ):
+                        st.warning(
+                            "Debe completar Delegación, Responde a, Programa y Actividad realizada."
+                        )
+
+                    elif nueva_cantidad > 0 and suma_sexo_editada != nueva_cantidad:
                         st.warning(
                             "La suma de hombres y mujeres debe coincidir con la cantidad total de participantes."
                         )
@@ -3864,6 +4203,7 @@ elif menu == "Consulta / edición administrativa":
                             "Hora Actividad": hora_actividad_editada.strftime("%H:%M"),
                             "Dirección Regional": nueva_region,
                             "Delegación": nueva_delegacion,
+                            "Responde a": nuevo_responde_a,
                             "Programa": nuevo_programa,
                             "Actividad": nueva_actividad,
                             "Provincia": nueva_provincia,
@@ -3927,7 +4267,7 @@ elif menu == "Consulta / edición administrativa":
                             st.error("No se encontró el registro para eliminar.")
                     else:
                         st.warning("Debe marcar la confirmación antes de eliminar.")
-                        # ======================================================
+# ======================================================
 # PARTE 10 DE 12
 # DASHBOARD PROFESIONAL: FILTROS, MÉTRICAS, MAPA Y GRÁFICOS
 # ======================================================
@@ -3948,13 +4288,16 @@ elif menu == "Dashboard profesional":
     else:
         df_dash = limpiar_dataframe_para_metricas(df)
 
+        if "Responde a" not in df_dash.columns:
+            df_dash["Responde a"] = ""
+
         st.markdown(
             """
             <div class="card-azul">
                 <div class="texto-pumi">
-                    Panel administrativo para analizar registros por programa, delegación,
-                    provincia, estado de revisión, participantes, sexo, rangos de edad,
-                    comportamiento mensual y ubicación geográfica.
+                    Panel administrativo para analizar registros por responde a, programa,
+                    delegación, provincia, estado de revisión, participantes, sexo,
+                    rangos de edad, comportamiento mensual y ubicación geográfica.
                 </div>
             </div>
             """,
@@ -3977,6 +4320,14 @@ elif menu == "Dashboard profesional":
         col1, col2, col3 = st.columns(3)
 
         with col1:
+            filtro_responde_a_dash = st.selectbox(
+                "Responde a",
+                ["Todos"] + sorted(
+                    df_dash["Responde a"].dropna().astype(str).unique().tolist()
+                ),
+                key="dash_responde_a"
+            )
+
             filtro_programa_dash = st.selectbox(
                 "Programa",
                 ["Todos"] + sorted(
@@ -3985,6 +4336,7 @@ elif menu == "Dashboard profesional":
                 key="dash_programa"
             )
 
+        with col2:
             filtro_delegacion_dash = st.selectbox(
                 "Delegación",
                 ["Todas"] + sorted(
@@ -3993,7 +4345,6 @@ elif menu == "Dashboard profesional":
                 key="dash_delegacion"
             )
 
-        with col2:
             filtro_region_dash = st.selectbox(
                 "Región",
                 ["Todas"] + ordenar_regiones_numericamente(
@@ -4008,6 +4359,7 @@ elif menu == "Dashboard profesional":
                 key="dash_region"
             )
 
+        with col3:
             filtro_provincia_dash = st.selectbox(
                 "Provincia",
                 ["Todas"] + sorted(
@@ -4016,7 +4368,6 @@ elif menu == "Dashboard profesional":
                 key="dash_provincia"
             )
 
-        with col3:
             filtro_estado_dash = st.selectbox(
                 "Estado de revisión",
                 ["Todos"] + sorted(
@@ -4031,6 +4382,11 @@ elif menu == "Dashboard profesional":
             )
 
         df_filtrado = df_dash.copy()
+
+        if filtro_responde_a_dash != "Todos":
+            df_filtrado = df_filtrado[
+                df_filtrado["Responde a"] == filtro_responde_a_dash
+            ]
 
         if filtro_programa_dash != "Todos":
             df_filtrado = df_filtrado[
@@ -4097,6 +4453,7 @@ elif menu == "Dashboard profesional":
         st.markdown("### Indicadores generales")
 
         total_registros = len(df_filtrado)
+        total_responde_a = df_filtrado["Responde a"].nunique()
         total_programas = df_filtrado["Programa"].nunique()
         total_delegaciones = df_filtrado["Delegación"].nunique()
 
@@ -4154,55 +4511,64 @@ elif menu == "Dashboard profesional":
         colm1, colm2, colm3, colm4 = st.columns(4)
 
         colm1.metric("Registros", total_registros)
-        colm2.metric("Programas", total_programas)
-        colm3.metric("Delegaciones", total_delegaciones)
-        colm4.metric("Participantes", total_participantes)
+        colm2.metric("Responde a", total_responde_a)
+        colm3.metric("Programas", total_programas)
+        colm4.metric("Delegaciones", total_delegaciones)
 
         colm5, colm6, colm7, colm8 = st.columns(4)
 
-        colm5.metric(
+        colm5.metric("Participantes", total_participantes)
+
+        colm6.metric(
             "Hombres",
             f"{total_hombres} ({porcentaje(total_hombres, total_participantes)})"
         )
-        colm6.metric(
+
+        colm7.metric(
             "Mujeres",
             f"{total_mujeres} ({porcentaje(total_mujeres, total_participantes)})"
         )
-        colm7.metric(
+
+        colm8.metric(
             "Edad 10 a 18",
             f"{edad_10_18} ({porcentaje(edad_10_18, total_participantes)})"
-        )
-        colm8.metric(
-            "Edad 19 a 30",
-            f"{edad_19_30} ({porcentaje(edad_19_30, total_participantes)})"
         )
 
         colm9, colm10, colm11, colm12 = st.columns(4)
 
         colm9.metric(
+            "Edad 19 a 30",
+            f"{edad_19_30} ({porcentaje(edad_19_30, total_participantes)})"
+        )
+
+        colm10.metric(
             "Edad 31 a 45",
             f"{edad_31_45} ({porcentaje(edad_31_45, total_participantes)})"
         )
-        colm10.metric(
+
+        colm11.metric(
             "Edad 46 en adelante",
             f"{edad_46} ({porcentaje(edad_46, total_participantes)})"
         )
-        colm11.metric(
+
+        colm12.metric(
             "Aprobados",
             f"{total_aprobados} ({porcentaje(total_aprobados, total_registros)})"
         )
-        colm12.metric(
+
+        colm13, colm14, colm15 = st.columns(3)
+
+        colm13.metric(
             "Pendientes",
             f"{total_pendientes} ({porcentaje(total_pendientes, total_registros)})"
         )
 
-        colm13, colm14 = st.columns(2)
-
-        colm13.metric(
+        colm14.metric(
             "Con observaciones",
             f"{total_observaciones} ({porcentaje(total_observaciones, total_registros)})"
         )
-        colm14.metric(
+
+        colm15.metric(
             "Rechazados",
             f"{total_rechazados} ({porcentaje(total_rechazados, total_registros)})"
         )
@@ -4235,6 +4601,44 @@ elif menu == "Dashboard profesional":
             colg1, colg2 = st.columns(2)
 
             with colg1:
+                st.markdown("### Actividades por Responde a")
+
+                data_responde_a = df_filtrado.groupby(
+                    "Responde a",
+                    as_index=False
+                )["ID"].count()
+
+                data_responde_a["Porcentaje"] = data_responde_a["ID"].apply(
+                    lambda x: porcentaje(x, data_responde_a["ID"].sum())
+                )
+
+                data_responde_a["Etiqueta"] = data_responde_a.apply(
+                    lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
+                    axis=1
+                )
+
+                fig_responde_a = px.bar(
+                    data_responde_a,
+                    x="Responde a",
+                    y="ID",
+                    text="Etiqueta",
+                    labels={"ID": "Cantidad de actividades"},
+                    color="Responde a",
+                    template="plotly_white"
+                )
+
+                fig_responde_a.update_layout(
+                    showlegend=False,
+                    title_x=0.5,
+                    xaxis_tickangle=-35
+                )
+
+                st.plotly_chart(
+                    fig_responde_a,
+                    use_container_width=True
+                )
+
+            with colg2:
                 st.markdown("### Actividades por programa")
 
                 data_programa = df_filtrado.groupby(
@@ -4271,7 +4675,9 @@ elif menu == "Dashboard profesional":
                     use_container_width=True
                 )
 
-            with colg2:
+            colg3, colg4 = st.columns(2)
+
+            with colg3:
                 st.markdown("### Participantes por programa")
 
                 data_participantes = df_filtrado.groupby(
@@ -4315,9 +4721,7 @@ elif menu == "Dashboard profesional":
                     use_container_width=True
                 )
 
-            colg3, colg4 = st.columns(2)
-
-            with colg3:
+            with colg4:
                 st.markdown("### Estado de revisión")
 
                 fig_estado = px.pie(
@@ -4336,42 +4740,41 @@ elif menu == "Dashboard profesional":
                     use_container_width=True
                 )
 
-            with colg4:
-                st.markdown("### Actividades por provincia")
+            st.markdown("### Actividades por provincia")
 
-                data_provincia = df_filtrado.groupby(
-                    "Provincia",
-                    as_index=False
-                )["ID"].count()
+            data_provincia = df_filtrado.groupby(
+                "Provincia",
+                as_index=False
+            )["ID"].count()
 
-                data_provincia["Porcentaje"] = data_provincia["ID"].apply(
-                    lambda x: porcentaje(x, data_provincia["ID"].sum())
-                )
+            data_provincia["Porcentaje"] = data_provincia["ID"].apply(
+                lambda x: porcentaje(x, data_provincia["ID"].sum())
+            )
 
-                data_provincia["Etiqueta"] = data_provincia.apply(
-                    lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
-                    axis=1
-                )
+            data_provincia["Etiqueta"] = data_provincia.apply(
+                lambda row: f"{int(row['ID'])} ({row['Porcentaje']})",
+                axis=1
+            )
 
-                fig_provincia = px.bar(
-                    data_provincia,
-                    x="Provincia",
-                    y="ID",
-                    text="Etiqueta",
-                    labels={"ID": "Cantidad de actividades"},
-                    color="Provincia",
-                    template="plotly_white"
-                )
+            fig_provincia = px.bar(
+                data_provincia,
+                x="Provincia",
+                y="ID",
+                text="Etiqueta",
+                labels={"ID": "Cantidad de actividades"},
+                color="Provincia",
+                template="plotly_white"
+            )
 
-                fig_provincia.update_layout(
-                    showlegend=False,
-                    title_x=0.5
-                )
+            fig_provincia.update_layout(
+                showlegend=False,
+                title_x=0.5
+            )
 
-                st.plotly_chart(
-                    fig_provincia,
-                    use_container_width=True
-                )
+            st.plotly_chart(
+                fig_provincia,
+                use_container_width=True
+            )
 # ======================================================
 # PARTE 11 DE 12
 # DASHBOARD PROFESIONAL: GRÁFICOS COMPLEMENTARIOS, TABLA E INFORME PDF
@@ -4583,8 +4986,51 @@ elif menu == "Dashboard profesional":
                     "Fecha Actividad"
                 ].dt.strftime("%d/%m/%Y")
 
+            columnas_dashboard = [
+                "ID",
+                "Fecha Registro",
+                "Fecha Actividad",
+                "Hora Actividad",
+                "Dirección Regional",
+                "Delegación",
+                "Responde a",
+                "Programa",
+                "Actividad",
+                "Provincia",
+                "Cantón",
+                "Distrito",
+                "Tipo Lugar",
+                "Lugar",
+                "Centro Educativo",
+                "Código Presupuestario",
+                "Dirección Mapa",
+                "Latitud",
+                "Longitud",
+                "Responsable",
+                "Cantidad Participantes",
+                "Cantidad Hombres",
+                "Cantidad Mujeres",
+                "Edad 10 a 18",
+                "Edad 19 a 30",
+                "Edad 31 a 45",
+                "Edad 46 en adelante",
+                "Instituciones Participantes",
+                "Plan Estratégico Relacionado",
+                "Número de Referencia",
+                "Número de Expediente Referencia",
+                "Observaciones",
+                "Estado Revisión",
+                "Observación de Revisión",
+                "Usuario Registra"
+            ]
+
+            columnas_dashboard_existentes = [
+                col for col in columnas_dashboard
+                if col in df_mostrar.columns
+            ]
+
             st.dataframe(
-                df_mostrar,
+                df_mostrar[columnas_dashboard_existentes],
                 use_container_width=True,
                 hide_index=True
             )
@@ -4626,6 +5072,7 @@ elif menu == "Dashboard profesional":
             graficos_pdf = st.multiselect(
                 "Seleccione los gráficos que desea incluir en el informe",
                 [
+                    "Actividades por Responde a",
                     "Actividades por programa",
                     "Participantes por programa",
                     "Estado de revisión",
@@ -4637,6 +5084,7 @@ elif menu == "Dashboard profesional":
                     "Evolución mensual"
                 ],
                 default=[
+                    "Actividades por Responde a",
                     "Actividades por programa",
                     "Participantes por programa",
                     "Estado de revisión",
@@ -4807,11 +5255,6 @@ elif menu == "Dashboard profesional":
 
 
             def crear_tabla_logos_pdf(logo_min, logo_pumi, logo_fp):
-                """
-                Orden corregido igual que en la Parte 1:
-                IZQUIERDA: Ministerio | CENTRO: PUMI | DERECHA: Fuerza Pública
-                """
-
                 tabla_logos_data = [
                     [
                         RLImage(logo_min, width=100, height=40) if logo_min else "",
@@ -4974,8 +5417,8 @@ elif menu == "Dashboard profesional":
                 introduccion = """
                 El presente informe consolida la información registrada en el Sistema PUMI 2026,
                 correspondiente a las actividades preventivas desarrolladas por los Programas
-                Policiales Preventivos. La información permite observar registros, programas,
-                delegaciones, población alcanzada, distribución por sexo, rangos de edad,
+                Policiales Preventivos. La información permite observar registros, responde a,
+                programas, delegaciones, población alcanzada, distribución por sexo, rangos de edad,
                 estado de revisión, observaciones administrativas y ubicación geográfica.
                 """
 
@@ -4983,6 +5426,7 @@ elif menu == "Dashboard profesional":
                 elementos.append(Spacer(1, 16))
 
                 total_registros_pdf = len(df_pdf)
+                total_responde_a_pdf = df_pdf["Responde a"].nunique() if "Responde a" in df_pdf.columns else 0
                 total_programas_pdf = df_pdf["Programa"].nunique()
                 total_delegaciones_pdf = df_pdf["Delegación"].nunique()
 
@@ -5051,6 +5495,7 @@ elif menu == "Dashboard profesional":
                 resumen = [
                     ["Indicador", "Resultado"],
                     ["Total de registros", f"{total_registros_pdf}"],
+                    ["Responde a registrados", f"{total_responde_a_pdf}"],
                     ["Programas registrados", f"{total_programas_pdf}"],
                     ["Delegaciones registradas", f"{total_delegaciones_pdf}"],
                     ["Participantes atendidos", f"{total_participantes_pdf}"],
@@ -5084,6 +5529,61 @@ elif menu == "Dashboard profesional":
                 )
 
                 elementos.append(Spacer(1, 18))
+
+                if "Responde a" in df_pdf.columns:
+                    resumen_responde_a = df_pdf.groupby("Responde a").agg(
+                        {
+                            "ID": "count",
+                            "Cantidad Participantes": "sum"
+                        }
+                    ).reset_index()
+
+                    tabla_responde_a = [
+                        [
+                            "Responde a",
+                            "Actividades",
+                            "% Actividades",
+                            "Participantes",
+                            "% Participantes"
+                        ]
+                    ]
+
+                    total_actividades_responde = resumen_responde_a["ID"].sum()
+                    total_participantes_responde = resumen_responde_a[
+                        "Cantidad Participantes"
+                    ].sum()
+
+                    for _, row in resumen_responde_a.iterrows():
+                        tabla_responde_a.append(
+                            [
+                                str(row["Responde a"]),
+                                int(row["ID"]),
+                                porcentaje(row["ID"], total_actividades_responde),
+                                int(row["Cantidad Participantes"]),
+                                porcentaje(
+                                    row["Cantidad Participantes"],
+                                    total_participantes_responde
+                                )
+                            ]
+                        )
+
+                    tabla_resp = crear_tabla_estilizada(
+                        tabla_responde_a,
+                        col_widths=[180, 65, 70, 75, 75],
+                        header_color=COLOR_AZUL,
+                        font_size=6
+                    )
+
+                    elementos.append(
+                        KeepTogether(
+                            [
+                                Paragraph("Distribución por Responde a", subtitulo),
+                                tabla_resp
+                            ]
+                        )
+                    )
+
+                    elementos.append(Spacer(1, 18))
 
                 resumen_programa = df_pdf.groupby("Programa").agg(
                     {
@@ -5144,6 +5644,15 @@ elif menu == "Dashboard profesional":
                     elementos.append(
                         Paragraph("Gráficos seleccionados", titulo)
                     )
+
+                    if "Actividades por Responde a" in graficos_seleccionados:
+                        agregar_imagen_plotly_al_pdf(
+                            elementos,
+                            fig_responde_a,
+                            "Actividades por Responde a",
+                            subtitulo,
+                            texto
+                        )
 
                     if "Actividades por programa" in graficos_seleccionados:
                         agregar_imagen_plotly_al_pdf(
@@ -5261,6 +5770,7 @@ elif menu == "Dashboard profesional":
                         "Hora Actividad",
                         "Dirección Regional",
                         "Delegación",
+                        "Responde a",
                         "Programa",
                         "Actividad",
                         "Provincia",
