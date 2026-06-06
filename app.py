@@ -60,11 +60,12 @@ NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
 
 # ======================================================
 # ENCABEZADOS OFICIALES
+# SIN FECHA REGISTRO
+# SIN PLAN ESTRATÉGICO RELACIONADO
 # ======================================================
 
 ENCABEZADOS = [
     "ID",
-    "Fecha Registro",
     "Fecha Actividad",
     "Hora Actividad",
     "Dirección Regional",
@@ -91,7 +92,6 @@ ENCABEZADOS = [
     "Edad 31 a 45",
     "Edad 46 en adelante",
     "Instituciones Participantes",
-    "Plan Estratégico Relacionado",
     "Número de Referencia",
     "Número de Expediente Referencia",
     "Observaciones",
@@ -1195,10 +1195,21 @@ def obtener_delegaciones_unicas():
 
 # ======================================================
 # FUNCIONES PARA CARGAR EXCEL EXISTENTE
+# SIN FECHA REGISTRO
+# SIN PLAN ESTRATÉGICO RELACIONADO
 # ======================================================
 
 def preparar_dataframe_importado(df):
     df = df.copy()
+
+    columnas_a_eliminar = [
+        "Fecha Registro",
+        "Plan Estratégico Relacionado"
+    ]
+
+    for col in columnas_a_eliminar:
+        if col in df.columns:
+            df = df.drop(columns=[col])
 
     for col in ENCABEZADOS:
         if col not in df.columns:
@@ -1609,12 +1620,23 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 
 # ======================================================
 # EXPORTACIÓN A EXCEL
+# SIN FECHA REGISTRO
+# SIN PLAN ESTRATÉGICO RELACIONADO
 # ======================================================
 
 def convertir_excel(df):
     output = BytesIO()
 
     df_exportar = df.copy()
+
+    columnas_a_eliminar = [
+        "Fecha Registro",
+        "Plan Estratégico Relacionado"
+    ]
+
+    for col in columnas_a_eliminar:
+        if col in df_exportar.columns:
+            df_exportar = df_exportar.drop(columns=[col])
 
     for col in ENCABEZADOS:
         if col not in df_exportar.columns:
@@ -1841,6 +1863,8 @@ if menu == "Inicio":
         # ======================================================
 # PARTE 4 DE 5
 # FORMULARIO COMPLETO PARA REGISTRAR ACTIVIDADES
+# SIN FECHA REGISTRO
+# SIN PLAN ESTRATÉGICO RELACIONADO
 # ======================================================
 
 elif menu == "Registrar actividad":
@@ -2321,10 +2345,6 @@ elif menu == "Registrar actividad":
         "Instituciones participantes"
     )
 
-    plan_estrategico = st.text_input(
-        "Plan Estratégico Relacionado"
-    )
-
     numero_referencia = st.text_input(
         "Número de referencia"
     )
@@ -2364,7 +2384,6 @@ elif menu == "Registrar actividad":
 
         registro = {
             "ID": nuevo_id,
-            "Fecha Registro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
             "Fecha Actividad": fecha_actividad.strftime("%d/%m/%Y"),
             "Hora Actividad": hora_actividad.strftime("%H:%M"),
             "Dirección Regional": direccion_regional,
@@ -2391,7 +2410,6 @@ elif menu == "Registrar actividad":
             "Edad 31 a 45": edad_31_45,
             "Edad 46 en adelante": edad_46_mas,
             "Instituciones Participantes": instituciones_participantes,
-            "Plan Estratégico Relacionado": plan_estrategico,
             "Número de Referencia": numero_referencia,
             "Número de Expediente Referencia": numero_expediente,
             "Observaciones": observaciones,
@@ -2437,6 +2455,8 @@ elif menu == "Registrar actividad":
         # ======================================================
 # PARTE 5 DE 5
 # REGISTROS CARGADOS, EDICIÓN, ELIMINACIÓN Y DASHBOARD
+# SIN FECHA REGISTRO
+# SIN PLAN ESTRATÉGICO RELACIONADO
 # ======================================================
 
 elif menu == "Registros cargados":
@@ -2453,7 +2473,8 @@ elif menu == "Registros cargados":
             <div class="card-dorado">
                 <div class="texto-pumi">
                     En esta sección puede revisar los registros agregados,
-                    eliminar registros específicos y descargar el Excel actualizado.
+                    eliminar registros específicos, editar información y descargar
+                    el Excel actualizado.
                 </div>
             </div>
             """,
@@ -2656,11 +2677,6 @@ elif menu == "Registros cargados":
                         value=str(fila.get("Instituciones Participantes", ""))
                     )
 
-                    plan_edit = st.text_input(
-                        "Plan Estratégico Relacionado",
-                        value=str(fila.get("Plan Estratégico Relacionado", ""))
-                    )
-
                     referencia_edit = st.text_input(
                         "Número de Referencia",
                         value=str(fila.get("Número de Referencia", ""))
@@ -2720,7 +2736,6 @@ elif menu == "Registros cargados":
 
                     nuevos_datos = {
                         "ID": id_editar,
-                        "Fecha Registro": fila.get("Fecha Registro", ""),
                         "Fecha Actividad": fecha_actividad_edit,
                         "Hora Actividad": hora_actividad_edit,
                         "Dirección Regional": direccion_regional_edit,
@@ -2747,7 +2762,6 @@ elif menu == "Registros cargados":
                         "Edad 31 a 45": edad_31_45_edit,
                         "Edad 46 en adelante": edad_46_mas_edit,
                         "Instituciones Participantes": instituciones_edit,
-                        "Plan Estratégico Relacionado": plan_edit,
                         "Número de Referencia": referencia_edit,
                         "Número de Expediente Referencia": expediente_edit,
                         "Observaciones": observaciones_edit,
