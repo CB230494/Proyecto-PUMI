@@ -1,6 +1,7 @@
 # ======================================================
-# PARTE 1 DE 5
-# CONFIGURACIÓN GENERAL, LIBRERÍAS, CATÁLOGOS, ESTILOS Y ENCABEZADOS
+# PARTE 1 DE 10
+# LIBRERÍAS, CONFIGURACIÓN GENERAL, ARCHIVOS BASE,
+# ENCABEZADOS, CATÁLOGOS Y SESSION STATE
 # ======================================================
 
 import streamlit as st
@@ -10,6 +11,7 @@ import unicodedata
 import os
 import base64
 import folium
+import re
 
 from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
@@ -60,8 +62,6 @@ NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
 
 # ======================================================
 # ENCABEZADOS OFICIALES
-# SIN FECHA REGISTRO
-# SIN PLAN ESTRATÉGICO RELACIONADO
 # ======================================================
 
 ENCABEZADOS = [
@@ -181,7 +181,61 @@ COLORES_PROGRAMA = {
 
 
 # ======================================================
-# FUNCIONES GENERALES
+# CENTROS GENERALES PARA MAPA POR PROVINCIA
+# ======================================================
+
+CENTROS_PROVINCIA = {
+    "San José": [9.9281, -84.0907],
+    "Alajuela": [10.0162, -84.2116],
+    "Cartago": [9.8644, -83.9194],
+    "Heredia": [10.0024, -84.1165],
+    "Guanacaste": [10.6267, -85.4437],
+    "Puntarenas": [9.9763, -84.8384],
+    "Limón": [9.9917, -83.0360]
+}
+
+
+# ======================================================
+# SESSION STATE GENERAL
+# Aquí se guarda temporalmente la información mientras
+# la app está abierta.
+# ======================================================
+
+def inicializar_session_state():
+    if "registros_pumi" not in st.session_state:
+        st.session_state.registros_pumi = pd.DataFrame(columns=ENCABEZADOS)
+
+    if "latitud_registro" not in st.session_state:
+        st.session_state.latitud_registro = ""
+
+    if "longitud_registro" not in st.session_state:
+        st.session_state.longitud_registro = ""
+
+    if "direccion_encontrada_mapa" not in st.session_state:
+        st.session_state.direccion_encontrada_mapa = ""
+
+    if "metodo_ubicacion_actual" not in st.session_state:
+        st.session_state.metodo_ubicacion_actual = ""
+
+    if "archivo_cargado_nombre" not in st.session_state:
+        st.session_state.archivo_cargado_nombre = ""
+
+    if "ultima_direccion_regional" not in st.session_state:
+        st.session_state.ultima_direccion_regional = ""
+
+    if "ultima_delegacion" not in st.session_state:
+        st.session_state.ultima_delegacion = ""
+
+
+inicializar_session_state()
+# ======================================================
+# PARTE 2 DE 10
+# ESTILOS CSS, LOGOS Y ENCABEZADO INSTITUCIONAL
+# ======================================================
+
+# ======================================================
+# FUNCIÓN PARA CONVERTIR IMÁGENES A BASE64
+# Se usa para mostrar logos dentro del HTML de Streamlit.
 # ======================================================
 
 def imagen_a_base64(ruta):
@@ -195,98 +249,8 @@ def imagen_a_base64(ruta):
         return ""
 
 
-def normalizar_texto(valor):
-    if pd.isna(valor):
-        return ""
-
-    texto = str(valor).strip().upper()
-    texto = unicodedata.normalize("NFKD", texto)
-    texto = "".join([c for c in texto if not unicodedata.combining(c)])
-    texto = " ".join(texto.split())
-
-    return texto
-
-
-def obtener_columna_por_nombre(df, posibles_nombres):
-    columnas = list(df.columns)
-
-    for posible in posibles_nombres:
-        posible_norm = normalizar_texto(posible)
-
-        for col in columnas:
-            if normalizar_texto(col) == posible_norm:
-                return col
-
-    return None
-
-
-def ordenar_regiones_numericamente(lista_regiones):
-    def extraer_numero_region(region):
-        texto = str(region)
-        numero = ""
-
-        for caracter in texto:
-            if caracter.isdigit():
-                numero += caracter
-            elif numero:
-                break
-
-        if numero:
-            return int(numero)
-
-        return 999
-
-    return sorted(lista_regiones, key=extraer_numero_region)
-
-
-def separar_responde_a(valor):
-    if pd.isna(valor):
-        return []
-
-    texto = str(valor).strip()
-
-    if texto == "" or texto.lower() == "nan":
-        return []
-
-    partes = texto.split("/")
-
-    return [
-        parte.strip()
-        for parte in partes
-        if parte.strip() != ""
-    ]
-
-
-def porcentaje(valor, total):
-    try:
-        valor = float(valor)
-        total = float(total)
-
-        if total == 0:
-            return "0.0%"
-
-        return f"{(valor / total) * 100:.1f}%"
-
-    except Exception:
-        return "0.0%"
-
-
-def inicializar_session_state():
-    if "registros_pumi" not in st.session_state:
-        st.session_state.registros_pumi = pd.DataFrame(columns=ENCABEZADOS)
-
-    if "latitud_registro" not in st.session_state:
-        st.session_state.latitud_registro = ""
-
-    if "longitud_registro" not in st.session_state:
-        st.session_state.longitud_registro = ""
-
-    if "archivo_cargado_nombre" not in st.session_state:
-        st.session_state.archivo_cargado_nombre = ""
-
-
 # ======================================================
-# ESTILOS CSS
+# ESTILOS CSS GENERALES DE LA APP
 # ======================================================
 
 st.markdown(
@@ -641,16 +605,433 @@ def mostrar_encabezado_institucional():
 
 def mostrar_logos_encabezado():
     mostrar_encabezado_institucional()
-    # ======================================================
-# PARTE 2 DE 5
-# CARGA DE CATÁLOGOS, EXCEL EXISTENTE Y FUNCIONES BASE
+
+
 # ======================================================
+# TÍTULO PRINCIPAL DE LA APP
+# ======================================================
+
+def mostrar_titulo_principal():
+    st.markdown(
+        """
+        <div class="titulo-principal">
+            <h1>🛡️ P.U.M.I. 2026</h1>
+            <h3>Proceso Unificado para el Manejo de la Información</h3>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # ======================================================
+# PARTE 3 DE 10
+# FUNCIONES GENERALES, NORMALIZACIÓN, ORDENAMIENTO
+# Y MANEJO DE REGISTROS EN SESSION STATE
+# ======================================================
+
+
+# ======================================================
+# NORMALIZAR TEXTO
+# Convierte texto a mayúsculas, elimina tildes y limpia espacios.
+# Sirve para comparar columnas aunque tengan diferencias de escritura.
+# ======================================================
+
+def normalizar_texto(valor):
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().upper()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(
+        [
+            caracter
+            for caracter in texto
+            if not unicodedata.combining(caracter)
+        ]
+    )
+    texto = " ".join(texto.split())
+
+    return texto
+
+
+# ======================================================
+# BUSCAR COLUMNA POR NOMBRE
+# Permite encontrar columnas aunque vengan con tildes,
+# mayúsculas, minúsculas o pequeñas variaciones.
+# ======================================================
+
+def obtener_columna_por_nombre(df, posibles_nombres):
+    columnas = list(df.columns)
+
+    for posible in posibles_nombres:
+        posible_norm = normalizar_texto(posible)
+
+        for col in columnas:
+            if normalizar_texto(col) == posible_norm:
+                return col
+
+    return None
+
+
+# ======================================================
+# ORDENAR REGIONES NUMÉRICAMENTE
+# Ordena R1, R2, R3... sin que R10 quede antes de R2.
+# ======================================================
+
+def ordenar_regiones_numericamente(lista_regiones):
+    def extraer_numero_region(region):
+        texto = str(region)
+        numero = ""
+
+        for caracter in texto:
+            if caracter.isdigit():
+                numero += caracter
+            elif numero:
+                break
+
+        if numero:
+            return int(numero)
+
+        return 999
+
+    return sorted(lista_regiones, key=extraer_numero_region)
+
+
+# ======================================================
+# SEPARAR CAMPO "RESPONDE A"
+# Cuando una actividad responde a dos opciones separadas por "/",
+# la función las divide para poder filtrarlas correctamente.
+# ======================================================
+
+def separar_responde_a(valor):
+    if pd.isna(valor):
+        return []
+
+    texto = str(valor).strip()
+
+    if texto == "" or texto.lower() == "nan":
+        return []
+
+    partes = texto.split("/")
+
+    return [
+        parte.strip()
+        for parte in partes
+        if parte.strip() != ""
+    ]
+
+
+# ======================================================
+# PORCENTAJE EN FORMATO TEXTO
+# ======================================================
+
+def porcentaje(valor, total):
+    try:
+        valor = float(valor)
+        total = float(total)
+
+        if total == 0:
+            return "0.0%"
+
+        return f"{(valor / total) * 100:.1f}%"
+
+    except Exception:
+        return "0.0%"
+
+
+# ======================================================
+# LIMPIAR TEXTO PARA NOMBRE DE ARCHIVO
+# Evita caracteres inválidos en Windows o en navegadores.
+# ======================================================
+
+def limpiar_nombre_archivo(valor):
+    texto = str(valor).strip()
+
+    if texto == "" or texto.lower() == "nan":
+        return "SIN_DATO"
+
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(
+        [
+            caracter
+            for caracter in texto
+            if not unicodedata.combining(caracter)
+        ]
+    )
+
+    texto = texto.upper()
+    texto = re.sub(r"[^\w\s-]", "", texto)
+    texto = re.sub(r"\s+", "_", texto)
+    texto = texto.replace("__", "_")
+    texto = texto.strip("_")
+
+    if texto == "":
+        return "SIN_DATO"
+
+    return texto
+
+
+# ======================================================
+# GENERAR NOMBRE AUTOMÁTICO PARA EXCEL
+# Usa Dirección Regional + Delegación.
+# Ejemplo:
+# REGISTRO_PUMI_2026_R1_SAN_JOSE_CENTRAL_DELEGACION_PAVAS.xlsx
+# ======================================================
+
+def generar_nombre_excel(direccion_regional="", delegacion="", filtrado=False):
+    direccion = limpiar_nombre_archivo(direccion_regional)
+    deleg = limpiar_nombre_archivo(delegacion)
+
+    prefijo = "REGISTRO_PUMI_2026"
+
+    if filtrado:
+        prefijo = "REGISTRO_PUMI_2026_FILTRADO"
+
+    if direccion == "SIN_DATO" and deleg == "SIN_DATO":
+        return f"{prefijo}.xlsx"
+
+    return f"{prefijo}_{direccion}_{deleg}.xlsx"
+
+
+# ======================================================
+# OBTENER NOMBRE DE EXCEL SEGÚN DATOS DEL DATAFRAME
+# Si hay una sola Dirección Regional y una sola Delegación,
+# usa esos nombres. Si hay varias, usa "VARIAS".
+# ======================================================
+
+def generar_nombre_excel_desde_df(df, filtrado=False):
+    if df is None or df.empty:
+        return generar_nombre_excel(filtrado=filtrado)
+
+    direccion = "VARIAS_DIRECCIONES"
+    delegacion = "VARIAS_DELEGACIONES"
+
+    if "Dirección Regional" in df.columns:
+        regiones = (
+            df["Dirección Regional"]
+            .replace("", pd.NA)
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+        if len(regiones) == 1:
+            direccion = regiones[0]
+
+    if "Delegación" in df.columns:
+        delegaciones = (
+            df["Delegación"]
+            .replace("", pd.NA)
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+        if len(delegaciones) == 1:
+            delegacion = delegaciones[0]
+
+    return generar_nombre_excel(
+        direccion_regional=direccion,
+        delegacion=delegacion,
+        filtrado=filtrado
+    )
+
+
+# ======================================================
+# PREPARAR DATAFRAME IMPORTADO
+# Acomoda cualquier Excel cargado para que tenga las columnas oficiales.
+# ======================================================
+
+def preparar_dataframe_importado(df):
+    df = df.copy()
+
+    columnas_a_eliminar = [
+        "Fecha Registro",
+        "Plan Estratégico Relacionado"
+    ]
+
+    for col in columnas_a_eliminar:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    for col in ENCABEZADOS:
+        if col not in df.columns:
+            df[col] = ""
+
+    df = df[ENCABEZADOS]
+
+    for col in ENCABEZADOS:
+        df[col] = df[col].fillna("").astype(str)
+
+    columnas_numericas = [
+        "ID",
+        "Cantidad Participantes",
+        "Cantidad Hombres",
+        "Cantidad Mujeres",
+        "Edad 10 a 18",
+        "Edad 19 a 30",
+        "Edad 31 a 45",
+        "Edad 46 en adelante"
+    ]
+
+    for col in columnas_numericas:
+        df[col] = (
+            pd.to_numeric(df[col], errors="coerce")
+            .fillna(0)
+            .astype(int)
+        )
+
+    return df
+
+
+# ======================================================
+# CARGAR EXCEL EXISTENTE
+# Permite continuar trabajando sobre un archivo exportado antes.
+# ======================================================
+
+def cargar_excel_existente(archivo_excel):
+    try:
+        df = pd.read_excel(
+            archivo_excel,
+            sheet_name=NOMBRE_HOJA_EXCEL
+        )
+    except Exception:
+        try:
+            df = pd.read_excel(archivo_excel)
+        except Exception as e:
+            st.error("No se pudo leer el archivo Excel cargado.")
+            st.exception(e)
+            return pd.DataFrame(columns=ENCABEZADOS)
+
+    return preparar_dataframe_importado(df)
+
+
+# ======================================================
+# GENERAR ID CONSECUTIVO
+# ======================================================
+
+def generar_id_consecutivo():
+    df = st.session_state.registros_pumi
+
+    if df.empty:
+        return 1
+
+    ids = pd.to_numeric(df["ID"], errors="coerce").dropna()
+
+    if ids.empty:
+        return 1
+
+    return int(ids.max()) + 1
+
+
+# ======================================================
+# AGREGAR REGISTRO A SESSION STATE
+# ======================================================
+
+def agregar_registro_session(registro):
+    nuevo_df = pd.DataFrame(
+        [registro],
+        columns=ENCABEZADOS
+    )
+
+    st.session_state.registros_pumi = pd.concat(
+        [
+            st.session_state.registros_pumi,
+            nuevo_df
+        ],
+        ignore_index=True
+    )
+
+
+# ======================================================
+# ELIMINAR REGISTRO POR ID
+# ======================================================
+
+def eliminar_registro_session(id_registro):
+    df = st.session_state.registros_pumi.copy()
+
+    df = df[df["ID"].astype(str) != str(id_registro)]
+
+    st.session_state.registros_pumi = df.reset_index(drop=True)
+
+
+# ======================================================
+# ACTUALIZAR REGISTRO POR ID
+# ======================================================
+
+def actualizar_registro_session(id_registro, nuevos_datos):
+    df = st.session_state.registros_pumi.copy()
+
+    mascara = df["ID"].astype(str) == str(id_registro)
+
+    if not mascara.any():
+        return False
+
+    for col in ENCABEZADOS:
+        df.loc[mascara, col] = nuevos_datos.get(col, "")
+
+    st.session_state.registros_pumi = df.reset_index(drop=True)
+
+    return True
+
+
+# ======================================================
+# LIMPIAR DATAFRAME PARA MÉTRICAS Y DASHBOARD
+# Convierte columnas numéricas y fechas para poder graficar.
+# ======================================================
+
+def limpiar_dataframe_para_metricas(df):
+    df = df.copy()
+
+    columnas_numericas = [
+        "Cantidad Participantes",
+        "Cantidad Hombres",
+        "Cantidad Mujeres",
+        "Edad 10 a 18",
+        "Edad 19 a 30",
+        "Edad 31 a 45",
+        "Edad 46 en adelante"
+    ]
+
+    for col in columnas_numericas:
+        if col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).fillna(0)
+
+    if "Fecha Actividad" in df.columns:
+        df["Fecha Actividad"] = pd.to_datetime(
+            df["Fecha Actividad"],
+            errors="coerce",
+            dayfirst=True
+        )
+
+    if "Latitud" in df.columns:
+        df["Latitud"] = df["Latitud"].astype(str)
+
+    if "Longitud" in df.columns:
+        df["Longitud"] = df["Longitud"].astype(str)
+
+    return df
+    # ======================================================
+# PARTE 4 DE 10
+# CARGA DE CATÁLOGOS:
+# DATOS IMPORTANTES, BASE MEP Y DELEGACIONES
+# ======================================================
+
 
 # ======================================================
 # CARGA DE DATOS IMPORTANTES
-# Provincia - Cantón - Distrito
-# Dirección Regional - Delegación
-# Responde a - Programa - Actividad Realizada
+# Contiene:
+# - Provincia
+# - Cantón
+# - Distrito
+# - Dirección Regional
+# - Delegación
+# - Responde a
+# - Actividad Realizada
+# - Programa
 # ======================================================
 
 @st.cache_data
@@ -675,17 +1056,40 @@ def cargar_datos_importantes():
         col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
         col_canton = obtener_columna_por_nombre(df_original, ["Cantón", "Canton"])
         col_distrito = obtener_columna_por_nombre(df_original, ["Distrito", "Distritos"])
-        col_region = obtener_columna_por_nombre(df_original, ["Dirección Regional", "Direccion Regional"])
-        col_delegacion = obtener_columna_por_nombre(df_original, ["Delegación", "Delegacion"])
+
+        col_region = obtener_columna_por_nombre(
+            df_original,
+            ["Dirección Regional", "Direccion Regional"]
+        )
+
+        col_delegacion = obtener_columna_por_nombre(
+            df_original,
+            ["Delegación", "Delegacion"]
+        )
+
         col_responde_a = obtener_columna_por_nombre(
             df_original,
-            ["Responde a", "Responde a:", "Responde", "Responda a", "Responda a:"]
+            [
+                "Responde a",
+                "Responde a:",
+                "Responde",
+                "Responda a",
+                "Responda a:"
+            ]
         )
+
         col_actividad = obtener_columna_por_nombre(
             df_original,
-            ["Actividad Realizada", "Actividad"]
+            [
+                "Actividad Realizada",
+                "Actividad"
+            ]
         )
-        col_programa = obtener_columna_por_nombre(df_original, ["Programa"])
+
+        col_programa = obtener_columna_por_nombre(
+            df_original,
+            ["Programa"]
+        )
 
         columnas_requeridas = [
             col_provincia,
@@ -762,17 +1166,34 @@ def cargar_datos_importantes():
         return pd.DataFrame(columns=columnas_base)
 
 
+# ======================================================
+# OBTENER REGIONES DESDE DATOS IMPORTANTES
+# ======================================================
+
 def obtener_regiones_datos():
     df = cargar_datos_importantes()
 
     if df.empty:
         return ordenar_regiones_numericamente(REGIONES)
 
-    regiones = df["Dirección Regional"].dropna().unique().tolist()
-    regiones = [x for x in regiones if str(x).strip() != ""]
+    regiones = (
+        df["Dirección Regional"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    regiones = [
+        x for x in regiones
+        if str(x).strip() != ""
+    ]
 
     return ordenar_regiones_numericamente(regiones)
 
+
+# ======================================================
+# OBTENER DELEGACIONES SEGÚN DIRECCIÓN REGIONAL
+# ======================================================
 
 def obtener_delegaciones_por_region(region):
     df = cargar_datos_importantes()
@@ -782,14 +1203,24 @@ def obtener_delegaciones_por_region(region):
 
     region_norm = normalizar_texto(region)
 
-    delegaciones = df[
-        df["Región_Normalizada"] == region_norm
-    ]["Delegación"].dropna().unique().tolist()
+    delegaciones = (
+        df[df["Región_Normalizada"] == region_norm]["Delegación"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
-    delegaciones = [x for x in delegaciones if str(x).strip() != ""]
+    delegaciones = [
+        x for x in delegaciones
+        if str(x).strip() != ""
+    ]
 
     return sorted(delegaciones)
 
+
+# ======================================================
+# OBTENER RESPONDE A
+# ======================================================
 
 def obtener_responde_a_datos():
     df = cargar_datos_importantes()
@@ -797,11 +1228,24 @@ def obtener_responde_a_datos():
     if df.empty or "Responde a" not in df.columns:
         return []
 
-    responde_a = df["Responde a"].dropna().unique().tolist()
-    responde_a = [x for x in responde_a if str(x).strip() != ""]
+    responde_a = (
+        df["Responde a"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    responde_a = [
+        x for x in responde_a
+        if str(x).strip() != ""
+    ]
 
     return sorted(responde_a)
 
+
+# ======================================================
+# OBTENER PROGRAMAS SEGÚN RESPONDE A
+# ======================================================
 
 def obtener_programas_por_responde_a(responde_a):
     df = cargar_datos_importantes()
@@ -811,11 +1255,17 @@ def obtener_programas_por_responde_a(responde_a):
 
     responde_norm = normalizar_texto(responde_a)
 
-    programas = df[
-        df["Responde_a_Normalizado"] == responde_norm
-    ]["Programa"].dropna().unique().tolist()
+    programas = (
+        df[df["Responde_a_Normalizado"] == responde_norm]["Programa"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
-    programas = [x for x in programas if str(x).strip() != ""]
+    programas = [
+        x for x in programas
+        if str(x).strip() != ""
+    ]
 
     if not programas:
         return []
@@ -829,11 +1279,24 @@ def obtener_programas_por_responde_a(responde_a):
         elif programa not in programas_limpios:
             programas_limpios.append(programa)
 
-    orden_oficial = [p for p in PROGRAMAS if p in programas_limpios]
-    extras = sorted([p for p in programas_limpios if p not in orden_oficial])
+    orden_oficial = [
+        p for p in PROGRAMAS
+        if p in programas_limpios
+    ]
+
+    extras = sorted(
+        [
+            p for p in programas_limpios
+            if p not in orden_oficial
+        ]
+    )
 
     return orden_oficial + extras
 
+
+# ======================================================
+# OBTENER ACTIVIDADES SEGÚN RESPONDE A Y PROGRAMA
+# ======================================================
 
 def obtener_actividades_por_responde_a_programa(responde_a, programa):
     df = cargar_datos_importantes()
@@ -845,20 +1308,37 @@ def obtener_actividades_por_responde_a_programa(responde_a, programa):
     programa_norm = normalizar_texto(programa)
 
     if programa_norm == "GREAT":
-        actividades = df[
-            (df["Responde_a_Normalizado"] == responde_norm) &
-            (df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"]))
-        ]["Actividad Realizada"].dropna().unique().tolist()
+        actividades = (
+            df[
+                (df["Responde_a_Normalizado"] == responde_norm) &
+                (df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"]))
+            ]["Actividad Realizada"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
     else:
-        actividades = df[
-            (df["Responde_a_Normalizado"] == responde_norm) &
-            (df["Programa_Normalizado"] == programa_norm)
-        ]["Actividad Realizada"].dropna().unique().tolist()
+        actividades = (
+            df[
+                (df["Responde_a_Normalizado"] == responde_norm) &
+                (df["Programa_Normalizado"] == programa_norm)
+            ]["Actividad Realizada"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
 
-    actividades = [x for x in actividades if str(x).strip() != ""]
+    actividades = [
+        x for x in actividades
+        if str(x).strip() != ""
+    ]
 
     return sorted(actividades)
 
+
+# ======================================================
+# OBTENER PROGRAMAS GENERALES
+# ======================================================
 
 def obtener_programas_datos():
     df = cargar_datos_importantes()
@@ -866,8 +1346,17 @@ def obtener_programas_datos():
     if df.empty:
         return PROGRAMAS
 
-    programas = df["Programa"].dropna().unique().tolist()
-    programas = [x for x in programas if str(x).strip() != ""]
+    programas = (
+        df["Programa"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    programas = [
+        x for x in programas
+        if str(x).strip() != ""
+    ]
 
     if not programas:
         return PROGRAMAS
@@ -881,11 +1370,24 @@ def obtener_programas_datos():
         elif programa not in programas_limpios:
             programas_limpios.append(programa)
 
-    orden_oficial = [p for p in PROGRAMAS if p in programas_limpios]
-    extras = sorted([p for p in programas_limpios if p not in orden_oficial])
+    orden_oficial = [
+        p for p in PROGRAMAS
+        if p in programas_limpios
+    ]
+
+    extras = sorted(
+        [
+            p for p in programas_limpios
+            if p not in orden_oficial
+        ]
+    )
 
     return orden_oficial + extras
 
+
+# ======================================================
+# OBTENER ACTIVIDADES SEGÚN PROGRAMA
+# ======================================================
 
 def obtener_actividades_por_programa(programa):
     df = cargar_datos_importantes()
@@ -896,18 +1398,35 @@ def obtener_actividades_por_programa(programa):
     programa_norm = normalizar_texto(programa)
 
     if programa_norm == "GREAT":
-        actividades = df[
-            df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"])
-        ]["Actividad Realizada"].dropna().unique().tolist()
+        actividades = (
+            df[
+                df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"])
+            ]["Actividad Realizada"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
     else:
-        actividades = df[
-            df["Programa_Normalizado"] == programa_norm
-        ]["Actividad Realizada"].dropna().unique().tolist()
+        actividades = (
+            df[
+                df["Programa_Normalizado"] == programa_norm
+            ]["Actividad Realizada"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
 
-    actividades = [x for x in actividades if str(x).strip() != ""]
+    actividades = [
+        x for x in actividades
+        if str(x).strip() != ""
+    ]
 
     return sorted(actividades)
 
+
+# ======================================================
+# OBTENER PROVINCIAS
+# ======================================================
 
 def obtener_provincias_datos():
     df = cargar_datos_importantes()
@@ -915,11 +1434,24 @@ def obtener_provincias_datos():
     if df.empty:
         return PROVINCIAS
 
-    provincias = df["Provincia"].dropna().unique().tolist()
-    provincias = [x for x in provincias if str(x).strip() != ""]
+    provincias = (
+        df["Provincia"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    provincias = [
+        x for x in provincias
+        if str(x).strip() != ""
+    ]
 
     return sorted(provincias)
 
+
+# ======================================================
+# OBTENER CANTONES POR PROVINCIA
+# ======================================================
 
 def obtener_cantones_por_provincia(provincia):
     df = cargar_datos_importantes()
@@ -929,14 +1461,24 @@ def obtener_cantones_por_provincia(provincia):
 
     provincia_norm = normalizar_texto(provincia)
 
-    cantones = df[
-        df["Provincia_Normalizada"] == provincia_norm
-    ]["Cantón"].dropna().unique().tolist()
+    cantones = (
+        df[df["Provincia_Normalizada"] == provincia_norm]["Cantón"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
-    cantones = [x for x in cantones if str(x).strip() != ""]
+    cantones = [
+        x for x in cantones
+        if str(x).strip() != ""
+    ]
 
     return sorted(cantones)
 
+
+# ======================================================
+# OBTENER DISTRITOS POR PROVINCIA Y CANTÓN
+# ======================================================
 
 def obtener_distritos_por_provincia_canton(provincia, canton):
     df = cargar_datos_importantes()
@@ -947,18 +1489,27 @@ def obtener_distritos_por_provincia_canton(provincia, canton):
     provincia_norm = normalizar_texto(provincia)
     canton_norm = normalizar_texto(canton)
 
-    distritos = df[
-        (df["Provincia_Normalizada"] == provincia_norm) &
-        (df["Cantón_Normalizado"] == canton_norm)
-    ]["Distrito"].dropna().unique().tolist()
+    distritos = (
+        df[
+            (df["Provincia_Normalizada"] == provincia_norm) &
+            (df["Cantón_Normalizado"] == canton_norm)
+        ]["Distrito"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
-    distritos = [x for x in distritos if str(x).strip() != ""]
+    distritos = [
+        x for x in distritos
+        if str(x).strip() != ""
+    ]
 
     return sorted(distritos)
 
 
 # ======================================================
 # BASE MEP
+# Carga centros educativos y código presupuestario.
 # ======================================================
 
 @st.cache_data
@@ -1052,6 +1603,10 @@ def cargar_base_mep():
         return pd.DataFrame(columns=columnas_base)
 
 
+# ======================================================
+# OBTENER CENTROS EDUCATIVOS POR PROVINCIA
+# ======================================================
+
 def obtener_centros_por_provincia(provincia):
     df = cargar_base_mep()
 
@@ -1060,12 +1615,21 @@ def obtener_centros_por_provincia(provincia):
 
     provincia_norm = normalizar_texto(provincia)
 
-    centros = df[
-        df["PROVINCIA_NORMALIZADA"] == provincia_norm
-    ]["CENTRO_MOSTRAR"].dropna().astype(str).drop_duplicates().sort_values().tolist()
+    centros = (
+        df[df["PROVINCIA_NORMALIZADA"] == provincia_norm]["CENTRO_MOSTRAR"]
+        .dropna()
+        .astype(str)
+        .drop_duplicates()
+        .sort_values()
+        .tolist()
+    )
 
     return centros
 
+
+# ======================================================
+# OBTENER DATOS DEL CENTRO EDUCATIVO
+# ======================================================
 
 def obtener_datos_centro_educativo(centro_mostrar):
     df = cargar_base_mep()
@@ -1166,12 +1730,26 @@ def cargar_base_delegaciones():
         return pd.DataFrame(columns=["Delegacion", "Distrito"])
 
 
+# ======================================================
+# OBTENER TODAS LAS DELEGACIONES ÚNICAS
+# ======================================================
+
 def obtener_delegaciones_unicas():
     df_datos = cargar_datos_importantes()
 
     if not df_datos.empty:
-        delegaciones = df_datos["Delegación"].dropna().unique().tolist()
-        delegaciones = [x for x in delegaciones if str(x).strip() != ""]
+        delegaciones = (
+            df_datos["Delegación"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+        delegaciones = [
+            x for x in delegaciones
+            if str(x).strip() != ""
+        ]
+
         return sorted(delegaciones)
 
     df = cargar_base_delegaciones()
@@ -1191,169 +1769,16 @@ def obtener_delegaciones_unicas():
             if str(x).strip() != ""
         ]
     )
-
-
-# ======================================================
-# FUNCIONES PARA CARGAR EXCEL EXISTENTE
-# SIN FECHA REGISTRO
-# SIN PLAN ESTRATÉGICO RELACIONADO
-# ======================================================
-
-def preparar_dataframe_importado(df):
-    df = df.copy()
-
-    columnas_a_eliminar = [
-        "Fecha Registro",
-        "Plan Estratégico Relacionado"
-    ]
-
-    for col in columnas_a_eliminar:
-        if col in df.columns:
-            df = df.drop(columns=[col])
-
-    for col in ENCABEZADOS:
-        if col not in df.columns:
-            df[col] = ""
-
-    df = df[ENCABEZADOS]
-
-    for col in ENCABEZADOS:
-        df[col] = df[col].fillna("").astype(str)
-
-    columnas_numericas = [
-        "ID",
-        "Cantidad Participantes",
-        "Cantidad Hombres",
-        "Cantidad Mujeres",
-        "Edad 10 a 18",
-        "Edad 19 a 30",
-        "Edad 31 a 45",
-        "Edad 46 en adelante"
-    ]
-
-    for col in columnas_numericas:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-
-    return df
-
-
-def cargar_excel_existente(archivo_excel):
-    try:
-        df = pd.read_excel(archivo_excel, sheet_name=NOMBRE_HOJA_EXCEL)
-    except Exception:
-        try:
-            df = pd.read_excel(archivo_excel)
-        except Exception as e:
-            st.error("No se pudo leer el archivo Excel cargado.")
-            st.exception(e)
-            return pd.DataFrame(columns=ENCABEZADOS)
-
-    return preparar_dataframe_importado(df)
-
-
-def generar_id_consecutivo():
-    df = st.session_state.registros_pumi
-
-    if df.empty:
-        return 1
-
-    ids = pd.to_numeric(df["ID"], errors="coerce").dropna()
-
-    if ids.empty:
-        return 1
-
-    return int(ids.max()) + 1
-
-
-def agregar_registro_session(registro):
-    nuevo_df = pd.DataFrame([registro], columns=ENCABEZADOS)
-
-    st.session_state.registros_pumi = pd.concat(
-        [
-            st.session_state.registros_pumi,
-            nuevo_df
-        ],
-        ignore_index=True
-    )
-
-
-def eliminar_registro_session(id_registro):
-    df = st.session_state.registros_pumi.copy()
-
-    df = df[df["ID"].astype(str) != str(id_registro)]
-
-    st.session_state.registros_pumi = df.reset_index(drop=True)
-
-
-def actualizar_registro_session(id_registro, nuevos_datos):
-    df = st.session_state.registros_pumi.copy()
-
-    mascara = df["ID"].astype(str) == str(id_registro)
-
-    if not mascara.any():
-        return False
-
-    for col in ENCABEZADOS:
-        df.loc[mascara, col] = nuevos_datos.get(col, "")
-
-    st.session_state.registros_pumi = df.reset_index(drop=True)
-
-    return True
-
-
-def limpiar_dataframe_para_metricas(df):
-    df = df.copy()
-
-    columnas_numericas = [
-        "Cantidad Participantes",
-        "Cantidad Hombres",
-        "Cantidad Mujeres",
-        "Edad 10 a 18",
-        "Edad 19 a 30",
-        "Edad 31 a 45",
-        "Edad 46 en adelante"
-    ]
-
-    for col in columnas_numericas:
-        if col in df.columns:
-            df[col] = pd.to_numeric(
-                df[col],
-                errors="coerce"
-            ).fillna(0)
-
-    if "Fecha Actividad" in df.columns:
-        df["Fecha Actividad"] = pd.to_datetime(
-            df["Fecha Actividad"],
-            errors="coerce",
-            dayfirst=True
-        )
-
-    if "Latitud" in df.columns:
-        df["Latitud"] = df["Latitud"].astype(str)
-
-    if "Longitud" in df.columns:
-        df["Longitud"] = df["Longitud"].astype(str)
-
-    return df
     # ======================================================
-# PARTE 3 DE 5
-# MAPA, GEOREFERENCIA, EXPORTACIÓN EXCEL Y VISTA PRINCIPAL
+# PARTE 5 DE 10
+# MAPA, GEOREFERENCIA, GPS, BÚSQUEDA POR NOMBRE
+# Y MARCADOR VISIBLE SIEMPRE
 # ======================================================
 
-# ======================================================
-# GEOREFERENCIA Y MAPA
-# ======================================================
 
-CENTROS_PROVINCIA = {
-    "San José": [9.9281, -84.0907],
-    "Alajuela": [10.0162, -84.2116],
-    "Cartago": [9.8644, -83.9194],
-    "Heredia": [10.0024, -84.1165],
-    "Guanacaste": [10.6267, -85.4437],
-    "Puntarenas": [9.9763, -84.8384],
-    "Limón": [9.9917, -83.0360]
-}
-
+# ======================================================
+# GEOREFERENCIAR DIRECCIÓN O LUGAR
+# ======================================================
 
 @st.cache_data(show_spinner=False)
 def georreferenciar_direccion(direccion):
@@ -1361,7 +1786,9 @@ def georreferenciar_direccion(direccion):
         return None, None, ""
 
     try:
-        geolocator = Nominatim(user_agent="pumi_2026_streamlit_app")
+        geolocator = Nominatim(
+            user_agent="pumi_2026_streamlit_app"
+        )
 
         geocode = RateLimiter(
             geolocator.geocode,
@@ -1382,6 +1809,11 @@ def georreferenciar_direccion(direccion):
         return None, None, ""
 
 
+# ======================================================
+# LIMPIAR COORDENADAS
+# Convierte coordenadas escritas como texto a número.
+# ======================================================
+
 def limpiar_coordenada(valor):
     try:
         if valor is None or str(valor).strip() == "":
@@ -1393,9 +1825,17 @@ def limpiar_coordenada(valor):
         return None
 
 
+# ======================================================
+# COLOR DE MARCADOR SEGÚN PROGRAMA
+# ======================================================
+
 def obtener_color_programa(programa):
     return COLORES_PROGRAMA.get(programa, "gray")
 
+
+# ======================================================
+# CREAR MAPA BASE
+# ======================================================
 
 def crear_mapa_base(centro, zoom, tipo_mapa):
     mapa = folium.Map(
@@ -1430,7 +1870,10 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
 
     elif tipo_mapa == "Satélite":
         folium.TileLayer(
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            tiles=(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/"
+                "World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            ),
             attr="Esri World Imagery",
             name="Satélite"
         ).add_to(mapa)
@@ -1439,6 +1882,375 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
 
     return mapa
 
+
+# ======================================================
+# OBTENER CENTRO DEL MAPA DE REGISTRO
+# Si ya hay coordenadas, centra el mapa en el punto marcado.
+# Si no hay coordenadas, centra según provincia.
+# ======================================================
+
+def obtener_centro_mapa_registro(provincia):
+    lat_actual = limpiar_coordenada(
+        st.session_state.get("latitud_registro", "")
+    )
+
+    lon_actual = limpiar_coordenada(
+        st.session_state.get("longitud_registro", "")
+    )
+
+    if lat_actual is not None and lon_actual is not None:
+        return [lat_actual, lon_actual], 16
+
+    centro_provincia = CENTROS_PROVINCIA.get(
+        provincia,
+        [9.7489, -83.7534]
+    )
+
+    return centro_provincia, 10
+
+
+# ======================================================
+# CREAR MAPA DE REGISTRO INDIVIDUAL
+# Este mapa se muestra SIEMPRE, aunque el usuario use:
+# - GPS
+# - Buscar por nombre
+# - Coordenadas manuales
+# - Marcar punto en mapa
+# ======================================================
+
+def crear_mapa_registro_individual(
+    provincia,
+    tipo_mapa,
+    direccion_mapa="",
+    lugar="",
+    delegacion="",
+    programa="",
+    permitir_click=True
+):
+    centro_mapa, zoom_mapa = obtener_centro_mapa_registro(provincia)
+
+    mapa = crear_mapa_base(
+        centro_mapa,
+        zoom_mapa,
+        tipo_mapa
+    )
+
+    lat_actual = limpiar_coordenada(
+        st.session_state.get("latitud_registro", "")
+    )
+
+    lon_actual = limpiar_coordenada(
+        st.session_state.get("longitud_registro", "")
+    )
+
+    if lat_actual is not None and lon_actual is not None:
+        direccion_encontrada = st.session_state.get(
+            "direccion_encontrada_mapa",
+            ""
+        )
+
+        popup_html = f"""
+        <div style="font-family: Arial; width: 280px;">
+            <h4 style="color:#002B7F; margin-bottom:6px;">
+                Punto seleccionado para registro
+            </h4>
+            <b>Delegación:</b> {delegacion}<br>
+            <b>Programa:</b> {programa}<br>
+            <b>Lugar:</b> {lugar}<br>
+            <b>Dirección escrita:</b> {direccion_mapa}<br>
+            <b>Ubicación encontrada:</b> {direccion_encontrada}<br>
+            <b>Latitud:</b> {lat_actual}<br>
+            <b>Longitud:</b> {lon_actual}<br>
+        </div>
+        """
+
+        folium.Marker(
+            location=[lat_actual, lon_actual],
+            popup=folium.Popup(popup_html, max_width=330),
+            tooltip="Punto registrado / encontrado",
+            icon=folium.Icon(
+                color="red",
+                icon="map-marker"
+            )
+        ).add_to(mapa)
+
+        folium.Circle(
+            location=[lat_actual, lon_actual],
+            radius=180,
+            color=COLOR_AZUL,
+            fill=True,
+            fill_color=COLOR_DORADO,
+            fill_opacity=0.18,
+            weight=2
+        ).add_to(mapa)
+
+    return mapa
+
+
+# ======================================================
+# MOSTRAR MAPA INTERACTIVO DE REGISTRO
+# Aquí se captura el clic del usuario cuando quiere marcar manualmente.
+# ======================================================
+
+def mostrar_mapa_registro_interactivo(
+    provincia,
+    tipo_mapa,
+    direccion_mapa="",
+    lugar="",
+    delegacion="",
+    programa="",
+    key="mapa_registro_general"
+):
+    mapa_registro = crear_mapa_registro_individual(
+        provincia=provincia,
+        tipo_mapa=tipo_mapa,
+        direccion_mapa=direccion_mapa,
+        lugar=lugar,
+        delegacion=delegacion,
+        programa=programa
+    )
+
+    resultado_mapa = st_folium(
+        mapa_registro,
+        height=520,
+        use_container_width=True,
+        key=key
+    )
+
+    if resultado_mapa and resultado_mapa.get("last_clicked"):
+        lat_click = resultado_mapa["last_clicked"]["lat"]
+        lon_click = resultado_mapa["last_clicked"]["lng"]
+
+        st.session_state.latitud_registro = str(lat_click)
+        st.session_state.longitud_registro = str(lon_click)
+        st.session_state.direccion_encontrada_mapa = "Punto marcado manualmente en el mapa"
+
+        st.success(
+            f"Punto seleccionado en el mapa: {lat_click:.6f}, {lon_click:.6f}"
+        )
+
+        st.rerun()
+
+
+# ======================================================
+# BLOQUE COMPLETO DE GEOREFERENCIA PARA EL FORMULARIO
+# Esta función se usa en la PARTE 9.
+# ======================================================
+
+def bloque_georreferencia_formulario(
+    provincia,
+    canton,
+    distrito,
+    lugar,
+    delegacion,
+    programa
+):
+    st.markdown(
+        """
+        <div class="bloque-mapa">
+            <b>Georreferencia del lugar</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    tipo_mapa_registro = st.selectbox(
+        "Tipo de mapa",
+        [
+            "OpenStreetMap",
+            "Mapa claro",
+            "Mapa oscuro",
+            "Topográfico",
+            "Satélite"
+        ],
+        key="tipo_mapa_registro"
+    )
+
+    direccion_sugerida = f"{lugar}, {distrito}, {canton}, {provincia}, Costa Rica"
+
+    direccion_mapa = st.text_input(
+        "Dirección o referencia para ubicar en mapa",
+        value=direccion_sugerida,
+        key="direccion_mapa_registro"
+    )
+
+    metodo_ubicacion = st.radio(
+        "Método para registrar ubicación",
+        [
+            "Buscar por nombre del lugar",
+            "Usar GPS del dispositivo",
+            "Ingresar coordenadas manualmente",
+            "Marcar punto en el mapa",
+            "No registrar ubicación"
+        ],
+        horizontal=False,
+        key="metodo_ubicacion_registro"
+    )
+
+    st.session_state.metodo_ubicacion_actual = metodo_ubicacion
+
+    # ==================================================
+    # BUSCAR POR NOMBRE DEL LUGAR
+    # ==================================================
+
+    if metodo_ubicacion == "Buscar por nombre del lugar":
+        st.info(
+            "Digite o confirme la dirección y presione el botón para buscar. "
+            "El punto encontrado se mostrará inmediatamente en el mapa."
+        )
+
+        if st.button("🔎 Buscar ubicación en el mapa"):
+            lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(
+                direccion_mapa
+            )
+
+            if lat_busqueda is not None and lon_busqueda is not None:
+                st.session_state.latitud_registro = str(lat_busqueda)
+                st.session_state.longitud_registro = str(lon_busqueda)
+                st.session_state.direccion_encontrada_mapa = direccion_encontrada
+
+                st.success("Ubicación encontrada automáticamente.")
+                st.caption(f"Resultado encontrado: {direccion_encontrada}")
+
+                st.rerun()
+            else:
+                st.warning(
+                    "No se logró ubicar el lugar automáticamente. "
+                    "Puede ajustar el texto de búsqueda o marcar el punto en el mapa."
+                )
+
+    # ==================================================
+    # USAR GPS DEL DISPOSITIVO
+    # ==================================================
+
+    elif metodo_ubicacion == "Usar GPS del dispositivo":
+        st.info(
+            "El navegador puede solicitar permiso para acceder a la ubicación "
+            "del dispositivo. Cuando se obtenga la ubicación, el punto se verá "
+            "marcado en el mapa."
+        )
+
+        ubicacion_gps = get_geolocation()
+
+        if ubicacion_gps and "coords" in ubicacion_gps:
+            lat_gps = ubicacion_gps["coords"].get("latitude", "")
+            lon_gps = ubicacion_gps["coords"].get("longitude", "")
+
+            if lat_gps and lon_gps:
+                st.session_state.latitud_registro = str(lat_gps)
+                st.session_state.longitud_registro = str(lon_gps)
+                st.session_state.direccion_encontrada_mapa = "Ubicación obtenida por GPS del dispositivo"
+
+                st.success("Ubicación GPS obtenida correctamente.")
+            else:
+                st.warning("No se recibieron coordenadas válidas desde el GPS.")
+        else:
+            st.warning(
+                "No se obtuvo ubicación GPS todavía. "
+                "Revise que el navegador tenga permisos de ubicación."
+            )
+
+    # ==================================================
+    # INGRESAR COORDENADAS MANUALMENTE
+    # ==================================================
+
+    elif metodo_ubicacion == "Ingresar coordenadas manualmente":
+        st.info(
+            "Ingrese latitud y longitud. El mapa se actualizará mostrando "
+            "el punto registrado."
+        )
+
+        col_lat, col_lon = st.columns(2)
+
+        with col_lat:
+            lat_manual = st.text_input(
+                "Latitud",
+                value=st.session_state.latitud_registro,
+                key="lat_manual_registro"
+            )
+
+        with col_lon:
+            lon_manual = st.text_input(
+                "Longitud",
+                value=st.session_state.longitud_registro,
+                key="lon_manual_registro"
+            )
+
+        st.session_state.latitud_registro = lat_manual
+        st.session_state.longitud_registro = lon_manual
+        st.session_state.direccion_encontrada_mapa = "Coordenadas ingresadas manualmente"
+
+    # ==================================================
+    # MARCAR PUNTO EN MAPA
+    # ==================================================
+
+    elif metodo_ubicacion == "Marcar punto en el mapa":
+        st.info(
+            "Haga clic sobre el mapa para seleccionar el punto exacto. "
+            "El marcador quedará visible después de seleccionar la ubicación."
+        )
+
+    # ==================================================
+    # NO REGISTRAR UBICACIÓN
+    # ==================================================
+
+    elif metodo_ubicacion == "No registrar ubicación":
+        st.session_state.latitud_registro = ""
+        st.session_state.longitud_registro = ""
+        st.session_state.direccion_encontrada_mapa = ""
+
+        st.warning("No se registrará ubicación para este registro.")
+
+    # ==================================================
+    # MOSTRAR MAPA SIEMPRE
+    # ==================================================
+
+    st.markdown("### Vista del punto en el mapa")
+
+    mostrar_mapa_registro_interactivo(
+        provincia=provincia,
+        tipo_mapa=tipo_mapa_registro,
+        direccion_mapa=direccion_mapa,
+        lugar=lugar,
+        delegacion=delegacion,
+        programa=programa,
+        key="mapa_registro_visible_siempre"
+    )
+
+    # ==================================================
+    # MOSTRAR COORDENADAS REGISTRADAS
+    # ==================================================
+
+    col_geo1, col_geo2 = st.columns(2)
+
+    with col_geo1:
+        st.text_input(
+            "Latitud registrada",
+            value=st.session_state.latitud_registro,
+            disabled=True,
+            key="latitud_registrada_visible"
+        )
+
+    with col_geo2:
+        st.text_input(
+            "Longitud registrada",
+            value=st.session_state.longitud_registro,
+            disabled=True,
+            key="longitud_registrada_visible"
+        )
+
+    if st.session_state.get("direccion_encontrada_mapa", ""):
+        st.info(
+            f"Referencia del punto: {st.session_state.direccion_encontrada_mapa}"
+        )
+
+    return direccion_mapa
+
+
+# ======================================================
+# PREPARAR DATAFRAME PARA MAPA GENERAL
+# Se usa en Dashboard y registros filtrados.
+# ======================================================
 
 def preparar_dataframe_mapa(df):
     df_mapa = df.copy()
@@ -1462,12 +2274,26 @@ def preparar_dataframe_mapa(df):
     return df_mapa
 
 
+# ======================================================
+# CENTRAR MAPA GENERAL POR PROVINCIA
+# ======================================================
+
 def obtener_centro_mapa_por_provincia(df):
     if df.empty or "Provincia" not in df.columns:
         return [9.7489, -83.7534], 7
 
-    provincias = df["Provincia"].dropna().astype(str).unique().tolist()
-    provincias = [p for p in provincias if p.strip() != ""]
+    provincias = (
+        df["Provincia"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    provincias = [
+        p for p in provincias
+        if p.strip() != ""
+    ]
 
     if len(provincias) == 1:
         provincia = provincias[0]
@@ -1477,6 +2303,11 @@ def obtener_centro_mapa_por_provincia(df):
 
     return [9.7489, -83.7534], 7
 
+
+# ======================================================
+# CREAR MAPA GENERAL DE REGISTROS
+# Se usa para el Dashboard.
+# ======================================================
 
 def crear_mapa_registros(df, zoom_start=8):
     df_mapa = preparar_dataframe_mapa(df)
@@ -1498,7 +2329,6 @@ def crear_mapa_registros(df, zoom_start=8):
         centro_lat = float(df_mapa.iloc[0]["Latitud_Num"])
         centro_lon = float(df_mapa.iloc[0]["Longitud_Num"])
         zoom_mapa = 16
-
     else:
         centro_lat = float(df_mapa["Latitud_Num"].mean())
         centro_lon = float(df_mapa["Longitud_Num"].mean())
@@ -1518,6 +2348,7 @@ def crear_mapa_registros(df, zoom_start=8):
 
         lat = float(row["Latitud_Num"])
         lon = float(row["Longitud_Num"])
+
         coordenadas.append([lat, lon])
 
         popup_html = f"""
@@ -1527,6 +2358,7 @@ def crear_mapa_registros(df, zoom_start=8):
             </h4>
             <b>Fecha:</b> {row.get("Fecha Actividad", "")}<br>
             <b>Hora:</b> {row.get("Hora Actividad", "")}<br>
+            <b>Dirección Regional:</b> {row.get("Dirección Regional", "")}<br>
             <b>Delegación:</b> {row.get("Delegación", "")}<br>
             <b>Programa:</b> {row.get("Programa", "")}<br>
             <b>Actividad:</b> {row.get("Actividad", "")}<br>
@@ -1599,6 +2431,10 @@ def crear_mapa_registros(df, zoom_start=8):
     return mapa
 
 
+# ======================================================
+# MOSTRAR MAPA GENERAL DE REGISTROS
+# ======================================================
+
 def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
     df_mapa = preparar_dataframe_mapa(df)
 
@@ -1616,12 +2452,17 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
         use_container_width=True,
         key=key
     )
+    # ======================================================
+# PARTE 6 DE 10
+# EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL
+# Y NOMBRE AUTOMÁTICO SEGÚN DIRECCIÓN REGIONAL / DELEGACIÓN
+# ======================================================
 
 
 # ======================================================
-# EXPORTACIÓN A EXCEL
-# SIN FECHA REGISTRO
-# SIN PLAN ESTRATÉGICO RELACIONADO
+# CONVERTIR DATAFRAME A EXCEL
+# Esta función genera el archivo Excel en memoria.
+# Mantiene únicamente los encabezados oficiales.
 # ======================================================
 
 def convertir_excel(df):
@@ -1656,6 +2497,10 @@ def convertir_excel(df):
     workbook = load_workbook(output)
     worksheet = workbook[NOMBRE_HOJA_EXCEL]
 
+    # ==================================================
+    # FORMATO DEL ENCABEZADO
+    # ==================================================
+
     fill_header = PatternFill(
         start_color="002B7F",
         end_color="002B7F",
@@ -1684,6 +2529,10 @@ def convertir_excel(df):
         )
         cell.border = border
 
+    # ==================================================
+    # FORMATO DEL CUERPO DE LA TABLA
+    # ==================================================
+
     for row in worksheet.iter_rows(min_row=2):
         for cell in row:
             cell.alignment = Alignment(
@@ -1692,6 +2541,10 @@ def convertir_excel(df):
             )
             cell.border = border
 
+    # ==================================================
+    # AJUSTE AUTOMÁTICO DE ANCHO DE COLUMNAS
+    # ==================================================
+
     for column_cells in worksheet.columns:
         max_length = 0
         column_letter = column_cells[0].column_letter
@@ -1699,13 +2552,23 @@ def convertir_excel(df):
         for cell in column_cells:
             try:
                 valor = str(cell.value) if cell.value is not None else ""
+
                 if len(valor) > max_length:
                     max_length = len(valor)
+
             except Exception:
                 pass
 
-        adjusted_width = min(max(max_length + 2, 14), 45)
+        adjusted_width = min(
+            max(max_length + 2, 14),
+            45
+        )
+
         worksheet.column_dimensions[column_letter].width = adjusted_width
+
+    # ==================================================
+    # FIJAR ENCABEZADO
+    # ==================================================
 
     worksheet.freeze_panes = "A2"
 
@@ -1717,17 +2580,82 @@ def convertir_excel(df):
 
 
 # ======================================================
-# INICIALIZAR SESSION STATE
+# BOTÓN DE DESCARGA ESTANDARIZADO
+# Usa automáticamente el nombre:
+# REGISTRO_PUMI_2026_DIRECCION_DELEGACION.xlsx
 # ======================================================
 
-inicializar_session_state()
+def boton_descargar_excel(
+    df,
+    texto_boton="⬇️ Descargar Excel",
+    filtrado=False,
+    key=None
+):
+    if df is None or df.empty:
+        st.info("No hay registros para descargar.")
+        return
+
+    nombre_archivo = generar_nombre_excel_desde_df(
+        df,
+        filtrado=filtrado
+    )
+
+    st.download_button(
+        texto_boton,
+        data=convertir_excel(df),
+        file_name=nombre_archivo,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=key
+    )
 
 
 # ======================================================
-# SIDEBAR Y MENÚ PRINCIPAL
+# BOTÓN DE DESCARGA SEGÚN SELECCIÓN ACTUAL DEL FORMULARIO
+# Se usa cuando el usuario está en Registrar actividad.
+# Toma la Dirección Regional y Delegación seleccionadas.
+# ======================================================
+
+def boton_descargar_excel_formulario(
+    df,
+    direccion_regional,
+    delegacion,
+    texto_boton="⬇️ Descargar Excel actualizado",
+    key=None
+):
+    if df is None or df.empty:
+        st.info("No hay registros para descargar.")
+        return
+
+    nombre_archivo = generar_nombre_excel(
+        direccion_regional=direccion_regional,
+        delegacion=delegacion,
+        filtrado=False
+    )
+
+    st.download_button(
+        texto_boton,
+        data=convertir_excel(df),
+        file_name=nombre_archivo,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=key
+    )
+    # ======================================================
+# PARTE 7 DE 10
+# SIDEBAR, CARGA DE EXCEL EXISTENTE, MENÚ PRINCIPAL
+# Y ENCABEZADOS VISUALES DE LA APP
+# ======================================================
+
+
+# ======================================================
+# MOSTRAR LOGO EN SIDEBAR
 # ======================================================
 
 mostrar_logo()
+
+
+# ======================================================
+# TÍTULO DEL SIDEBAR
+# ======================================================
 
 st.sidebar.markdown("## Sistema PUMI 2026")
 
@@ -1749,6 +2677,12 @@ st.sidebar.markdown(
 )
 
 
+# ======================================================
+# CARGA DE EXCEL EXISTENTE
+# Permite subir un Excel generado antes para continuar
+# agregando, editando o eliminando registros.
+# ======================================================
+
 archivo_excel_cargado = st.sidebar.file_uploader(
     "Subir Excel existente para continuar registros",
     type=["xlsx"]
@@ -1765,6 +2699,10 @@ if archivo_excel_cargado is not None:
         else:
             st.sidebar.warning("El Excel cargado no contiene registros válidos.")
 
+
+# ======================================================
+# MENÚ PRINCIPAL
+# ======================================================
 
 menu = st.sidebar.radio(
     "Menú principal",
@@ -1785,18 +2723,15 @@ mostrar_encabezado_institucional()
 
 
 # ======================================================
-# ENCABEZADO PRINCIPAL
+# TÍTULO PRINCIPAL
 # ======================================================
 
-st.markdown(
-    """
-    <div class="titulo-principal">
-        <h1>🛡️ P.U.M.I. 2026</h1>
-        <h3>Proceso Unificado para el Manejo de la Información</h3>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+mostrar_titulo_principal()
+# ======================================================
+# PARTE 8 DE 10
+# PANTALLA DE INICIO Y PRIMERA MITAD DEL FORMULARIO:
+# DATOS GENERALES, ACTIVIDAD Y PARTICIPANTES
+# ======================================================
 
 
 # ======================================================
@@ -1847,24 +2782,29 @@ if menu == "Inicio":
         programas = 0
 
         if not df_actual.empty and "Programa" in df_actual.columns:
-            programas = df_actual["Programa"].replace("", pd.NA).dropna().nunique()
+            programas = (
+                df_actual["Programa"]
+                .replace("", pd.NA)
+                .dropna()
+                .nunique()
+            )
 
         st.metric("Programas registrados", programas)
 
     st.markdown("---")
 
     if not df_actual.empty:
-        st.download_button(
-            "⬇️ Descargar Excel actual",
-            data=convertir_excel(df_actual),
-            file_name="REGISTRO_PUMI_2026.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        boton_descargar_excel(
+            df_actual,
+            texto_boton="⬇️ Descargar Excel actual",
+            filtrado=False,
+            key="descarga_inicio"
         )
-        # ======================================================
-# PARTE 4 DE 5
-# FORMULARIO COMPLETO PARA REGISTRAR ACTIVIDADES
-# SIN FECHA REGISTRO
-# SIN PLAN ESTRATÉGICO RELACIONADO
+
+
+# ======================================================
+# REGISTRAR ACTIVIDAD
+# PRIMERA MITAD DEL FORMULARIO
 # ======================================================
 
 elif menu == "Registrar actividad":
@@ -1884,9 +2824,9 @@ elif menu == "Registrar actividad":
     )
 
 
-    # ======================================================
-    # DATOS GENERALES
-    # ======================================================
+    # ==================================================
+    # DATOS GENERALES DEL REGISTRO
+    # ==================================================
 
     st.markdown(
         """
@@ -1918,6 +2858,8 @@ elif menu == "Registrar actividad":
             regiones_lista if regiones_lista else REGIONES
         )
 
+        st.session_state.ultima_direccion_regional = direccion_regional
+
         delegaciones_filtradas = obtener_delegaciones_por_region(
             direccion_regional
         )
@@ -1928,6 +2870,8 @@ elif menu == "Registrar actividad":
             if delegaciones_filtradas
             else ["Sin datos disponibles"]
         )
+
+        st.session_state.ultima_delegacion = delegacion
 
     with col2:
         responde_a_lista = obtener_responde_a_datos()
@@ -1965,9 +2909,9 @@ elif menu == "Registrar actividad":
         usuario = st.text_input("Usuario que registra")
 
 
-    # ======================================================
+    # ==================================================
     # PARTICIPANTES
-    # ======================================================
+    # ==================================================
 
     st.markdown(
         """
@@ -2034,7 +2978,13 @@ elif menu == "Registrar actividad":
         )
 
     suma_sexo = cantidad_hombres + cantidad_mujeres
-    suma_edades = edad_10_18 + edad_19_30 + edad_31_45 + edad_46_mas
+
+    suma_edades = (
+        edad_10_18 +
+        edad_19_30 +
+        edad_31_45 +
+        edad_46_mas
+    )
 
     if cantidad > 0:
         if suma_sexo != cantidad:
@@ -2048,11 +2998,17 @@ elif menu == "Registrar actividad":
                 f"La suma de los rangos de edad ({suma_edades}) no coincide "
                 f"con la cantidad total de participantes ({cantidad})."
             )
+            # ======================================================
+# PARTE 9 DE 10
+# SEGUNDA MITAD DEL FORMULARIO:
+# UBICACIÓN TERRITORIAL, LUGAR, GEOREFERENCIA,
+# INFORMACIÓN COMPLEMENTARIA, GUARDAR Y DESCARGAR
+# ======================================================
 
 
-    # ======================================================
+    # ==================================================
     # UBICACIÓN TERRITORIAL
-    # ======================================================
+    # ==================================================
 
     st.markdown(
         """
@@ -2097,9 +3053,9 @@ elif menu == "Registrar actividad":
         )
 
 
-    # ======================================================
+    # ==================================================
     # LUGAR DE REALIZACIÓN
-    # ======================================================
+    # ==================================================
 
     st.markdown(
         """
@@ -2162,175 +3118,26 @@ elif menu == "Registrar actividad":
         codigo_presupuestario = ""
 
 
-    # ======================================================
+    # ==================================================
     # MAPA Y GEOREFERENCIA
-    # ======================================================
+    # CORREGIDO:
+    # El mapa se muestra siempre, aunque se use GPS,
+    # búsqueda por nombre, coordenadas manuales o clic.
+    # ==================================================
 
-    st.markdown(
-        """
-        <div class="bloque-mapa">
-            <b>Georreferencia del lugar</b>
-        </div>
-        """,
-        unsafe_allow_html=True
+    direccion_mapa = bloque_georreferencia_formulario(
+        provincia=provincia,
+        canton=canton,
+        distrito=distrito,
+        lugar=lugar,
+        delegacion=delegacion,
+        programa=programa
     )
 
-    tipo_mapa_registro = st.selectbox(
-        "Tipo de mapa",
-        [
-            "OpenStreetMap",
-            "Mapa claro",
-            "Mapa oscuro",
-            "Topográfico",
-            "Satélite"
-        ],
-        key="tipo_mapa_registro"
-    )
 
-    direccion_mapa = st.text_input(
-        "Dirección o referencia para ubicar en mapa",
-        value=f"{lugar}, {distrito}, {canton}, {provincia}, Costa Rica"
-    )
-
-    metodo_ubicacion = st.radio(
-        "Método para registrar ubicación",
-        [
-            "Buscar por nombre del lugar",
-            "Usar GPS del dispositivo",
-            "Ingresar coordenadas manualmente",
-            "Marcar punto en el mapa",
-            "No registrar ubicación"
-        ],
-        horizontal=False
-    )
-
-    if metodo_ubicacion == "Buscar por nombre del lugar":
-        if st.button("Buscar ubicación en el mapa"):
-            lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(
-                direccion_mapa
-            )
-
-            if lat_busqueda and lon_busqueda:
-                st.session_state.latitud_registro = str(lat_busqueda)
-                st.session_state.longitud_registro = str(lon_busqueda)
-
-                st.success("Ubicación encontrada automáticamente.")
-                st.caption(direccion_encontrada)
-            else:
-                st.warning(
-                    "No se logró ubicar el lugar automáticamente. "
-                    "Puede usar la opción Marcar punto en el mapa."
-                )
-
-    elif metodo_ubicacion == "Usar GPS del dispositivo":
-        st.info(
-            "El navegador puede solicitar permiso para acceder a la ubicación del dispositivo."
-        )
-
-        ubicacion_gps = get_geolocation()
-
-        if ubicacion_gps and "coords" in ubicacion_gps:
-            lat_gps = ubicacion_gps["coords"].get("latitude", "")
-            lon_gps = ubicacion_gps["coords"].get("longitude", "")
-
-            if lat_gps and lon_gps:
-                st.session_state.latitud_registro = str(lat_gps)
-                st.session_state.longitud_registro = str(lon_gps)
-                st.success("Ubicación GPS obtenida correctamente.")
-            else:
-                st.warning("No se recibieron coordenadas válidas desde el GPS.")
-        else:
-            st.warning(
-                "No se obtuvo ubicación GPS. Puede usar la opción Marcar punto en el mapa."
-            )
-
-    elif metodo_ubicacion == "Ingresar coordenadas manualmente":
-        col_lat, col_lon = st.columns(2)
-
-        with col_lat:
-            lat_manual = st.text_input(
-                "Latitud",
-                value=st.session_state.latitud_registro
-            )
-
-        with col_lon:
-            lon_manual = st.text_input(
-                "Longitud",
-                value=st.session_state.longitud_registro
-            )
-
-        st.session_state.latitud_registro = lat_manual
-        st.session_state.longitud_registro = lon_manual
-
-    elif metodo_ubicacion == "Marcar punto en el mapa":
-        centro_mapa = CENTROS_PROVINCIA.get(
-            provincia,
-            [9.7489, -83.7534]
-        )
-
-        mapa_registro = crear_mapa_base(
-            centro_mapa,
-            10,
-            tipo_mapa_registro
-        )
-
-        if st.session_state.latitud_registro and st.session_state.longitud_registro:
-            lat_actual = limpiar_coordenada(st.session_state.latitud_registro)
-            lon_actual = limpiar_coordenada(st.session_state.longitud_registro)
-
-            if lat_actual and lon_actual:
-                folium.Marker(
-                    location=[lat_actual, lon_actual],
-                    tooltip="Punto seleccionado",
-                    icon=folium.Icon(
-                        color="red",
-                        icon="info-sign"
-                    )
-                ).add_to(mapa_registro)
-
-        resultado_mapa = st_folium(
-            mapa_registro,
-            height=520,
-            use_container_width=True,
-            key="mapa_registro_manual"
-        )
-
-        if resultado_mapa and resultado_mapa.get("last_clicked"):
-            lat_click = resultado_mapa["last_clicked"]["lat"]
-            lon_click = resultado_mapa["last_clicked"]["lng"]
-
-            st.session_state.latitud_registro = str(lat_click)
-            st.session_state.longitud_registro = str(lon_click)
-
-            st.success(
-                f"Punto seleccionado: {lat_click:.6f}, {lon_click:.6f}"
-            )
-
-    elif metodo_ubicacion == "No registrar ubicación":
-        st.session_state.latitud_registro = ""
-        st.session_state.longitud_registro = ""
-
-
-    col_geo1, col_geo2 = st.columns(2)
-
-    with col_geo1:
-        st.text_input(
-            "Latitud registrada",
-            value=st.session_state.latitud_registro,
-            disabled=True
-        )
-
-    with col_geo2:
-        st.text_input(
-            "Longitud registrada",
-            value=st.session_state.longitud_registro,
-            disabled=True
-        )
-
-
-    # ======================================================
+    # ==================================================
     # INFORMACIÓN COMPLEMENTARIA
-    # ======================================================
+    # ==================================================
 
     st.markdown(
         """
@@ -2358,9 +3165,9 @@ elif menu == "Registrar actividad":
     )
 
 
-    # ======================================================
+    # ==================================================
     # GUARDAR REGISTRO
-    # ======================================================
+    # ==================================================
 
     st.markdown("---")
 
@@ -2425,24 +3232,28 @@ elif menu == "Registrar actividad":
 
         st.session_state.latitud_registro = ""
         st.session_state.longitud_registro = ""
+        st.session_state.direccion_encontrada_mapa = ""
 
         st.rerun()
 
 
-    # ======================================================
-    # DESCARGA RÁPIDA
-    # ======================================================
+    # ==================================================
+    # DESCARGA RÁPIDA DESDE EL FORMULARIO
+    # El nombre del archivo se genera automáticamente
+    # con Dirección Regional y Delegación seleccionadas.
+    # ==================================================
 
     df_actual = st.session_state.registros_pumi
 
     if not df_actual.empty:
         st.markdown("### Descargar registros actuales")
 
-        st.download_button(
-            "⬇️ Descargar Excel actualizado",
-            data=convertir_excel(df_actual),
-            file_name="REGISTRO_PUMI_2026.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        boton_descargar_excel_formulario(
+            df=df_actual,
+            direccion_regional=direccion_regional,
+            delegacion=delegacion,
+            texto_boton="⬇️ Descargar Excel actualizado",
+            key="descarga_formulario"
         )
 
         st.markdown("### Vista previa de registros cargados")
@@ -2453,11 +3264,11 @@ elif menu == "Registrar actividad":
             hide_index=True
         )
         # ======================================================
-# PARTE 5 DE 5
-# REGISTROS CARGADOS, EDICIÓN, ELIMINACIÓN Y DASHBOARD
-# SIN FECHA REGISTRO
-# SIN PLAN ESTRATÉGICO RELACIONADO
+# PARTE 10 DE 10
+# REGISTROS CARGADOS, EDICIÓN, ELIMINACIÓN,
+# DASHBOARD, MAPA GENERAL Y DESCARGA GLOBAL
 # ======================================================
+
 
 elif menu == "Registros cargados":
 
@@ -2489,11 +3300,11 @@ elif menu == "Registros cargados":
 
         st.markdown("### Descargar Excel actualizado")
 
-        st.download_button(
-            "⬇️ Descargar Excel",
-            data=convertir_excel(df_actual),
-            file_name="REGISTRO_PUMI_2026.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        boton_descargar_excel(
+            df_actual,
+            texto_boton="⬇️ Descargar Excel",
+            filtrado=False,
+            key="descarga_registros"
         )
 
         st.markdown("---")
@@ -2627,49 +3438,84 @@ elif menu == "Registros cargados":
                         "Cantidad Participantes",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Cantidad Participantes", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Cantidad Participantes", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     hombres_edit = st.number_input(
                         "Cantidad Hombres",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Cantidad Hombres", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Cantidad Hombres", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     mujeres_edit = st.number_input(
                         "Cantidad Mujeres",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Cantidad Mujeres", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Cantidad Mujeres", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     edad_10_18_edit = st.number_input(
                         "Edad 10 a 18",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Edad 10 a 18", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Edad 10 a 18", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     edad_19_30_edit = st.number_input(
                         "Edad 19 a 30",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Edad 19 a 30", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Edad 19 a 30", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     edad_31_45_edit = st.number_input(
                         "Edad 31 a 45",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Edad 31 a 45", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Edad 31 a 45", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     edad_46_mas_edit = st.number_input(
                         "Edad 46 en adelante",
                         min_value=0,
                         step=1,
-                        value=int(pd.to_numeric(fila.get("Edad 46 en adelante", 0), errors="coerce") or 0)
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Edad 46 en adelante", 0),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     instituciones_edit = st.text_area(
@@ -2698,6 +3544,7 @@ elif menu == "Registros cargados":
                     )
 
                 suma_sexo_edit = hombres_edit + mujeres_edit
+
                 suma_edades_edit = (
                     edad_10_18_edit +
                     edad_19_30_edit +
@@ -2817,31 +3664,55 @@ elif menu == "Dashboard":
         with colf1:
             filtro_programa = st.multiselect(
                 "Filtrar por programa",
-                sorted(df_actual["Programa"].dropna().astype(str).unique().tolist())
+                sorted(
+                    df_actual["Programa"]
+                    .dropna()
+                    .astype(str)
+                    .unique()
+                    .tolist()
+                )
             )
 
         with colf2:
             filtro_region = st.multiselect(
                 "Filtrar por Dirección Regional",
-                sorted(df_actual["Dirección Regional"].dropna().astype(str).unique().tolist())
+                sorted(
+                    df_actual["Dirección Regional"]
+                    .dropna()
+                    .astype(str)
+                    .unique()
+                    .tolist()
+                )
             )
 
         with colf3:
             filtro_provincia = st.multiselect(
                 "Filtrar por provincia",
-                sorted(df_actual["Provincia"].dropna().astype(str).unique().tolist())
+                sorted(
+                    df_actual["Provincia"]
+                    .dropna()
+                    .astype(str)
+                    .unique()
+                    .tolist()
+                )
             )
 
         df_filtrado = df_actual.copy()
 
         if filtro_programa:
-            df_filtrado = df_filtrado[df_filtrado["Programa"].isin(filtro_programa)]
+            df_filtrado = df_filtrado[
+                df_filtrado["Programa"].isin(filtro_programa)
+            ]
 
         if filtro_region:
-            df_filtrado = df_filtrado[df_filtrado["Dirección Regional"].isin(filtro_region)]
+            df_filtrado = df_filtrado[
+                df_filtrado["Dirección Regional"].isin(filtro_region)
+            ]
 
         if filtro_provincia:
-            df_filtrado = df_filtrado[df_filtrado["Provincia"].isin(filtro_provincia)]
+            df_filtrado = df_filtrado[
+                df_filtrado["Provincia"].isin(filtro_provincia)
+            ]
 
         df_filtrado_metricas = limpiar_dataframe_para_metricas(df_filtrado)
 
@@ -2853,11 +3724,11 @@ elif menu == "Dashboard":
             hide_index=True
         )
 
-        st.download_button(
-            "⬇️ Descargar Excel filtrado",
-            data=convertir_excel(df_filtrado),
-            file_name="REGISTRO_PUMI_2026_FILTRADO.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        boton_descargar_excel(
+            df_filtrado,
+            texto_boton="⬇️ Descargar Excel filtrado",
+            filtrado=True,
+            key="descarga_dashboard_filtrado"
         )
 
         st.markdown("---")
@@ -2972,15 +3843,24 @@ df_sidebar = st.session_state.registros_pumi
 if df_sidebar.empty:
     st.sidebar.info("No hay registros para descargar.")
 else:
+    nombre_sidebar = generar_nombre_excel_desde_df(
+        df_sidebar,
+        filtrado=False
+    )
+
     st.sidebar.download_button(
         "⬇️ Descargar Excel actual",
         data=convertir_excel(df_sidebar),
-        file_name="REGISTRO_PUMI_2026.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        file_name=nombre_sidebar,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="descarga_sidebar_global"
     )
 
     if st.sidebar.button("🧹 Limpiar registros de la sesión"):
         st.session_state.registros_pumi = pd.DataFrame(columns=ENCABEZADOS)
         st.session_state.archivo_cargado_nombre = ""
+        st.session_state.latitud_registro = ""
+        st.session_state.longitud_registro = ""
+        st.session_state.direccion_encontrada_mapa = ""
         st.sidebar.success("Registros limpiados.")
         st.rerun()
