@@ -21,6 +21,7 @@ from datetime import datetime, date, time
 from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, Protection
+from openpyxl.drawing.image import Image
 
 
 # ======================================================
@@ -42,6 +43,7 @@ st.set_page_config(
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
 ARCHIVO_DELEGACIONES = "DELEGACIONES Y DISTRITOS.xlsx"
 ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
+MARCA_AGUA_EXCEL = "marca_agua.png"
 
 
 # ======================================================
@@ -2394,18 +2396,9 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 # ======================================================
 # PARTE 6 DE 10
 # EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL,
-# MARCA DE AGUA, PROTECCIÓN TOTAL Y NOMBRE AUTOMÁTICO
+# MARCA DE AGUA VISIBLE, PROTECCIÓN TOTAL Y NOMBRE AUTOMÁTICO
 # ======================================================
 
-
-# ======================================================
-# CONVERTIR DATAFRAME A EXCEL
-# Esta función genera el archivo Excel en memoria.
-# Mantiene los encabezados oficiales, pero elimina
-# "Dirección Mapa" del Excel final para evitar confusión.
-# Protege la hoja y la estructura del libro.
-# Contraseña de desbloqueo: DPPP23
-# ======================================================
 
 def convertir_excel(df):
     output = BytesIO()
@@ -2444,6 +2437,21 @@ def convertir_excel(df):
 
     workbook = load_workbook(output)
     worksheet = workbook[NOMBRE_HOJA_EXCEL]
+
+    # ==================================================
+    # MARCA DE AGUA VISIBLE EN LA HOJA
+    # Archivo requerido en el repositorio:
+    # marca_agua.png
+    # ==================================================
+
+    if os.path.exists(MARCA_AGUA_EXCEL):
+        try:
+            marca_agua = Image(MARCA_AGUA_EXCEL)
+            marca_agua.width = 900
+            marca_agua.height = 520
+            worksheet.add_image(marca_agua, "D6")
+        except Exception:
+            pass
 
     # ==================================================
     # FORMATO DEL ENCABEZADO
@@ -2521,7 +2529,7 @@ def convertir_excel(df):
     worksheet.freeze_panes = "A2"
 
     # ==================================================
-    # MARCA DE AGUA EN IMPRESIÓN / DISEÑO DE PÁGINA
+    # MARCA DE AGUA EN IMPRESIÓN / PDF
     # ==================================================
 
     worksheet.oddHeader.center.text = "Dirección de Programas Preventivos Policiales"
@@ -2582,8 +2590,6 @@ def convertir_excel(df):
 
     # ==================================================
     # PROTEGER ESTRUCTURA DEL LIBRO
-    # Evita agregar, eliminar, mover o renombrar hojas
-    # Contraseña: DPPP23
     # ==================================================
 
     workbook.security.lockStructure = True
@@ -2595,10 +2601,6 @@ def convertir_excel(df):
 
     return final_output.getvalue()
 
-
-# ======================================================
-# BOTÓN DE DESCARGA ESTANDARIZADO
-# ======================================================
 
 def boton_descargar_excel(
     df,
@@ -2623,10 +2625,6 @@ def boton_descargar_excel(
         key=key
     )
 
-
-# ======================================================
-# BOTÓN DE DESCARGA SEGÚN SELECCIÓN ACTUAL DEL FORMULARIO
-# ======================================================
 
 def boton_descargar_excel_formulario(
     df,
