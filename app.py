@@ -20,7 +20,7 @@ from streamlit_js_eval import get_geolocation
 from datetime import datetime, date, time
 from io import BytesIO
 from openpyxl import load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, Protection
 
 
 # ======================================================
@@ -2452,10 +2452,10 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
         use_container_width=True,
         key=key
     )
-    # ======================================================
+# ======================================================
 # PARTE 6 DE 10
-# EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL
-# Y NOMBRE AUTOMÁTICO SEGÚN DIRECCIÓN REGIONAL / DELEGACIÓN
+# EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL,
+# PROTECCIÓN TOTAL Y NOMBRE AUTOMÁTICO
 # ======================================================
 
 
@@ -2463,6 +2463,8 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 # CONVERTIR DATAFRAME A EXCEL
 # Esta función genera el archivo Excel en memoria.
 # Mantiene únicamente los encabezados oficiales.
+# Protege la hoja y la estructura del libro.
+# Contraseña de desbloqueo: DPPP23
 # ======================================================
 
 def convertir_excel(df):
@@ -2571,6 +2573,47 @@ def convertir_excel(df):
     # ==================================================
 
     worksheet.freeze_panes = "A2"
+
+    # ==================================================
+    # PROTEGER TODAS LAS CELDAS DE LA HOJA
+    # ==================================================
+
+    for fila in worksheet.iter_rows():
+        for celda in fila:
+            celda.protection = Protection(
+                locked=True
+            )
+
+    # ==================================================
+    # PROTEGER HOJA COMPLETA
+    # Contraseña: DPPP23
+    # ==================================================
+
+    worksheet.protection.sheet = True
+    worksheet.protection.password = "DPPP23"
+
+    worksheet.protection.formatCells = False
+    worksheet.protection.formatColumns = False
+    worksheet.protection.formatRows = False
+    worksheet.protection.insertColumns = False
+    worksheet.protection.insertRows = False
+    worksheet.protection.insertHyperlinks = False
+    worksheet.protection.deleteColumns = False
+    worksheet.protection.deleteRows = False
+    worksheet.protection.sort = False
+    worksheet.protection.autoFilter = False
+    worksheet.protection.pivotTables = False
+    worksheet.protection.selectLockedCells = True
+    worksheet.protection.selectUnlockedCells = False
+
+    # ==================================================
+    # PROTEGER ESTRUCTURA DEL LIBRO
+    # Evita agregar, eliminar, mover o renombrar hojas
+    # Contraseña: DPPP23
+    # ==================================================
+
+    workbook.security.lockStructure = True
+    workbook.security.workbookPassword = "DPPP23"
 
     final_output = BytesIO()
     workbook.save(final_output)
