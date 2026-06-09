@@ -594,13 +594,12 @@ def mostrar_titulo_admin():
 # PARTE 2 DE 5 CORREGIDA
 # CARGA DE EXCEL PUMI, PREPARACIÓN DE DATOS,
 # FILTROS GENERALES, MAPA CON TIPO DE MAPA
-# Y DASHBOARD BASE
+# Y DASHBOARD CON COLORES INSTITUCIONALES
 # ======================================================
 
 
 # ======================================================
 # PREPARAR DATAFRAME ADMINISTRATIVO
-# Agrega columnas de validación si el Excel no las tiene.
 # ======================================================
 
 def preparar_dataframe_admin(df):
@@ -668,8 +667,7 @@ def cargar_excel_pumi_admin(archivo_excel):
 
 # ======================================================
 # EXPORTAR EXCEL ADMINISTRATIVO
-# Conserva datos originales + validación.
-# Incluye colores especiales en columnas administrativas.
+# CON COLORES EN COLUMNAS DE VALIDACIÓN
 # ======================================================
 
 def convertir_excel_admin(df):
@@ -1084,12 +1082,11 @@ def crear_mapa_admin(df, tipo_mapa="OpenStreetMap"):
     df_mapa = preparar_dataframe_mapa_admin(df)
 
     if df_mapa.empty:
-        mapa = crear_mapa_base_admin(
+        return crear_mapa_base_admin(
             centro=[9.7489, -83.7534],
             zoom=7,
             tipo_mapa=tipo_mapa
         )
-        return mapa
 
     if len(df_mapa) == 1:
         centro = [
@@ -1267,6 +1264,45 @@ def mostrar_metricas_admin(df):
 
 
 # ======================================================
+# APLICAR DISEÑO INSTITUCIONAL A GRÁFICOS
+# Evita gráficos negros y mantiene azul/dorado.
+# ======================================================
+
+def aplicar_estilo_grafico_institucional(fig):
+    fig.update_layout(
+        title_x=0.5,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(
+            color=COLOR_GRIS_OSCURO,
+            size=14
+        ),
+        title_font=dict(
+            color=COLOR_AZUL,
+            size=20
+        ),
+        xaxis=dict(
+            title_font=dict(color=COLOR_AZUL),
+            tickfont=dict(color=COLOR_GRIS_OSCURO),
+            gridcolor="#E6EAF2",
+            zerolinecolor="#D7DCE5"
+        ),
+        yaxis=dict(
+            title_font=dict(color=COLOR_AZUL),
+            tickfont=dict(color=COLOR_GRIS_OSCURO),
+            gridcolor="#E6EAF2",
+            zerolinecolor="#D7DCE5"
+        ),
+        legend=dict(
+            font=dict(color=COLOR_GRIS_OSCURO),
+            bgcolor="rgba(255,255,255,0.85)"
+        )
+    )
+
+    return fig
+
+
+# ======================================================
 # GRÁFICOS ADMIN
 # ======================================================
 
@@ -1279,6 +1315,10 @@ def mostrar_graficos_admin(df):
 
     st.markdown("### Gráficos de análisis")
 
+    # ==================================================
+    # GRÁFICO POR ESTADO DE VALIDACIÓN
+    # ==================================================
+
     if "Estado Validación" in df_metricas.columns:
         conteo_estado = (
             df_metricas
@@ -1288,30 +1328,42 @@ def mostrar_graficos_admin(df):
             .sort_values("Cantidad", ascending=False)
         )
 
-        fig_estado = px.pie(
-            conteo_estado,
-            names="Estado Validación",
-            values="Cantidad",
-            title="Distribución por estado de validación",
-            hole=0.35,
-            color="Estado Validación",
-            color_discrete_map={
-                "Pendiente": COLOR_AMARILLO,
-                "Aprobada": COLOR_VERDE,
-                "Rechazada": COLOR_ROJO,
-                "Con observaciones": COLOR_DORADO
-            }
-        )
+        if not conteo_estado.empty:
+            fig_estado = px.pie(
+                conteo_estado,
+                names="Estado Validación",
+                values="Cantidad",
+                title="Distribución por estado de validación",
+                hole=0.35,
+                color="Estado Validación",
+                color_discrete_map={
+                    "Pendiente": COLOR_AMARILLO,
+                    "Aprobada": COLOR_VERDE,
+                    "Rechazada": COLOR_ROJO,
+                    "Con observaciones": COLOR_DORADO
+                }
+            )
 
-        fig_estado.update_layout(
-            title_x=0.5,
-            paper_bgcolor="white"
-        )
+            fig_estado.update_traces(
+                textinfo="percent+label+value",
+                marker=dict(
+                    line=dict(
+                        color="white",
+                        width=2
+                    )
+                )
+            )
 
-        st.plotly_chart(
-            fig_estado,
-            use_container_width=True
-        )
+            fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+
+            st.plotly_chart(
+                fig_estado,
+                use_container_width=True
+            )
+
+    # ==================================================
+    # GRÁFICO POR PROGRAMA
+    # ==================================================
 
     if "Programa" in df_metricas.columns:
         conteo_programa = (
@@ -1322,24 +1374,41 @@ def mostrar_graficos_admin(df):
             .sort_values("Cantidad", ascending=False)
         )
 
-        fig_programa = px.bar(
-            conteo_programa,
-            x="Programa",
-            y="Cantidad",
-            title="Cantidad de registros por programa",
-            text="Cantidad"
-        )
+        if not conteo_programa.empty:
+            fig_programa = px.bar(
+                conteo_programa,
+                x="Programa",
+                y="Cantidad",
+                title="Cantidad de registros por programa",
+                text="Cantidad",
+                color_discrete_sequence=[COLOR_DORADO]
+            )
 
-        fig_programa.update_layout(
-            title_x=0.5,
-            plot_bgcolor="white",
-            paper_bgcolor="white"
-        )
+            fig_programa.update_traces(
+                marker_line_color=COLOR_AZUL,
+                marker_line_width=1.5,
+                textposition="outside",
+                textfont=dict(
+                    color=COLOR_AZUL,
+                    size=14
+                )
+            )
 
-        st.plotly_chart(
-            fig_programa,
-            use_container_width=True
-        )
+            fig_programa.update_yaxes(
+                rangemode="tozero",
+                dtick=1
+            )
+
+            fig_programa = aplicar_estilo_grafico_institucional(fig_programa)
+
+            st.plotly_chart(
+                fig_programa,
+                use_container_width=True
+            )
+
+    # ==================================================
+    # GRÁFICO POR DIRECCIÓN REGIONAL
+    # ==================================================
 
     if "Dirección Regional" in df_metricas.columns:
         conteo_region = (
@@ -1350,24 +1419,91 @@ def mostrar_graficos_admin(df):
             .sort_values("Cantidad", ascending=False)
         )
 
-        fig_region = px.bar(
-            conteo_region,
-            x="Dirección Regional",
-            y="Cantidad",
-            title="Cantidad de registros por Dirección Regional",
-            text="Cantidad"
+        if not conteo_region.empty:
+            fig_region = px.bar(
+                conteo_region,
+                x="Dirección Regional",
+                y="Cantidad",
+                title="Cantidad de registros por Dirección Regional",
+                text="Cantidad",
+                color_discrete_sequence=[COLOR_AZUL]
+            )
+
+            fig_region.update_traces(
+                marker_line_color=COLOR_DORADO,
+                marker_line_width=1.5,
+                textposition="outside",
+                textfont=dict(
+                    color=COLOR_AZUL,
+                    size=14
+                )
+            )
+
+            fig_region.update_yaxes(
+                rangemode="tozero",
+                dtick=1
+            )
+
+            fig_region.update_xaxes(
+                tickangle=-30
+            )
+
+            fig_region = aplicar_estilo_grafico_institucional(fig_region)
+
+            st.plotly_chart(
+                fig_region,
+                use_container_width=True
+            )
+
+    # ==================================================
+    # GRÁFICO POR DELEGACIÓN
+    # ==================================================
+
+    if "Delegación" in df_metricas.columns:
+        conteo_delegacion = (
+            df_metricas
+            .groupby("Delegación")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+            .head(15)
         )
 
-        fig_region.update_layout(
-            title_x=0.5,
-            plot_bgcolor="white",
-            paper_bgcolor="white"
-        )
+        if not conteo_delegacion.empty:
+            fig_delegacion = px.bar(
+                conteo_delegacion,
+                x="Delegación",
+                y="Cantidad",
+                title="Top delegaciones por cantidad de registros",
+                text="Cantidad",
+                color_discrete_sequence=[COLOR_DORADO]
+            )
 
-        st.plotly_chart(
-            fig_region,
-            use_container_width=True
-        )
+            fig_delegacion.update_traces(
+                marker_line_color=COLOR_AZUL,
+                marker_line_width=1.5,
+                textposition="outside",
+                textfont=dict(
+                    color=COLOR_AZUL,
+                    size=14
+                )
+            )
+
+            fig_delegacion.update_yaxes(
+                rangemode="tozero",
+                dtick=1
+            )
+
+            fig_delegacion.update_xaxes(
+                tickangle=-30
+            )
+
+            fig_delegacion = aplicar_estilo_grafico_institucional(fig_delegacion)
+
+            st.plotly_chart(
+                fig_delegacion,
+                use_container_width=True
+            )
 # ======================================================
 # appADMIN.py
 # PARTE 3 DE 5 CORREGIDA
@@ -1760,97 +1896,69 @@ def mostrar_tabla_detallada_admin(df):
 # ======================================================
 # appADMIN.py
 # PARTE 4 DE 5 CORREGIDA
-# GENERACIÓN DE INFORME PDF AUTOMÁTICO
-# CON PORTADA, RESUMEN, TABLAS, GRÁFICOS GENERADOS
-# DESDE LA APP Y MAPA SEGÚN TIPO SELECCIONADO
+# INFORME PDF CON PORTADA, RESUMEN, TABLAS,
+# GRÁFICOS INSTITUCIONALES Y PANTALLAZO DEL MAPA
 # ======================================================
 
-
-# ======================================================
-# NOTA IMPORTANTE
-# Para exportar gráficos Plotly como imagen dentro del PDF,
-# agregue en requirements.txt:
-#
-# kaleido
-# ======================================================
-
-
-# ======================================================
-# ESTILOS PDF
-# ======================================================
 
 def obtener_estilos_pdf():
     estilos = getSampleStyleSheet()
 
-    estilos.add(
-        ParagraphStyle(
-            name="TituloPrincipalPDF",
-            parent=estilos["Title"],
-            fontName="Helvetica-Bold",
-            fontSize=22,
-            leading=26,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor(COLOR_AZUL),
-            spaceAfter=14
-        )
-    )
+    estilos.add(ParagraphStyle(
+        name="TituloPrincipalPDF",
+        parent=estilos["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=22,
+        leading=26,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor(COLOR_AZUL),
+        spaceAfter=14
+    ))
 
-    estilos.add(
-        ParagraphStyle(
-            name="SubtituloPDF",
-            parent=estilos["Heading2"],
-            fontName="Helvetica-Bold",
-            fontSize=15,
-            leading=18,
-            alignment=TA_LEFT,
-            textColor=colors.HexColor(COLOR_AZUL),
-            spaceBefore=10,
-            spaceAfter=8
-        )
-    )
+    estilos.add(ParagraphStyle(
+        name="SubtituloPDF",
+        parent=estilos["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=15,
+        leading=18,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor(COLOR_AZUL),
+        spaceBefore=10,
+        spaceAfter=8
+    ))
 
-    estilos.add(
-        ParagraphStyle(
-            name="TextoPDF",
-            parent=estilos["BodyText"],
-            fontName="Helvetica",
-            fontSize=9,
-            leading=12,
-            alignment=TA_JUSTIFY,
-            textColor=colors.HexColor("#222222")
-        )
-    )
+    estilos.add(ParagraphStyle(
+        name="TextoPDF",
+        parent=estilos["BodyText"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=12,
+        alignment=TA_JUSTIFY,
+        textColor=colors.HexColor("#222222")
+    ))
 
-    estilos.add(
-        ParagraphStyle(
-            name="TextoTablaPDF",
-            parent=estilos["BodyText"],
-            fontName="Helvetica",
-            fontSize=7,
-            leading=9,
-            alignment=TA_LEFT,
-            textColor=colors.HexColor("#222222")
-        )
-    )
+    estilos.add(ParagraphStyle(
+        name="TextoTablaPDF",
+        parent=estilos["BodyText"],
+        fontName="Helvetica",
+        fontSize=7,
+        leading=9,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor("#222222")
+    ))
 
-    estilos.add(
-        ParagraphStyle(
-            name="TextoTablaCentroPDF",
-            parent=estilos["BodyText"],
-            fontName="Helvetica",
-            fontSize=7,
-            leading=9,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor("#222222")
-        )
-    )
+    estilos.add(ParagraphStyle(
+        name="TextoTablaCentroPDF",
+        parent=estilos["BodyText"],
+        fontName="Helvetica",
+        fontSize=7,
+        leading=9,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#222222")
+    ))
 
     return estilos
 
-
-# ======================================================
-# CONVERTIR TEXTO A PÁRRAFO SEGURO PARA PDF
-# ======================================================
 
 def parrafo_pdf(texto, estilo):
     texto = "" if texto is None else str(texto)
@@ -1858,17 +1966,11 @@ def parrafo_pdf(texto, estilo):
     texto = texto.replace("<", "&lt;")
     texto = texto.replace(">", "&gt;")
     texto = texto.replace("\n", "<br/>")
-
     return Paragraph(texto, estilo)
 
 
-# ======================================================
-# ENCABEZADO Y PIE DE PÁGINA PDF
-# ======================================================
-
 def dibujar_encabezado_pie_pdf(canvas, doc):
     canvas.saveState()
-
     ancho, alto = landscape(letter)
 
     canvas.setFillColor(colors.HexColor(COLOR_AZUL))
@@ -1902,10 +2004,6 @@ def dibujar_encabezado_pie_pdf(canvas, doc):
     canvas.restoreState()
 
 
-# ======================================================
-# CARGAR LOGO PARA PDF
-# ======================================================
-
 def obtener_logo_pdf(ruta, ancho=4.0 * cm, alto=2.0 * cm):
     if not os.path.exists(ruta):
         return ""
@@ -1917,10 +2015,6 @@ def obtener_logo_pdf(ruta, ancho=4.0 * cm, alto=2.0 * cm):
     except Exception:
         return ""
 
-
-# ======================================================
-# GENERAR IMAGEN DE GRÁFICO PLOTLY PARA PDF
-# ======================================================
 
 def convertir_figura_plotly_a_imagen(fig):
     try:
@@ -1935,21 +2029,12 @@ def convertir_figura_plotly_a_imagen(fig):
         return None
 
 
-# ======================================================
-# CREAR FIGURAS PARA PDF DESDE LOS DATOS FILTRADOS
-# ======================================================
-
 def crear_figuras_pdf_admin(df):
     figuras = []
-
     df_metricas = limpiar_dataframe_metricas_admin(df)
 
     if df_metricas.empty:
         return figuras
-
-    # ==================================================
-    # GRÁFICO 1: ESTADO DE VALIDACIÓN
-    # ==================================================
 
     if "Estado Validación" in df_metricas.columns:
         conteo_estado = (
@@ -1976,27 +2061,18 @@ def crear_figuras_pdf_admin(df):
                 }
             )
 
-            fig_estado.update_layout(
-                title_x=0.5,
-                paper_bgcolor="white",
-                font=dict(size=16)
+            fig_estado.update_traces(
+                textinfo="percent+label+value",
+                marker=dict(line=dict(color="white", width=2))
             )
 
-            figuras.append(
-                {
-                    "titulo": "Gráfico 1. Distribución por estado de validación",
-                    "descripcion": (
-                        "Este gráfico muestra la proporción de actividades según "
-                        "su estado administrativo de validación: aprobadas, pendientes, "
-                        "rechazadas o con observaciones."
-                    ),
-                    "figura": fig_estado
-                }
-            )
+            fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
 
-    # ==================================================
-    # GRÁFICO 2: PROGRAMA
-    # ==================================================
+            figuras.append({
+                "titulo": "Gráfico 1. Distribución por estado de validación",
+                "descripcion": "Muestra la proporción de actividades según su estado administrativo de validación.",
+                "figura": fig_estado
+            })
 
     if "Programa" in df_metricas.columns:
         conteo_programa = (
@@ -2013,30 +2089,25 @@ def crear_figuras_pdf_admin(df):
                 x="Programa",
                 y="Cantidad",
                 title="Cantidad de registros por programa",
-                text="Cantidad"
+                text="Cantidad",
+                color_discrete_sequence=[COLOR_DORADO]
             )
 
-            fig_programa.update_layout(
-                title_x=0.5,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font=dict(size=15)
+            fig_programa.update_traces(
+                marker_line_color=COLOR_AZUL,
+                marker_line_width=1.5,
+                textposition="outside",
+                textfont=dict(color=COLOR_AZUL, size=14)
             )
 
-            figuras.append(
-                {
-                    "titulo": "Gráfico 2. Cantidad de registros por programa",
-                    "descripcion": (
-                        "Este gráfico permite identificar cuáles programas concentran "
-                        "mayor cantidad de actividades dentro del conjunto filtrado."
-                    ),
-                    "figura": fig_programa
-                }
-            )
+            fig_programa.update_yaxes(rangemode="tozero", dtick=1)
+            fig_programa = aplicar_estilo_grafico_institucional(fig_programa)
 
-    # ==================================================
-    # GRÁFICO 3: DIRECCIÓN REGIONAL
-    # ==================================================
+            figuras.append({
+                "titulo": "Gráfico 2. Cantidad de registros por programa",
+                "descripcion": "Permite identificar cuáles programas concentran mayor cantidad de actividades.",
+                "figura": fig_programa
+            })
 
     if "Dirección Regional" in df_metricas.columns:
         conteo_region = (
@@ -2053,31 +2124,26 @@ def crear_figuras_pdf_admin(df):
                 x="Dirección Regional",
                 y="Cantidad",
                 title="Cantidad de registros por Dirección Regional",
-                text="Cantidad"
+                text="Cantidad",
+                color_discrete_sequence=[COLOR_AZUL]
             )
 
-            fig_region.update_layout(
-                title_x=0.5,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font=dict(size=15),
-                xaxis_tickangle=-30
+            fig_region.update_traces(
+                marker_line_color=COLOR_DORADO,
+                marker_line_width=1.5,
+                textposition="outside",
+                textfont=dict(color=COLOR_AZUL, size=14)
             )
 
-            figuras.append(
-                {
-                    "titulo": "Gráfico 3. Cantidad de registros por Dirección Regional",
-                    "descripcion": (
-                        "Este gráfico muestra la distribución de registros según "
-                        "la Dirección Regional indicada en el Excel cargado."
-                    ),
-                    "figura": fig_region
-                }
-            )
+            fig_region.update_yaxes(rangemode="tozero", dtick=1)
+            fig_region.update_xaxes(tickangle=-30)
+            fig_region = aplicar_estilo_grafico_institucional(fig_region)
 
-    # ==================================================
-    # GRÁFICO 4: DELEGACIÓN
-    # ==================================================
+            figuras.append({
+                "titulo": "Gráfico 3. Cantidad de registros por Dirección Regional",
+                "descripcion": "Muestra la distribución de registros según Dirección Regional.",
+                "figura": fig_region
+            })
 
     if "Delegación" in df_metricas.columns:
         conteo_delegacion = (
@@ -2095,58 +2161,43 @@ def crear_figuras_pdf_admin(df):
                 x="Delegación",
                 y="Cantidad",
                 title="Top delegaciones por cantidad de registros",
-                text="Cantidad"
+                text="Cantidad",
+                color_discrete_sequence=[COLOR_DORADO]
             )
 
-            fig_delegacion.update_layout(
-                title_x=0.5,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font=dict(size=15),
-                xaxis_tickangle=-30
+            fig_delegacion.update_traces(
+                marker_line_color=COLOR_AZUL,
+                marker_line_width=1.5,
+                textposition="outside",
+                textfont=dict(color=COLOR_AZUL, size=14)
             )
 
-            figuras.append(
-                {
-                    "titulo": "Gráfico 4. Top delegaciones por cantidad de registros",
-                    "descripcion": (
-                        "Este gráfico resume las delegaciones con mayor cantidad "
-                        "de registros dentro de los filtros seleccionados."
-                    ),
-                    "figura": fig_delegacion
-                }
-            )
+            fig_delegacion.update_yaxes(rangemode="tozero", dtick=1)
+            fig_delegacion.update_xaxes(tickangle=-30)
+            fig_delegacion = aplicar_estilo_grafico_institucional(fig_delegacion)
+
+            figuras.append({
+                "titulo": "Gráfico 4. Top delegaciones por cantidad de registros",
+                "descripcion": "Resume las delegaciones con mayor cantidad de registros.",
+                "figura": fig_delegacion
+            })
 
     return figuras
 
-
-# ======================================================
-# AGREGAR GRÁFICOS AUTOMÁTICOS AL PDF
-# ======================================================
 
 def agregar_graficos_automaticos_pdf(elementos, df, estilos):
     figuras = crear_figuras_pdf_admin(df)
 
     if not figuras:
-        elementos.append(
-            parrafo_pdf(
-                "No se generaron gráficos automáticos porque no hay datos suficientes.",
-                estilos["TextoPDF"]
-            )
-        )
         return
 
     elementos.append(PageBreak())
     elementos.append(parrafo_pdf("4. Gráficos automáticos del dashboard", estilos["SubtituloPDF"]))
 
-    elementos.append(
-        parrafo_pdf(
-            "Los siguientes gráficos fueron generados automáticamente desde la app "
-            "administrativa, utilizando los registros y filtros aplicados antes de "
-            "crear este informe.",
-            estilos["TextoPDF"]
-        )
-    )
+    elementos.append(parrafo_pdf(
+        "Los siguientes gráficos fueron generados automáticamente desde los datos filtrados en la app administrativa.",
+        estilos["TextoPDF"]
+    ))
 
     elementos.append(Spacer(1, 0.3 * cm))
 
@@ -2154,127 +2205,49 @@ def agregar_graficos_automaticos_pdf(elementos, df, estilos):
         imagen = convertir_figura_plotly_a_imagen(item["figura"])
 
         if imagen is None:
-            elementos.append(
-                parrafo_pdf(
-                    f"No se pudo generar la imagen de: {item['titulo']}. "
-                    "Verifique que la librería kaleido esté incluida en requirements.txt.",
-                    estilos["TextoPDF"]
-                )
-            )
             continue
 
-        bloque = []
-
-        bloque.append(parrafo_pdf(item["titulo"], estilos["SubtituloPDF"]))
-        bloque.append(parrafo_pdf(item["descripcion"], estilos["TextoPDF"]))
-        bloque.append(Spacer(1, 0.2 * cm))
+        bloque = [
+            parrafo_pdf(item["titulo"], estilos["SubtituloPDF"]),
+            parrafo_pdf(item["descripcion"], estilos["TextoPDF"]),
+            Spacer(1, 0.2 * cm)
+        ]
 
         img = Image(imagen, width=22 * cm, height=11 * cm)
         img.hAlign = "CENTER"
-
         bloque.append(img)
         bloque.append(Spacer(1, 0.4 * cm))
 
         elementos.append(KeepTogether(bloque))
 
 
-# ======================================================
-# CONSTRUIR TABLA DE MAPA PARA PDF
-# Como Folium es interactivo, en PDF se agrega una tabla
-# territorial de puntos con coordenadas y tipo de mapa usado.
-# ======================================================
-
-def agregar_mapa_referencia_pdf(elementos, df, tipo_mapa, estilos):
-    df_mapa = preparar_dataframe_mapa_admin(df)
-
-    elementos.append(PageBreak())
-    elementos.append(parrafo_pdf("5. Referencia territorial y mapa", estilos["SubtituloPDF"]))
-
-    texto = (
-        f"El mapa interactivo fue generado dentro de la app administrativa con el tipo "
-        f"de mapa seleccionado: {tipo_mapa}. Para el informe PDF se incorpora una "
-        f"tabla territorial con los registros que poseen coordenadas, permitiendo "
-        f"identificar la ubicación de cada actividad validada."
-    )
-
-    elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
-    elementos.append(Spacer(1, 0.3 * cm))
-
-    if df_mapa.empty:
-        elementos.append(
-            parrafo_pdf(
-                "No existen registros con coordenadas disponibles para incluir referencia territorial.",
-                estilos["TextoPDF"]
-            )
-        )
+def agregar_pantallazo_mapa_pdf(elementos, archivo_mapa, descripcion_mapa, estilos):
+    if archivo_mapa is None:
         return
 
-    columnas = [
-        "ID",
-        "Dirección Regional",
-        "Delegación",
-        "Programa",
-        "Lugar",
-        "Estado Validación",
-        "Latitud",
-        "Longitud"
-    ]
+    try:
+        elementos.append(PageBreak())
+        elementos.append(parrafo_pdf("5. Pantallazo del mapa de referencia", estilos["SubtituloPDF"]))
 
-    columnas = [col for col in columnas if col in df_mapa.columns]
-
-    datos = [
-        [parrafo_pdf(col, estilos["TextoTablaCentroPDF"]) for col in columnas]
-    ]
-
-    for _, row in df_mapa.iterrows():
-        fila = []
-
-        for col in columnas:
-            fila.append(
-                parrafo_pdf(
-                    row.get(col, ""),
-                    estilos["TextoTablaPDF"]
-                )
-            )
-
-        datos.append(fila)
-
-    anchos = [
-        1.2 * cm,
-        3.3 * cm,
-        3.1 * cm,
-        2.2 * cm,
-        5.0 * cm,
-        2.6 * cm,
-        2.1 * cm,
-        2.1 * cm
-    ]
-
-    anchos = anchos[:len(columnas)]
-
-    tabla = Table(datos, colWidths=anchos, repeatRows=1)
-
-    tabla.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#BFBFBF")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
+        texto = (
+            descripcion_mapa
+            if descripcion_mapa and str(descripcion_mapa).strip()
+            else "La siguiente imagen corresponde al pantallazo del mapa de actividades filtradas en la app administrativa."
         )
-    )
 
-    elementos.append(tabla)
+        elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
+        elementos.append(Spacer(1, 0.3 * cm))
 
+        imagen_bytes = BytesIO(archivo_mapa.read())
+        img = Image(imagen_bytes, width=22 * cm, height=11.5 * cm)
+        img.hAlign = "CENTER"
 
-# ======================================================
-# PORTADA DEL INFORME PDF
-# ======================================================
+        elementos.append(img)
+        elementos.append(Spacer(1, 0.4 * cm))
+
+    except Exception:
+        elementos.append(parrafo_pdf("No se pudo agregar el pantallazo del mapa.", estilos["TextoPDF"]))
+
 
 def construir_portada_pdf(elementos, df, estilos):
     logo_min = obtener_logo_pdf(LOGO_MINISTERIO, 5.0 * cm, 1.7 * cm)
@@ -2286,47 +2259,36 @@ def construir_portada_pdf(elementos, df, estilos):
         colWidths=[8 * cm, 8 * cm, 8 * cm]
     )
 
-    tabla_logos.setStyle(
-        TableStyle(
-            [
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(COLOR_DORADO)),
-                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ]
-        )
-    )
+    tabla_logos.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(COLOR_DORADO)),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
 
     elementos.append(tabla_logos)
     elementos.append(Spacer(1, 0.7 * cm))
 
-    elementos.append(
-        parrafo_pdf(
-            "INFORME ADMINISTRATIVO DE VALIDACIÓN DE ACTIVIDADES",
-            estilos["TituloPrincipalPDF"]
-        )
-    )
+    elementos.append(parrafo_pdf(
+        "INFORME ADMINISTRATIVO DE VALIDACIÓN DE ACTIVIDADES",
+        estilos["TituloPrincipalPDF"]
+    ))
 
-    elementos.append(
-        parrafo_pdf(
-            "Sistema P.U.M.I. 2026",
-            estilos["TituloPrincipalPDF"]
-        )
-    )
+    elementos.append(parrafo_pdf(
+        "Sistema P.U.M.I. 2026",
+        estilos["TituloPrincipalPDF"]
+    ))
 
     total = len(df)
 
-    participantes = 0
-
-    if not df.empty and "Cantidad Participantes" in df.columns:
-        participantes = int(
-            pd.to_numeric(
-                df["Cantidad Participantes"],
-                errors="coerce"
-            ).fillna(0).sum()
-        )
+    participantes = int(
+        pd.to_numeric(
+            df["Cantidad Participantes"],
+            errors="coerce"
+        ).fillna(0).sum()
+    ) if not df.empty and "Cantidad Participantes" in df.columns else 0
 
     regiones = ", ".join(
         df["Dirección Regional"]
@@ -2346,14 +2308,11 @@ def construir_portada_pdf(elementos, df, estilos):
         .tolist()
     ) if "Delegación" in df.columns and not df.empty else "Sin datos"
 
-    texto_portada = (
-        "El presente informe consolida la información de actividades registradas "
-        "en el sistema PUMI 2026, incorporando su estado administrativo de validación, "
-        "observaciones, métricas principales, distribución territorial y elementos "
-        "de análisis para la toma de decisiones."
-    )
+    elementos.append(parrafo_pdf(
+        "El presente informe consolida la información de actividades registradas en el sistema PUMI 2026, incorporando su estado administrativo de validación, observaciones, métricas principales y elementos de análisis.",
+        estilos["TextoPDF"]
+    ))
 
-    elementos.append(parrafo_pdf(texto_portada, estilos["TextoPDF"]))
     elementos.append(Spacer(1, 0.5 * cm))
 
     datos_portada = [
@@ -2366,42 +2325,31 @@ def construir_portada_pdf(elementos, df, estilos):
 
     tabla = Table(datos_portada, colWidths=[7 * cm, 17 * cm])
 
-    tabla.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor(COLOR_AZUL)),
-                ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ROWBACKGROUNDS", (1, 0), (1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ]
-        )
-    )
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (1, 0), (1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
 
     elementos.append(tabla)
     elementos.append(PageBreak())
 
 
-# ======================================================
-# RESUMEN EJECUTIVO PDF
-# ======================================================
-
 def construir_resumen_pdf(elementos, df, estilos):
     elementos.append(parrafo_pdf("1. Resumen ejecutivo", estilos["SubtituloPDF"]))
 
-    texto = (
-        "Esta sección presenta una síntesis de los registros incluidos en el informe, "
-        "considerando el total de actividades, participantes y el estado de validación "
-        "administrativa. Los datos corresponden a la información filtrada en el panel "
-        "antes de generar el documento."
-    )
+    elementos.append(parrafo_pdf(
+        "Esta sección presenta una síntesis de los registros incluidos en el informe, considerando el total de actividades, participantes y estado de validación administrativa.",
+        estilos["TextoPDF"]
+    ))
 
-    elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
     elementos.append(Spacer(1, 0.3 * cm))
 
     total = len(df)
@@ -2430,29 +2378,21 @@ def construir_resumen_pdf(elementos, df, estilos):
 
     tabla = Table(datos, colWidths=[10 * cm, 5 * cm])
 
-    tabla.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (1, 1), (1, -1), "CENTER"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ]
-        )
-    )
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("ALIGN", (1, 1), (1, -1), "CENTER"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
 
     elementos.append(tabla)
     elementos.append(Spacer(1, 0.4 * cm))
 
-
-# ======================================================
-# FILTROS APLICADOS EN PDF
-# ======================================================
 
 def construir_filtros_pdf(elementos, estilos):
     filtros = st.session_state.get("filtros_admin_aplicados", {})
@@ -2475,27 +2415,19 @@ def construir_filtros_pdf(elementos, estilos):
 
     tabla = Table(datos, colWidths=[6 * cm, 18 * cm])
 
-    tabla.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-            ]
-        )
-    )
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+    ]))
 
     elementos.append(tabla)
     elementos.append(Spacer(1, 0.4 * cm))
 
-
-# ======================================================
-# TABLA AGRUPADA PDF
-# ======================================================
 
 def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
     if df.empty or columna not in df.columns:
@@ -2513,50 +2445,32 @@ def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
     datos = [["Categoría", "Cantidad"]]
 
     for _, row in resumen.iterrows():
-        datos.append(
-            [
-                parrafo_pdf(row[columna], estilos["TextoTablaPDF"]),
-                parrafo_pdf(row["Cantidad"], estilos["TextoTablaCentroPDF"])
-            ]
-        )
+        datos.append([
+            parrafo_pdf(row[columna], estilos["TextoTablaPDF"]),
+            parrafo_pdf(row["Cantidad"], estilos["TextoTablaCentroPDF"])
+        ])
 
     tabla = Table(datos, colWidths=[18 * cm, 4 * cm], repeatRows=1)
 
-    tabla.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#BFBFBF")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (1, 1), (1, -1), "CENTER"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#BFBFBF")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 1), (1, -1), "CENTER"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
 
     elementos.append(tabla)
     elementos.append(Spacer(1, 0.35 * cm))
 
 
-# ======================================================
-# TABLA DETALLADA DE REGISTROS PDF
-# ======================================================
-
 def construir_tabla_detalle_pdf(elementos, df, estilos):
     elementos.append(PageBreak())
     elementos.append(parrafo_pdf("6. Detalle de actividades validadas", estilos["SubtituloPDF"]))
-
-    texto = (
-        "La siguiente tabla muestra el detalle de los registros incluidos en el informe. "
-        "Los textos extensos se ajustan dentro de cada celda para evitar cortes inadecuados."
-    )
-
-    elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
-    elementos.append(Spacer(1, 0.3 * cm))
 
     columnas = [
         "ID",
@@ -2571,17 +2485,13 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
     ]
 
     columnas = [c for c in columnas if c in df.columns]
-
     datos = [[parrafo_pdf(c, estilos["TextoTablaCentroPDF"]) for c in columnas]]
 
     for _, row in df.iterrows():
-        fila = []
-
-        for col in columnas:
-            valor = row.get(col, "")
-            fila.append(parrafo_pdf(valor, estilos["TextoTablaPDF"]))
-
-        datos.append(fila)
+        datos.append([
+            parrafo_pdf(row.get(col, ""), estilos["TextoTablaPDF"])
+            for col in columnas
+        ])
 
     anchos = [
         1.2 * cm,
@@ -2593,40 +2503,30 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
         2.0 * cm,
         2.6 * cm,
         4.8 * cm
-    ]
-
-    anchos = anchos[:len(columnas)]
+    ][:len(columnas)]
 
     tabla = Table(datos, colWidths=anchos, repeatRows=1)
 
-    tabla.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#BFBFBF")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#BFBFBF")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
 
     elementos.append(tabla)
 
-
-# ======================================================
-# GENERAR PDF COMPLETO
-# ======================================================
 
 def generar_pdf_validacion(
     df,
     incluir_tabla_detalle=True,
     incluir_graficos=True,
-    incluir_mapa=True,
-    tipo_mapa="OpenStreetMap"
+    imagen_mapa=None,
+    descripcion_mapa=""
 ):
     buffer = BytesIO()
 
@@ -2649,71 +2549,31 @@ def generar_pdf_validacion(
     elementos.append(PageBreak())
     elementos.append(parrafo_pdf("3. Resumen analítico", estilos["SubtituloPDF"]))
 
-    elementos.append(
-        parrafo_pdf(
-            "En este apartado se presenta la distribución de los registros según "
-            "estado de validación, programa, Dirección Regional y delegación. "
-            "Estos cuadros permiten identificar concentración de actividades y "
-            "estado del proceso administrativo.",
-            estilos["TextoPDF"]
-        )
-    )
+    elementos.append(parrafo_pdf(
+        "En este apartado se presenta la distribución de los registros según estado de validación, programa, Dirección Regional y delegación.",
+        estilos["TextoPDF"]
+    ))
 
     elementos.append(Spacer(1, 0.3 * cm))
 
-    construir_tabla_agrupada_pdf(
-        elementos,
-        df,
-        "Estado Validación",
-        "3.1 Distribución por estado de validación",
-        estilos
-    )
-
-    construir_tabla_agrupada_pdf(
-        elementos,
-        df,
-        "Programa",
-        "3.2 Distribución por programa",
-        estilos
-    )
-
-    construir_tabla_agrupada_pdf(
-        elementos,
-        df,
-        "Dirección Regional",
-        "3.3 Distribución por Dirección Regional",
-        estilos
-    )
-
-    construir_tabla_agrupada_pdf(
-        elementos,
-        df,
-        "Delegación",
-        "3.4 Distribución por delegación",
-        estilos
-    )
+    construir_tabla_agrupada_pdf(elementos, df, "Estado Validación", "3.1 Distribución por estado de validación", estilos)
+    construir_tabla_agrupada_pdf(elementos, df, "Programa", "3.2 Distribución por programa", estilos)
+    construir_tabla_agrupada_pdf(elementos, df, "Dirección Regional", "3.3 Distribución por Dirección Regional", estilos)
+    construir_tabla_agrupada_pdf(elementos, df, "Delegación", "3.4 Distribución por delegación", estilos)
 
     if incluir_graficos:
-        agregar_graficos_automaticos_pdf(
-            elementos,
-            df,
-            estilos
-        )
+        agregar_graficos_automaticos_pdf(elementos, df, estilos)
 
-    if incluir_mapa:
-        agregar_mapa_referencia_pdf(
+    if imagen_mapa is not None:
+        agregar_pantallazo_mapa_pdf(
             elementos,
-            df,
-            tipo_mapa,
+            imagen_mapa,
+            descripcion_mapa,
             estilos
         )
 
     if incluir_tabla_detalle:
-        construir_tabla_detalle_pdf(
-            elementos,
-            df,
-            estilos
-        )
+        construir_tabla_detalle_pdf(elementos, df, estilos)
 
     doc.build(
         elementos,
@@ -2724,10 +2584,6 @@ def generar_pdf_validacion(
     buffer.seek(0)
     return buffer.getvalue()
 
-
-# ======================================================
-# MÓDULO VISUAL PARA GENERAR INFORME PDF
-# ======================================================
 
 def modulo_informe_pdf(df_filtrado):
     st.markdown("## Generar informe PDF de validación")
@@ -2742,8 +2598,7 @@ def modulo_informe_pdf(df_filtrado):
             <div class="texto-admin">
                 Este módulo genera un informe PDF administrativo con portada,
                 resumen ejecutivo, filtros aplicados, cuadros analíticos,
-                gráficos generados automáticamente desde la app, referencia
-                territorial y detalle de actividades validadas.
+                gráficos institucionales, pantallazo del mapa y detalle de actividades.
             </div>
         </div>
         """,
@@ -2752,7 +2607,7 @@ def modulo_informe_pdf(df_filtrado):
 
     st.markdown("### Opciones del informe")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
         incluir_detalle = st.checkbox(
@@ -2766,38 +2621,21 @@ def modulo_informe_pdf(df_filtrado):
             value=True
         )
 
-    with col3:
-        incluir_mapa = st.checkbox(
-            "Incluir referencia territorial del mapa",
-            value=True
-        )
+    st.markdown("### Pantallazo del mapa")
 
-    tipo_mapa_pdf = st.selectbox(
-        "Tipo de mapa para referencia del informe",
-        [
-            "OpenStreetMap",
-            "Mapa claro",
-            "Mapa oscuro",
-            "Topográfico",
-            "Satélite"
-        ],
-        key="tipo_mapa_pdf"
+    imagen_mapa = st.file_uploader(
+        "Cargar pantallazo del mapa filtrado para incluirlo en el informe",
+        type=["png", "jpg", "jpeg"],
+        key="upload_mapa_pdf"
     )
 
-    st.session_state["tipo_mapa_admin_actual"] = tipo_mapa_pdf
-
-    st.markdown("### Vista previa del mapa según filtros")
-
-    if incluir_mapa:
-        mostrar_mapa_admin(
-            df_filtrado,
-            key="mapa_informe_pdf_preview"
+    descripcion_mapa = st.text_area(
+        "Descripción del pantallazo del mapa",
+        value=(
+            "El pantallazo muestra la distribución territorial de las actividades "
+            "filtradas en el panel administrativo, según los criterios seleccionados "
+            "para la generación del informe."
         )
-
-    st.info(
-        "Los gráficos se generan automáticamente desde los datos filtrados. "
-        "Para que salgan como imágenes dentro del PDF, recuerde incluir "
-        "la librería kaleido en requirements.txt."
     )
 
     if st.button("📄 Generar informe PDF"):
@@ -2805,14 +2643,11 @@ def modulo_informe_pdf(df_filtrado):
             df=df_filtrado,
             incluir_tabla_detalle=incluir_detalle,
             incluir_graficos=incluir_graficos,
-            incluir_mapa=incluir_mapa,
-            tipo_mapa=tipo_mapa_pdf
+            imagen_mapa=imagen_mapa,
+            descripcion_mapa=descripcion_mapa
         )
 
-        nombre_pdf = generar_nombre_reporte(
-            df_filtrado,
-            tipo="PDF"
-        )
+        nombre_pdf = generar_nombre_reporte(df_filtrado, tipo="PDF")
 
         st.success("Informe PDF generado correctamente.")
 
@@ -2828,8 +2663,8 @@ def modulo_informe_pdf(df_filtrado):
 # PARTE 5 DE 5 CORREGIDA
 # FLUJO PRINCIPAL DE LA APP ADMIN:
 # SIDEBAR, CARGA DE EXCEL, MENÚ, DASHBOARD,
-# VALIDACIÓN INDIVIDUAL, INFORME PDF AUTOMÁTICO
-# Y DESCARGA GLOBAL
+# VALIDACIÓN INDIVIDUAL, INFORME PDF CON PANTALLAZO
+# DE MAPA Y DESCARGA GLOBAL
 # ======================================================
 
 
@@ -2929,7 +2764,7 @@ if menu_admin == "Inicio":
                 revisar los registros, aplicar validaciones administrativas de forma
                 individual, consultar datos mediante filtros, visualizar gráficos y mapas,
                 descargar un Excel validado con colores por estado y generar un informe
-                PDF formal con gráficos automáticos y referencia territorial.
+                PDF formal con gráficos institucionales y pantallazo de mapa.
             </div>
         </div>
         """,
@@ -3067,6 +2902,20 @@ elif menu_admin == "Informe PDF":
 
         st.markdown("---")
 
+        st.markdown("### Vista de apoyo para el informe")
+
+        with st.expander("Ver gráficos y mapa antes de generar el PDF", expanded=False):
+            mostrar_graficos_admin(df_filtrado)
+
+            st.markdown("---")
+
+            mostrar_mapa_admin(
+                df_filtrado,
+                key="mapa_previo_informe_pdf"
+            )
+
+        st.markdown("---")
+
         modulo_informe_pdf(df_filtrado)
 
 
@@ -3101,10 +2950,6 @@ else:
         st.session_state.grafico_imagen_referencia = None
         st.sidebar.success("Datos limpiados correctamente.")
         st.rerun()
-
-
-
-
 
 
 
