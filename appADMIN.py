@@ -1,1349 +1,2525 @@
-# ============================================================================
-# ============================== PARTE 1/10 =================================
-# ============ Encabezado, imports, config y estilos Matplotlib =============
-# ============================================================================
+# ======================================================
+# appADMIN.py
+# PARTE 1 DE 5
+# CONFIGURACIÓN GENERAL, LIBRERÍAS, CONSTANTES,
+# ENCABEZADOS, ESTILOS, LOGOS Y FUNCIONES BASE
+# ======================================================
 
-# App — Pareto 80/20 + Portafolio + Unificado + Sheets + Informe PDF
-# Ejecuta: streamlit run app.py
-
-import io
-from textwrap import wrap
-from typing import List, Dict, Tuple
-from datetime import datetime
-
-import numpy as np
-import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.express as px
+import folium
+import os
+import base64
+import unicodedata
+import re
+import textwrap
 
-# ====== Google Sheets (DB) ======
-import gspread
-from google.oauth2.service_account import Credentials
+from io import BytesIO
+from datetime import datetime, date
+from streamlit_folium import st_folium
 
-# ====== PDF (ReportLab/Platypus) ======
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.platypus import (
-    BaseDocTemplate, PageTemplate, Frame,
-    Paragraph, Spacer, Image as RLImage, Table, TableStyle,
-    PageBreak, NextPageTemplate
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    PageBreak,
+    Image,
+    KeepTogether
 )
-from reportlab.platypus.flowables import KeepTogether
 
-# ----------------- CONFIG (tu Sheets y pestaña) -----------------
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1XZjXQfLb5Jiptp_BXuCfg9QZNEz6ZWh9hbtp0rRAGpM/edit?usp=sharing"
-WS_PARETOS = "paretos"  # cambia si tu pestaña se llama diferente
 
-st.set_page_config(page_title="Pareto de Descriptores", layout="wide")
+# ======================================================
+# CONFIGURACIÓN GENERAL STREAMLIT
+# ======================================================
 
-# Paleta
-VERDE = "#1B9E77"
-AZUL  = "#2C7FB8"
-TEXTO = "#124559"
-GRIS  = "#6B7280"
+st.set_page_config(
+    page_title="PUMI 2026 - Administración",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Matplotlib
-plt.rcParams.update({
-    "figure.dpi": 180,
-    "savefig.dpi": 180,
-    "axes.titlesize": 18,
-    "axes.labelsize": 13,
-    "xtick.labelsize": 10,
-    "ytick.labelsize": 11,
-    "axes.grid": True,
-    "grid.alpha": 0.25,
-})
-# ============================================================================
-# ============================== PARTE 2/10 =================================
-# ========================= Catálogo embebido (CSV) =========================
-# ============================================================================
 
-CATALOGO: List[Dict[str, str]] = [
-    {"categoria": "Delito", "descriptor": "Abandono de personas (menor de edad, adulto mayor o con capacidades diferentes)"},
-    {"categoria": "Delito", "descriptor": "Abigeato (robo y destace de ganado)"},
-    {"categoria": "Delito", "descriptor": "Aborto"},
-    {"categoria": "Delito", "descriptor": "Abuso de autoridad"},
-    {"categoria": "Riesgo social", "descriptor": "Accidentes de tránsito"},
-    {"categoria": "Delito", "descriptor": "Accionamiento de arma de fuego (balaceras)"},
-    {"categoria": "Riesgo social", "descriptor": "Acoso escolar (bullying)"},
-    {"categoria": "Riesgo social", "descriptor": "Acoso laboral (mobbing)"},
-    {"categoria": "Riesgo social", "descriptor": "Acoso sexual callejero"},
-    {"categoria": "Riesgo social", "descriptor": "Actos obscenos en vía pública"},
-    {"categoria": "Delito", "descriptor": "Administración fraudulenta, apropiaciones indebidas o enriquecimiento ilícito"},
-    {"categoria": "Delito", "descriptor": "Agresión con armas"},
-    {"categoria": "Riesgo social", "descriptor": "Agrupaciones delincuenciales no organizadas"},
-    {"categoria": "Delito", "descriptor": "Alteración de datos y sabotaje informático"},
-    {"categoria": "Otros factores", "descriptor": "Ambiente laboral inadecuado"},
-    {"categoria": "Delito", "descriptor": "Amenazas"},
-    {"categoria": "Riesgo social", "descriptor": "Analfabetismo"},
-    {"categoria": "Riesgo social", "descriptor": "Bajos salarios"},
-    {"categoria": "Riesgo social", "descriptor": "Barras de fútbol"},
-    {"categoria": "Riesgo social", "descriptor": "Búnker (eje de expendio de drogas)"},
-    {"categoria": "Delito", "descriptor": "Calumnia"},
-    {"categoria": "Delito", "descriptor": "Caza ilegal"},
-    {"categoria": "Delito", "descriptor": "Conducción temeraria"},
-    {"categoria": "Riesgo social", "descriptor": "Consumo de alcohol en vía pública"},
-    {"categoria": "Riesgo social", "descriptor": "Consumo de drogas"},
-    {"categoria": "Riesgo social", "descriptor": "Contaminación sónica"},
-    {"categoria": "Delito", "descriptor": "Contrabando"},
-    {"categoria": "Delito", "descriptor": "Corrupción"},
-    {"categoria": "Delito", "descriptor": "Corrupción policial"},
-    {"categoria": "Delito", "descriptor": "Cultivo de droga (marihuana)"},
-    {"categoria": "Delito", "descriptor": "Daño ambiental"},
-    {"categoria": "Delito", "descriptor": "Daños/vandalismo"},
-    {"categoria": "Riesgo social", "descriptor": "Deficiencia en la infraestructura vial"},
-    {"categoria": "Otros factores", "descriptor": "Deficiencia en la línea 9-1-1"},
-    {"categoria": "Riesgo social", "descriptor": "Deficiencias en el alumbrado público"},
-    {"categoria": "Delito", "descriptor": "Delincuencia organizada"},
-    {"categoria": "Delito", "descriptor": "Delitos contra el ámbito de intimidad (violación de secretos, correspondencia y comunicaciones electrónicas)"},
-    {"categoria": "Delito", "descriptor": "Delitos sexuales"},
-    {"categoria": "Riesgo social", "descriptor": "Desaparición de personas"},
-    {"categoria": "Riesgo social", "descriptor": "Desarticulación interinstitucional"},
-    {"categoria": "Riesgo social", "descriptor": "Desempleo"},
-    {"categoria": "Riesgo social", "descriptor": "Desvinculación estudiantil"},
-    {"categoria": "Delito", "descriptor": "Desobediencia"},
-    {"categoria": "Delito", "descriptor": "Desórdenes en vía pública"},
-    {"categoria": "Delito", "descriptor": "Disturbios (riñas)"},
-    {"categoria": "Riesgo social", "descriptor": "Enfrentamientos estudiantiles"},
-    {"categoria": "Delito", "descriptor": "Estafa o defraudación"},
-    {"categoria": "Delito", "descriptor": "Estupro (delitos sexuales contra menor de edad)"},
-    {"categoria": "Delito", "descriptor": "Evasión y quebrantamiento de pena"},
-    {"categoria": "Delito", "descriptor": "Explosivos"},
-    {"categoria": "Delito", "descriptor": "Extorsión"},
-    {"categoria": "Delito", "descriptor": "Fabricación, producción o reproducción de pornografía"},
-    {"categoria": "Riesgo social", "descriptor": "Facilismo económico"},
-    {"categoria": "Delito", "descriptor": "Falsificación de moneda y otros valores"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de cámaras de seguridad"},
-    {"categoria": "Otros factores", "descriptor": "Falta de capacitación policial"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de control a patentes"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de control fronterizo"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de corresponsabilidad en seguridad"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de cultura vial"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de cultura y compromiso ciudadano"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de educación familiar"},
-    {"categoria": "Otros factores", "descriptor": "Falta de incentivos"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de inversión social"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de legislación de extinción de dominio"},
-    {"categoria": "Otros factores", "descriptor": "Falta de personal administrativo"},
-    {"categoria": "Otros factores", "descriptor": "Falta de personal policial"},
-    {"categoria": "Otros factores", "descriptor": "Falta de policías de tránsito"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de políticas públicas en seguridad"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de presencia policial"},
-    {"categoria": "Riesgo social", "descriptor": "Falta de salubridad pública"},
-    {"categoria": "Riesgo social", "descriptor": "Familias disfuncionales"},
-    {"categoria": "Delito", "descriptor": "Fraude informático"},
-    {"categoria": "Delito", "descriptor": "Grooming"},
-    {"categoria": "Riesgo social", "descriptor": "Hacinamiento carcelario"},
-    {"categoria": "Riesgo social", "descriptor": "Hacinamiento policial"},
-    {"categoria": "Delito", "descriptor": "Homicidio"},
-    {"categoria": "Riesgo social", "descriptor": "Hospedajes ilegales (cuarterías)"},
-    {"categoria": "Delito", "descriptor": "Hurto"},
-    {"categoria": "Otros factores", "descriptor": "Inadecuado uso del recurso policial"},
-    {"categoria": "Riesgo social", "descriptor": "Incumplimiento al plan regulador de la municipalidad"},
-    {"categoria": "Delito", "descriptor": "Incumplimiento del deber alimentario"},
-    {"categoria": "Riesgo social", "descriptor": "Indiferencia social"},
-    {"categoria": "Otros factores", "descriptor": "Inefectividad en el servicio de policía"},
-    {"categoria": "Riesgo social", "descriptor": "Ineficiencia en la administración de justicia"},
-    {"categoria": "Otros factores", "descriptor": "Infraestructura inadecuada"},
-    {"categoria": "Riesgo social", "descriptor": "Intolerancia social"},
-    {"categoria": "Otros factores", "descriptor": "Irrespeto a la jefatura"},
-    {"categoria": "Otros factores", "descriptor": "Irrespeto al subalterno"},
-    {"categoria": "Otros factores", "descriptor": "Jornadas laborales extensas"},
-    {"categoria": "Delito", "descriptor": "Lavado de activos"},
-    {"categoria": "Delito", "descriptor": "Lesiones"},
-    {"categoria": "Delito", "descriptor": "Ley de armas y explosivos N° 7530"},
-    {"categoria": "Riesgo social", "descriptor": "Ley de control de tabaco (Ley 9028)"},
-    {"categoria": "Riesgo social", "descriptor": "Lotes baldíos"},
-    {"categoria": "Delito", "descriptor": "Maltrato animal"},
-    {"categoria": "Delito", "descriptor": "Narcotráfico"},
-    {"categoria": "Riesgo social", "descriptor": "Necesidades básicas insatisfechas"},
-    {"categoria": "Riesgo social", "descriptor": "Percepción de inseguridad"},
-    {"categoria": "Riesgo social", "descriptor": "Pérdida de espacios públicos"},
-    {"categoria": "Riesgo social", "descriptor": "Personas con exceso de tiempo de ocio"},
-    {"categoria": "Riesgo social", "descriptor": "Personas en estado migratorio irregular"},
-    {"categoria": "Riesgo social", "descriptor": "Personas en situación de calle"},
-    {"categoria": "Delito", "descriptor": "Menores en vulnerabilidad"},
-    {"categoria": "Delito", "descriptor": "Pesca ilegal"},
-    {"categoria": "Delito", "descriptor": "Portación ilegal de armas"},
-    {"categoria": "Riesgo social", "descriptor": "Presencia multicultural"},
-    {"categoria": "Otros factores", "descriptor": "Presión por resultados operativos"},
-    {"categoria": "Delito", "descriptor": "Privación de libertad sin ánimo de lucro"},
-    {"categoria": "Riesgo social", "descriptor": "Problemas vecinales"},
-    {"categoria": "Delito", "descriptor": "Receptación"},
-    {"categoria": "Delito", "descriptor": "Relaciones impropias"},
-    {"categoria": "Delito", "descriptor": "Resistencia (irrespeto a la autoridad)"},
-    {"categoria": "Delito", "descriptor": "Robo a comercio (intimidación)"},
-    {"categoria": "Delito", "descriptor": "Robo a comercio (tacha)"},
-    {"categoria": "Delito", "descriptor": "Robo a edificación (tacha)"},
-    {"categoria": "Delito", "descriptor": "Robo a personas"},
-    {"categoria": "Delito", "descriptor": "Robo a transporte comercial"},
-    {"categoria": "Delito", "descriptor": "Robo a vehículos (tacha)"},
-    {"categoria": "Delito", "descriptor": "Robo a vivienda (intimidación)"},
-    {"categoria": "Delito", "descriptor": "Robo a vivienda (tacha)"},
-    {"categoria": "Delito", "descriptor": "Robo de bicicleta"},
-    {"categoria": "Delito", "descriptor": "Robo de cultivos"},
-    {"categoria": "Delito", "descriptor": "Robo de motocicletas/vehículos (bajonazo)"},
-    {"categoria": "Delito", "descriptor": "Robo de vehículos"},
-    {"categoria": "Delito", "descriptor": "Secuestro"},
-    {"categoria": "Delito", "descriptor": "Simulación de delito"},
-    {"categoria": "Riesgo social", "descriptor": "Sistema jurídico desactualizado"},
-    {"categoria": "Riesgo social", "descriptor": "Suicidio"},
-    {"categoria": "Delito", "descriptor": "Sustracción de una persona menor de edad o incapaz"},
-    {"categoria": "Delito", "descriptor": "Tala ilegal"},
-    {"categoria": "Riesgo social", "descriptor": "Tendencia social hacia el delito (pautas de crianza violenta)"},
-    {"categoria": "Riesgo social", "descriptor": "Tenencia de droga"},
-    {"categoria": "Delito", "descriptor": "Tentativa de homicidio"},
-    {"categoria": "Delito", "descriptor": "Terrorismo"},
-    {"categoria": "Riesgo social", "descriptor": "Trabajo informal"},
-    {"categoria": "Delito", "descriptor": "Tráfico de armas"},
-    {"categoria": "Delito", "descriptor": "Tráfico de influencias"},
-    {"categoria": "Riesgo social", "descriptor": "Transporte informal (Uber, porteadores, piratas)"},
-    {"categoria": "Delito", "descriptor": "Trata de personas"},
-    {"categoria": "Delito", "descriptor": "Turbación de actos religiosos y profanaciones"},
-    {"categoria": "Delito", "descriptor": "Uso ilegal de uniformes, insignias o dispositivos policiales"},
-    {"categoria": "Delito", "descriptor": "Usurpación de terrenos (precarios)"},
-    {"categoria": "Delito", "descriptor": "Venta de drogas"},
-    {"categoria": "Riesgo social", "descriptor": "Ventas informales (ambulantes)"},
-    {"categoria": "Riesgo social", "descriptor": "Vigilancia informal"},
-    {"categoria": "Delito", "descriptor": "Violación de domicilio"},
-    {"categoria": "Delito", "descriptor": "Violación de la custodia de las cosas"},
-    {"categoria": "Delito", "descriptor": "Violación de sellos"},
-    {"categoria": "Delito", "descriptor": "Violencia de género"},
-    {"categoria": "Delito", "descriptor": "Violencia intrafamiliar"},
-    {"categoria": "Riesgo social", "descriptor": "Xenofobia"},
-    {"categoria": "Riesgo social", "descriptor": "Zonas de prostitución"},
-    {"categoria": "Riesgo social", "descriptor": "Zonas vulnerables"},
-    {"categoria": "Delito", "descriptor": "Robo a transporte público con intimidación"},
-    {"categoria": "Delito", "descriptor": "Robo de cable"},
-    {"categoria": "Delito", "descriptor": "Explotación sexual infantil"},
-    {"categoria": "Delito", "descriptor": "Explotación laboral infantil"},
-    {"categoria": "Delito", "descriptor": "Tráfico ilegal de personas"},
-    {"categoria": "Riesgo social", "descriptor": "Bares clandestinos"},
-    {"categoria": "Delito", "descriptor": "Robo de combustible"},
-    {"categoria": "Delito", "descriptor": "Femicidio"},
-    {"categoria": "Delito", "descriptor": "Delitos contra la vida (homicidios, heridos)"},
-    {"categoria": "Delito", "descriptor": "Venta y consumo de drogas en vía pública"},
-    {"categoria": "Delito", "descriptor": "Asalto (a personas, comercio, vivienda, transporte público)"},
-    {"categoria": "Delito", "descriptor": "Robo de ganado y agrícola"},
-    {"categoria": "Delito", "descriptor": "Robo de equipo agrícola"},
+# ======================================================
+# ARCHIVOS Y LOGOS
+# Deben estar al mismo nivel que appADMIN.py
+# ======================================================
+
+LOGO_MINISTERIO = "Logo2.jpeg"
+LOGO_PUMI = "logo_pumi.jpeg"
+LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
+
+NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
+
+
+# ======================================================
+# ENCABEZADOS BASE DE LA APP PUMI
+# ======================================================
+
+ENCABEZADOS_PUMI = [
+    "ID",
+    "Fecha Actividad",
+    "Hora Actividad",
+    "Dirección Regional",
+    "Delegación",
+    "Responde a",
+    "Programa",
+    "Actividad",
+    "Provincia",
+    "Cantón",
+    "Distrito",
+    "Tipo Lugar",
+    "Lugar",
+    "Centro Educativo",
+    "Código Presupuestario",
+    "Dirección Mapa",
+    "Latitud",
+    "Longitud",
+    "Responsable",
+    "Cantidad Participantes",
+    "Cantidad Hombres",
+    "Cantidad Mujeres",
+    "Edad 10 a 18",
+    "Edad 19 a 30",
+    "Edad 31 a 45",
+    "Edad 46 en adelante",
+    "Instituciones Participantes",
+    "Número de Referencia",
+    "Número de Expediente Referencia",
+    "Observaciones",
+    "Usuario Registra"
 ]
-# ============================================================================
-# ============================== PARTE 3/10 =================================
-# ====================== Utilidades base y cálculo Pareto ====================
-# ============================================================================
-
-def _map_descriptor_a_categoria() -> Dict[str, str]:
-    df = pd.DataFrame(CATALOGO)
-    return dict(zip(df["descriptor"], df["categoria"]))
-DESC2CAT = _map_descriptor_a_categoria()
 
 
-def normalizar_freq_map(freq_map: Dict[str, int]) -> Dict[str, int]:
-    out = {}
-    for d, v in (freq_map or {}).items():
-        try:
-            vv = int(pd.to_numeric(v, errors="coerce"))
-            if vv > 0:
-                out[d] = vv
-        except Exception:
-            continue
-    return out
+# ======================================================
+# ENCABEZADOS ADMINISTRATIVOS
+# Estos campos se agregan para validación.
+# ======================================================
+
+ENCABEZADOS_VALIDACION = [
+    "Estado Validación",
+    "Observaciones Validación",
+    "Funcionario Validador",
+    "Fecha Validación"
+]
 
 
-def df_desde_freq_map(freq_map: Dict[str, int]) -> pd.DataFrame:
-    items = []
-    for d, f in normalizar_freq_map(freq_map).items():
-        items.append({
-            "descriptor": d,
-            "categoria": DESC2CAT.get(d, "—"),
-            "frecuencia": int(f)
-        })
-    df = pd.DataFrame(items)
-    if df.empty:
-        return pd.DataFrame(columns=["descriptor", "categoria", "frecuencia"])
+ENCABEZADOS_COMPLETOS = ENCABEZADOS_PUMI + ENCABEZADOS_VALIDACION
+
+
+# ======================================================
+# COLORES INSTITUCIONALES
+# ======================================================
+
+COLOR_AZUL = "#002B7F"
+COLOR_AZUL_MEDIO = "#1E4FA3"
+COLOR_AZUL_CLARO = "#DCE8FF"
+
+COLOR_DORADO = "#B88A2A"
+COLOR_DORADO_OSCURO = "#8A6418"
+COLOR_DORADO_CLARO = "#F4E6C1"
+
+COLOR_BLANCO = "#FFFFFF"
+COLOR_GRIS = "#F4F6F8"
+COLOR_GRIS_OSCURO = "#2F3542"
+
+COLOR_VERDE = "#1F8A4C"
+COLOR_ROJO = "#B42318"
+COLOR_AMARILLO = "#F2C94C"
+
+
+COLORES_VALIDACION = {
+    "Pendiente": "#F2C94C",
+    "Aprobada": "#1F8A4C",
+    "Rechazada": "#B42318",
+    "Con observaciones": "#B88A2A"
+}
+
+
+COLORES_PROGRAMA = {
+    "DARE": "purple",
+    "GREAT": "orange",
+    "GREAT CAMP": "orange",
+    "MPAS": "darkblue",
+    "PSCC": "blue",
+    "VIF": "orange",
+    "Política Pública": "green"
+}
+
+
+CENTROS_PROVINCIA = {
+    "San José": [9.9281, -84.0907],
+    "Alajuela": [10.0162, -84.2116],
+    "Cartago": [9.8644, -83.9194],
+    "Heredia": [10.0024, -84.1165],
+    "Guanacaste": [10.6267, -85.4437],
+    "Puntarenas": [9.9763, -84.8384],
+    "Limón": [9.9917, -83.0360]
+}
+
+
+# ======================================================
+# SESSION STATE
+# ======================================================
+
+def inicializar_session_state_admin():
+    if "df_admin" not in st.session_state:
+        st.session_state.df_admin = pd.DataFrame(columns=ENCABEZADOS_COMPLETOS)
+
+    if "archivo_admin_nombre" not in st.session_state:
+        st.session_state.archivo_admin_nombre = ""
+
+    if "filtros_admin_aplicados" not in st.session_state:
+        st.session_state.filtros_admin_aplicados = {}
+
+    if "mapa_imagen_referencia" not in st.session_state:
+        st.session_state.mapa_imagen_referencia = None
+
+    if "grafico_imagen_referencia" not in st.session_state:
+        st.session_state.grafico_imagen_referencia = None
+
+
+inicializar_session_state_admin()
+
+
+# ======================================================
+# FUNCIONES BASE
+# ======================================================
+
+def imagen_a_base64(ruta):
+    if not os.path.exists(ruta):
+        return ""
+
+    try:
+        with open(ruta, "rb") as archivo:
+            return base64.b64encode(archivo.read()).decode()
+    except Exception:
+        return ""
+
+
+def normalizar_texto(valor):
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().upper()
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(
+        caracter for caracter in texto
+        if not unicodedata.combining(caracter)
+    )
+    texto = " ".join(texto.split())
+
+    return texto
+
+
+def limpiar_nombre_archivo(valor):
+    texto = str(valor).strip()
+
+    if texto == "" or texto.lower() == "nan":
+        return "SIN_DATO"
+
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = "".join(
+        caracter for caracter in texto
+        if not unicodedata.combining(caracter)
+    )
+
+    texto = texto.upper()
+    texto = re.sub(r"[^\w\s-]", "", texto)
+    texto = re.sub(r"\s+", "_", texto)
+    texto = texto.strip("_")
+
+    if texto == "":
+        return "SIN_DATO"
+
+    return texto
+
+
+def limpiar_coordenada(valor):
+    try:
+        if valor is None or str(valor).strip() == "":
+            return None
+
+        return float(str(valor).replace(",", ".").strip())
+
+    except Exception:
+        return None
+
+
+def obtener_color_programa(programa):
+    return COLORES_PROGRAMA.get(str(programa), "gray")
+
+
+def generar_nombre_reporte(df, tipo="PDF"):
+    if df is None or df.empty:
+        return f"INFORME_VALIDACION_PUMI_2026.{tipo.lower()}"
+
+    region = "VARIAS_REGIONES"
+    delegacion = "VARIAS_DELEGACIONES"
+
+    if "Dirección Regional" in df.columns:
+        regiones = (
+            df["Dirección Regional"]
+            .replace("", pd.NA)
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+        if len(regiones) == 1:
+            region = regiones[0]
+
+    if "Delegación" in df.columns:
+        delegaciones = (
+            df["Delegación"]
+            .replace("", pd.NA)
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+        if len(delegaciones) == 1:
+            delegacion = delegaciones[0]
+
+    region_limpia = limpiar_nombre_archivo(region)
+    delegacion_limpia = limpiar_nombre_archivo(delegacion)
+
+    return f"INFORME_VALIDACION_PUMI_2026_{region_limpia}_{delegacion_limpia}.{tipo.lower()}"
+
+
+# ======================================================
+# ESTILOS CSS
+# Misma línea visual de la app PUMI principal.
+# ======================================================
+
+st.markdown(
+    f"""
+    <style>
+
+    .stApp {{
+        background:
+            radial-gradient(circle at top left, #FFFFFF 0, transparent 28%),
+            radial-gradient(circle at top right, #DCE8FF 0, transparent 30%),
+            linear-gradient(180deg, #FFFFFF 0%, #F4F7FB 48%, #FFFFFF 100%);
+    }}
+
+    section[data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, #FFFFFF 0%, #EAF1FF 45%, #FFFFFF 100%);
+        border-right: 5px solid {COLOR_DORADO};
+        box-shadow: 4px 0px 12px rgba(0,0,0,0.10);
+    }}
+
+    .sidebar-logo-pumi {{
+        background: #FFFFFF;
+        border-radius: 16px;
+        padding: 12px;
+        margin: 8px 0px 18px 0px;
+        box-shadow: 0px 4px 14px rgba(0,0,0,0.10);
+        text-align: center;
+    }}
+
+    .sidebar-logo-pumi img {{
+        width: 100%;
+        max-height: 145px;
+        object-fit: contain;
+    }}
+
+    .encabezado-institucional {{
+        background: #FFFFFF;
+        border-radius: 22px;
+        padding: 22px 34px;
+        margin-bottom: 24px;
+        box-shadow: 0px 8px 22px rgba(0,0,0,0.11);
+        border-bottom: 7px solid {COLOR_DORADO};
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        align-items: center;
+        gap: 22px;
+        min-height: 155px;
+    }}
+
+    .encabezado-logo-izq,
+    .encabezado-logo-centro,
+    .encabezado-logo-der {{
+        height: 125px;
+        display: flex;
+        align-items: center;
+    }}
+
+    .encabezado-logo-izq {{
+        justify-content: flex-start;
+    }}
+
+    .encabezado-logo-centro {{
+        justify-content: center;
+    }}
+
+    .encabezado-logo-der {{
+        justify-content: flex-end;
+    }}
+
+    .logo-ministerio-app {{
+        width: 350px;
+        height: 100px;
+        object-fit: contain;
+    }}
+
+    .logo-pumi-app {{
+        width: 300px;
+        height: 100px;
+        object-fit: contain;
+    }}
+
+    .logo-fp-app {{
+        width: 400px;
+        height: 150px;
+        object-fit: contain;
+    }}
+
+    .titulo-principal {{
+        background: linear-gradient(135deg, {COLOR_AZUL}, #243B63, {COLOR_DORADO});
+        padding: 34px;
+        border-radius: 22px;
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+        box-shadow: 0px 8px 22px rgba(0,0,0,0.28);
+        border: 3px solid {COLOR_BLANCO};
+    }}
+
+    .titulo-principal h1 {{
+        font-size: 46px;
+        margin-bottom: 8px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+        color: white;
+        text-shadow: 1px 2px 5px rgba(0,0,0,0.35);
+    }}
+
+    .titulo-principal h3 {{
+        font-size: 25px;
+        margin-top: 8px;
+        font-weight: 600;
+        color: white;
+    }}
+
+    .card-admin {{
+        padding: 24px;
+        border-radius: 20px;
+        box-shadow: 0px 6px 16px rgba(0,0,0,0.13);
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFF 100%);
+        border-left: 9px solid {COLOR_AZUL};
+    }}
+
+    .card-validacion {{
+        padding: 22px;
+        border-radius: 18px;
+        box-shadow: 0px 5px 14px rgba(0,0,0,0.12);
+        margin-bottom: 18px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E8 100%);
+        border-left: 8px solid {COLOR_DORADO};
+    }}
+
+    .subtitulo-admin {{
+        color: {COLOR_AZUL};
+        font-weight: 900;
+        font-size: 29px;
+        margin-bottom: 12px;
+        text-align: center;
+    }}
+
+    .texto-admin {{
+        color: {COLOR_GRIS_OSCURO};
+        font-size: 17px;
+        line-height: 1.7;
+        text-align: justify;
+    }}
+
+    div[data-testid="stMetric"] {{
+        background: linear-gradient(145deg, #FFFFFF 0%, #F3F6FF 100%);
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0px 5px 15px rgba(0,0,0,0.13);
+        border-bottom: 6px solid {COLOR_DORADO};
+    }}
+
+    div[data-baseweb="select"] > div {{
+        background-color: #FFFFFF !important;
+        border-radius: 12px !important;
+        border: 1.8px solid #AFC3EE !important;
+    }}
+
+    input {{
+        background-color: #FFFFFF !important;
+        border-radius: 12px !important;
+        border: 1.8px solid #AFC3EE !important;
+    }}
+
+    textarea {{
+        background-color: #FFFFFF !important;
+        border-radius: 12px !important;
+        border: 1.8px solid {COLOR_DORADO_CLARO} !important;
+    }}
+
+    .stButton > button {{
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_DORADO});
+        color: white;
+        border-radius: 12px;
+        border: none;
+        font-weight: 800;
+        padding: 0.7rem 1.2rem;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.18);
+    }}
+
+    .stDownloadButton > button {{
+        background: linear-gradient(90deg, {COLOR_DORADO}, {COLOR_AZUL});
+        color: white;
+        border-radius: 12px;
+        border: none;
+        font-weight: 800;
+        padding: 0.7rem 1.2rem;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.18);
+    }}
+
+    div[data-testid="stDataFrame"] {{
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0px 5px 16px rgba(0,0,0,0.13);
+        background-color: white;
+    }}
+
+    iframe {{
+        border-radius: 18px !important;
+        box-shadow: 0px 5px 16px rgba(0,0,0,0.13);
+        width: 100% !important;
+    }}
+
+    hr {{
+        border: none;
+        height: 3px;
+        background: linear-gradient(90deg, {COLOR_AZUL}, {COLOR_BLANCO}, {COLOR_DORADO});
+        margin-top: 25px;
+        margin-bottom: 25px;
+    }}
+
+    h1, h2, h3 {{
+        color: {COLOR_AZUL};
+        font-weight: 900;
+    }}
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ======================================================
+# LOGOS Y ENCABEZADOS
+# ======================================================
+
+def mostrar_logo_sidebar():
+    logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
+
+    if logo_pumi_b64:
+        st.sidebar.markdown(
+            f"""
+            <div class="sidebar-logo-pumi">
+                <img src="data:image/jpeg;base64,{logo_pumi_b64}">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.sidebar.warning("Logo PUMI no encontrado.")
+
+
+def mostrar_encabezado_institucional():
+    logo_min_b64 = imagen_a_base64(LOGO_MINISTERIO)
+    logo_pumi_b64 = imagen_a_base64(LOGO_PUMI)
+    logo_fp_b64 = imagen_a_base64(LOGO_FUERZA_PUBLICA)
+
+    img_min = (
+        f'<img class="logo-ministerio-app" src="data:image/jpeg;base64,{logo_min_b64}">'
+        if logo_min_b64 else ""
+    )
+
+    img_pumi = (
+        f'<img class="logo-pumi-app" src="data:image/jpeg;base64,{logo_pumi_b64}">'
+        if logo_pumi_b64 else ""
+    )
+
+    img_fp = (
+        f'<img class="logo-fp-app" src="data:image/jpeg;base64,{logo_fp_b64}">'
+        if logo_fp_b64 else ""
+    )
+
+    st.markdown(
+        f"""
+        <div class="encabezado-institucional">
+            <div class="encabezado-logo-izq">{img_min}</div>
+            <div class="encabezado-logo-centro">{img_pumi}</div>
+            <div class="encabezado-logo-der">{img_fp}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def mostrar_titulo_admin():
+    st.markdown(
+        """
+        <div class="titulo-principal">
+            <h1>🛡️ P.U.M.I. 2026 - Panel Administrativo</h1>
+            <h3>Validación, análisis, dashboard e informe PDF de actividades</h3>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # ======================================================
+# appADMIN.py
+# PARTE 2 DE 5
+# CARGA DE EXCEL PUMI, PREPARACIÓN DE DATOS,
+# FILTROS GENERALES, MAPA Y DASHBOARD BASE
+# ======================================================
+
+
+# ======================================================
+# PREPARAR DATAFRAME ADMINISTRATIVO
+# Agrega columnas de validación si el Excel no las tiene.
+# ======================================================
+
+def preparar_dataframe_admin(df):
+    df = df.copy()
+
+    for col in ENCABEZADOS_PUMI:
+        if col not in df.columns:
+            df[col] = ""
+
+    for col in ENCABEZADOS_VALIDACION:
+        if col not in df.columns:
+            df[col] = ""
+
+    df = df[ENCABEZADOS_COMPLETOS]
+
+    for col in ENCABEZADOS_COMPLETOS:
+        df[col] = df[col].fillna("").astype(str)
+
+    columnas_numericas = [
+        "ID",
+        "Cantidad Participantes",
+        "Cantidad Hombres",
+        "Cantidad Mujeres",
+        "Edad 10 a 18",
+        "Edad 19 a 30",
+        "Edad 31 a 45",
+        "Edad 46 en adelante"
+    ]
+
+    for col in columnas_numericas:
+        if col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).fillna(0).astype(int)
+
+    df["Estado Validación"] = df["Estado Validación"].replace(
+        "",
+        "Pendiente"
+    )
+
     return df
 
 
-def combinar_maps(maps: List[Dict[str, int]]) -> Dict[str, int]:
-    total = {}
-    for m in maps:
-        for d, f in normalizar_freq_map(m).items():
-            total[d] = total.get(d, 0) + int(f)
-    return total
+# ======================================================
+# CARGAR EXCEL GENERADO POR APP PUMI
+# ======================================================
+
+def cargar_excel_pumi_admin(archivo_excel):
+    try:
+        df = pd.read_excel(
+            archivo_excel,
+            sheet_name=NOMBRE_HOJA_EXCEL
+        )
+    except Exception:
+        try:
+            df = pd.read_excel(archivo_excel)
+        except Exception as e:
+            st.error("No se pudo leer el Excel cargado.")
+            st.exception(e)
+            return pd.DataFrame(columns=ENCABEZADOS_COMPLETOS)
+
+    return preparar_dataframe_admin(df)
 
 
-def info_pareto(freq_map: Dict[str, int]) -> Dict[str, int]:
-    d = normalizar_freq_map(freq_map)
-    return {"descriptores": len(d), "total": int(sum(d.values()))}
+# ======================================================
+# EXPORTAR EXCEL ADMINISTRATIVO
+# Conserva los datos originales + validación.
+# ======================================================
+
+def convertir_excel_admin(df):
+    output = BytesIO()
+    df_exportar = preparar_dataframe_admin(df)
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_exportar.to_excel(
+            writer,
+            index=False,
+            sheet_name=NOMBRE_HOJA_EXCEL
+        )
+
+    output.seek(0)
+
+    workbook = load_workbook(output)
+    worksheet = workbook[NOMBRE_HOJA_EXCEL]
+
+    fill_header = PatternFill(
+        start_color="002B7F",
+        end_color="002B7F",
+        fill_type="solid"
+    )
+
+    font_header = Font(
+        color="FFFFFF",
+        bold=True
+    )
+
+    border = Border(
+        left=Side(style="thin", color="BFBFBF"),
+        right=Side(style="thin", color="BFBFBF"),
+        top=Side(style="thin", color="BFBFBF"),
+        bottom=Side(style="thin", color="BFBFBF")
+    )
+
+    for cell in worksheet[1]:
+        cell.fill = fill_header
+        cell.font = font_header
+        cell.alignment = Alignment(
+            horizontal="center",
+            vertical="center",
+            wrap_text=True
+        )
+        cell.border = border
+
+    for row in worksheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(
+                vertical="top",
+                wrap_text=True
+            )
+            cell.border = border
+
+    for column_cells in worksheet.columns:
+        max_length = 0
+        column_letter = column_cells[0].column_letter
+
+        for cell in column_cells:
+            valor = str(cell.value) if cell.value is not None else ""
+            max_length = max(max_length, len(valor))
+
+        worksheet.column_dimensions[column_letter].width = min(
+            max(max_length + 2, 14),
+            45
+        )
+
+    worksheet.freeze_panes = "A2"
+
+    final_output = BytesIO()
+    workbook.save(final_output)
+    final_output.seek(0)
+
+    return final_output.getvalue()
 
 
-# --- Cálculo Pareto ---
-def calcular_pareto(df_in: pd.DataFrame) -> pd.DataFrame:
-    df = df_in.copy()
-    df["frecuencia"] = pd.to_numeric(df["frecuencia"], errors="coerce").fillna(0).astype(int)
-    df = df[df["frecuencia"] > 0]
-    if df.empty:
-        return df.assign(porcentaje=0.0, acumulado=0, pct_acum=0.0,
-                         segmento_real="20%", segmento="80%")
-    df = df.sort_values("frecuencia", ascending=False)
-    total = int(df["frecuencia"].sum())
-    df["porcentaje"] = (df["frecuencia"] / total * 100).round(2)
-    df["acumulado"]  = df["frecuencia"].cumsum()
-    df["pct_acum"]   = (df["acumulado"] / total * 100).round(2)
-    df["segmento_real"] = np.where(df["pct_acum"] <= 80.00, "80%", "20%")
-    df["segmento"] = "80%"
-    return df.reset_index(drop=True)
+# ======================================================
+# LIMPIEZA PARA MÉTRICAS Y FILTROS
+# ======================================================
+
+def limpiar_dataframe_metricas_admin(df):
+    df = df.copy()
+
+    columnas_numericas = [
+        "Cantidad Participantes",
+        "Cantidad Hombres",
+        "Cantidad Mujeres",
+        "Edad 10 a 18",
+        "Edad 19 a 30",
+        "Edad 31 a 45",
+        "Edad 46 en adelante"
+    ]
+
+    for col in columnas_numericas:
+        if col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).fillna(0)
+
+    if "Fecha Actividad" in df.columns:
+        df["Fecha Actividad"] = pd.to_datetime(
+            df["Fecha Actividad"],
+            errors="coerce",
+            dayfirst=True
+        )
+
+    return df
 
 
-def _colors_for_segments(segments: List[str]) -> List[str]:
-    return [VERDE if s == "80%" else AZUL for s in segments]
+# ======================================================
+# FILTROS GENERALES DEL PANEL ADMIN
+# ======================================================
+
+def aplicar_filtros_admin(df):
+    if df is None or df.empty:
+        return df
+
+    df_filtrado = df.copy()
+
+    st.markdown("### Filtros de consulta")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        filtro_region = st.multiselect(
+            "Dirección Regional",
+            sorted(
+                df_filtrado["Dirección Regional"]
+                .replace("", pd.NA)
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+        )
+
+        filtro_delegacion = st.multiselect(
+            "Delegación",
+            sorted(
+                df_filtrado["Delegación"]
+                .replace("", pd.NA)
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+        )
+
+    with col2:
+        filtro_programa = st.multiselect(
+            "Programa",
+            sorted(
+                df_filtrado["Programa"]
+                .replace("", pd.NA)
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+        )
+
+        filtro_actividad = st.multiselect(
+            "Actividad",
+            sorted(
+                df_filtrado["Actividad"]
+                .replace("", pd.NA)
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+        )
+
+    with col3:
+        filtro_estado = st.multiselect(
+            "Estado de validación",
+            ["Pendiente", "Aprobada", "Rechazada", "Con observaciones"]
+        )
+
+        filtro_provincia = st.multiselect(
+            "Provincia",
+            sorted(
+                df_filtrado["Provincia"]
+                .replace("", pd.NA)
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+        )
+
+    colf1, colf2 = st.columns(2)
+
+    with colf1:
+        fecha_inicio = st.date_input(
+            "Fecha inicio",
+            value=None,
+            format="DD/MM/YYYY"
+        )
+
+    with colf2:
+        fecha_fin = st.date_input(
+            "Fecha final",
+            value=None,
+            format="DD/MM/YYYY"
+        )
+
+    if filtro_region:
+        df_filtrado = df_filtrado[
+            df_filtrado["Dirección Regional"].isin(filtro_region)
+        ]
+
+    if filtro_delegacion:
+        df_filtrado = df_filtrado[
+            df_filtrado["Delegación"].isin(filtro_delegacion)
+        ]
+
+    if filtro_programa:
+        df_filtrado = df_filtrado[
+            df_filtrado["Programa"].isin(filtro_programa)
+        ]
+
+    if filtro_actividad:
+        df_filtrado = df_filtrado[
+            df_filtrado["Actividad"].isin(filtro_actividad)
+        ]
+
+    if filtro_estado:
+        df_filtrado = df_filtrado[
+            df_filtrado["Estado Validación"].isin(filtro_estado)
+        ]
+
+    if filtro_provincia:
+        df_filtrado = df_filtrado[
+            df_filtrado["Provincia"].isin(filtro_provincia)
+        ]
+
+    if fecha_inicio or fecha_fin:
+        df_fecha = df_filtrado.copy()
+
+        df_fecha["Fecha_Actividad_DT"] = pd.to_datetime(
+            df_fecha["Fecha Actividad"],
+            errors="coerce",
+            dayfirst=True
+        )
+
+        if fecha_inicio:
+            df_fecha = df_fecha[
+                df_fecha["Fecha_Actividad_DT"].dt.date >= fecha_inicio
+            ]
+
+        if fecha_fin:
+            df_fecha = df_fecha[
+                df_fecha["Fecha_Actividad_DT"].dt.date <= fecha_fin
+            ]
+
+        df_filtrado = df_fecha.drop(columns=["Fecha_Actividad_DT"])
+
+    st.session_state.filtros_admin_aplicados = {
+        "Dirección Regional": filtro_region,
+        "Delegación": filtro_delegacion,
+        "Programa": filtro_programa,
+        "Actividad": filtro_actividad,
+        "Estado Validación": filtro_estado,
+        "Provincia": filtro_provincia,
+        "Fecha Inicio": str(fecha_inicio) if fecha_inicio else "",
+        "Fecha Final": str(fecha_fin) if fecha_fin else ""
+    }
+
+    return df_filtrado
 
 
-def _wrap_labels(labels: List[str], width: int = 22) -> List[str]:
-    """
-    Envuelve etiquetas largas para evitar choque visual.
-    Además, si hay más de 20 etiquetas, ajusta el ancho automáticamente.
-    """
-    if len(labels) > 30:
-        width = 15
-    elif len(labels) > 20:
-        width = 18
-    elif len(labels) > 12:
-        width = 20
-    return ["\n".join(wrap(str(t), width=width)) for t in labels]
-# ============================================================================
-# ============================== PARTE 4/10 =================================
-# ====== Gráfico Pareto (UI) + Exportación Excel con gráfico combinado ======
-# ============================================================================
+# ======================================================
+# DATAFRAME PARA MAPA
+# ======================================================
 
-def _wrap_for_two_lines(labels: List[str]) -> List[str]:
-    """Envuelve etiquetas en máximo 2 líneas (ajuste dinámico)."""
-    if not labels:
-        return labels
-    max_len = max(len(str(x)) for x in labels)
-    # Establecemos el ancho según longitud promedio
-    if max_len > 60:
-        w = 25
-    elif max_len > 40:
-        w = 20
-    elif max_len > 25:
-        w = 16
+def preparar_dataframe_mapa_admin(df):
+    df_mapa = df.copy()
+
+    if "Latitud" not in df_mapa.columns:
+        df_mapa["Latitud"] = ""
+
+    if "Longitud" not in df_mapa.columns:
+        df_mapa["Longitud"] = ""
+
+    df_mapa["Latitud_Num"] = df_mapa["Latitud"].apply(limpiar_coordenada)
+    df_mapa["Longitud_Num"] = df_mapa["Longitud"].apply(limpiar_coordenada)
+
+    df_mapa = df_mapa.dropna(
+        subset=[
+            "Latitud_Num",
+            "Longitud_Num"
+        ]
+    )
+
+    return df_mapa
+
+
+# ======================================================
+# MAPA GENERAL DE REGISTROS ADMIN
+# ======================================================
+
+def crear_mapa_admin(df):
+    df_mapa = preparar_dataframe_mapa_admin(df)
+
+    if df_mapa.empty:
+        mapa = folium.Map(
+            location=[9.7489, -83.7534],
+            zoom_start=7,
+            tiles="OpenStreetMap"
+        )
+        return mapa
+
+    if len(df_mapa) == 1:
+        centro = [
+            float(df_mapa.iloc[0]["Latitud_Num"]),
+            float(df_mapa.iloc[0]["Longitud_Num"])
+        ]
+        zoom = 16
     else:
-        w = 14
-    wrapped = []
-    for label in labels:
-        parts = _wrap_labels([label], width=w)
-        if len(parts) > 2:
-            parts = parts[:2]
-        wrapped.append("\n".join(parts))
-    return wrapped
+        centro = [
+            float(df_mapa["Latitud_Num"].mean()),
+            float(df_mapa["Longitud_Num"].mean())
+        ]
+        zoom = 8
 
-def dibujar_pareto(df_par: pd.DataFrame, titulo: str):
-    if df_par.empty:
-        st.info("Ingresa frecuencias (>0) para ver el gráfico.")
+    mapa = folium.Map(
+        location=centro,
+        zoom_start=zoom,
+        tiles="OpenStreetMap"
+    )
+
+    for _, row in df_mapa.iterrows():
+        estado = str(row.get("Estado Validación", "Pendiente"))
+        programa = str(row.get("Programa", ""))
+
+        color = obtener_color_programa(programa)
+
+        popup_html = f"""
+        <div style="font-family:Arial; width:300px;">
+            <h4 style="color:#002B7F;">Registro PUMI #{row.get("ID", "")}</h4>
+            <b>Estado:</b> {estado}<br>
+            <b>Dirección Regional:</b> {row.get("Dirección Regional", "")}<br>
+            <b>Delegación:</b> {row.get("Delegación", "")}<br>
+            <b>Programa:</b> {row.get("Programa", "")}<br>
+            <b>Actividad:</b> {row.get("Actividad", "")}<br>
+            <b>Fecha:</b> {row.get("Fecha Actividad", "")}<br>
+            <b>Lugar:</b> {row.get("Lugar", "")}<br>
+            <b>Participantes:</b> {row.get("Cantidad Participantes", "")}<br>
+            <b>Observación validación:</b> {row.get("Observaciones Validación", "")}<br>
+        </div>
+        """
+
+        folium.Marker(
+            location=[
+                float(row["Latitud_Num"]),
+                float(row["Longitud_Num"])
+            ],
+            popup=folium.Popup(popup_html, max_width=350),
+            tooltip=f'{row.get("Delegación", "")} - {estado}',
+            icon=folium.Icon(
+                color=color,
+                icon="info-sign"
+            )
+        ).add_to(mapa)
+
+    if len(df_mapa) > 1:
+        bounds = [
+            [
+                df_mapa["Latitud_Num"].min(),
+                df_mapa["Longitud_Num"].min()
+            ],
+            [
+                df_mapa["Latitud_Num"].max(),
+                df_mapa["Longitud_Num"].max()
+            ]
+        ]
+
+        mapa.fit_bounds(bounds)
+
+    return mapa
+
+
+def mostrar_mapa_admin(df, key="mapa_admin"):
+    st.markdown("### Mapa de actividades filtradas")
+
+    df_mapa = preparar_dataframe_mapa_admin(df)
+
+    if df_mapa.empty:
+        st.info("No hay registros con coordenadas para mostrar en el mapa.")
+
+    mapa = crear_mapa_admin(df)
+
+    st_folium(
+        mapa,
+        height=560,
+        use_container_width=True,
+        key=key
+    )
+
+
+# ======================================================
+# MÉTRICAS Y GRÁFICOS BASE
+# ======================================================
+
+def mostrar_metricas_admin(df):
+    df_metricas = limpiar_dataframe_metricas_admin(df)
+
+    total_registros = len(df_metricas)
+    total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if not df_metricas.empty else 0
+    total_aprobadas = len(df_metricas[df_metricas["Estado Validación"] == "Aprobada"]) if not df_metricas.empty else 0
+    total_pendientes = len(df_metricas[df_metricas["Estado Validación"] == "Pendiente"]) if not df_metricas.empty else 0
+    total_rechazadas = len(df_metricas[df_metricas["Estado Validación"] == "Rechazada"]) if not df_metricas.empty else 0
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        st.metric("Registros", total_registros)
+
+    with col2:
+        st.metric("Participantes", total_participantes)
+
+    with col3:
+        st.metric("Aprobadas", total_aprobadas)
+
+    with col4:
+        st.metric("Pendientes", total_pendientes)
+
+    with col5:
+        st.metric("Rechazadas", total_rechazadas)
+
+
+def mostrar_graficos_admin(df):
+    df_metricas = limpiar_dataframe_metricas_admin(df)
+
+    if df_metricas.empty:
+        st.info("No hay datos para graficar.")
         return
 
-    n_labels = len(df_par)
-    x        = np.arange(n_labels)
-    freqs    = df_par["frecuencia"].to_numpy()
-    pct_acum = df_par["pct_acum"].to_numpy()
-    colors_b = _colors_for_segments(df_par["segmento_real"].tolist())
-    labels   = [str(t) for t in df_par["descriptor"].tolist()]
-    labels_w = _wrap_for_two_lines(labels)
+    st.markdown("### Gráficos de análisis")
 
-    fig_w = max(12.0, 0.60 * n_labels)
-    fs    = 9 if n_labels > 28 else 10
+    if "Estado Validación" in df_metricas.columns:
+        conteo_estado = (
+            df_metricas
+            .groupby("Estado Validación")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
 
-    fig, ax1 = plt.subplots(figsize=(fig_w, 6.6))
-    ax1.bar(x, freqs, color=colors_b)
-    ax1.set_ylabel("Frecuencia")
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(labels_w, rotation=90, ha="center", va="top", fontsize=fs)
-    fig.subplots_adjust(bottom=0.30)
+        fig_estado = px.pie(
+            conteo_estado,
+            names="Estado Validación",
+            values="Cantidad",
+            title="Distribución por estado de validación",
+            hole=0.35
+        )
 
-    ax1.set_title(titulo if titulo.strip() else "Diagrama de Pareto", color=TEXTO, fontsize=16)
+        fig_estado.update_layout(
+            title_x=0.5,
+            paper_bgcolor="white"
+        )
 
-    ax2 = ax1.twinx()
-    ax2.plot(x, pct_acum, marker="o", linewidth=2, color=TEXTO)
-    ax2.set_ylabel("% acumulado")
-    ax2.set_ylim(0, 110)
+        st.plotly_chart(
+            fig_estado,
+            use_container_width=True
+        )
 
-    if (df_par["segmento_real"] == "80%").any():
-        cut_idx = np.where(df_par["segmento_real"].to_numpy() == "80%")[0].max()
-        ax1.axvline(cut_idx + 0.5, linestyle=":", color="k")
-    ax2.axhline(80, linestyle="--", linewidth=1, color="#666666")
+    if "Programa" in df_metricas.columns:
+        conteo_programa = (
+            df_metricas
+            .groupby("Programa")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
 
-    fig.tight_layout()
-    st.pyplot(fig)
+        fig_programa = px.bar(
+            conteo_programa,
+            x="Programa",
+            y="Cantidad",
+            title="Cantidad de registros por programa",
+            text="Cantidad"
+        )
 
+        fig_programa.update_layout(
+            title_x=0.5,
+            plot_bgcolor="white",
+            paper_bgcolor="white"
+        )
 
+        st.plotly_chart(
+            fig_programa,
+            use_container_width=True
+        )
 
-def exportar_excel_con_grafico(df_par: pd.DataFrame, titulo: str) -> bytes:
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        hoja = "Pareto"
-        df_x = df_par.copy()
-        df_x["porcentaje"] = (df_x["porcentaje"] / 100.0).round(4)
-        df_x["pct_acum"]   = (df_x["pct_acum"] / 100.0).round(4)
-        df_x = df_x[["categoria", "descriptor", "frecuencia",
-                     "porcentaje", "pct_acum", "acumulado", "segmento"]]
-        df_x.to_excel(writer, sheet_name=hoja, index=False, startrow=0, startcol=0)
+    if "Dirección Regional" in df_metricas.columns:
+        conteo_region = (
+            df_metricas
+            .groupby("Dirección Regional")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
 
-        wb = writer.book
-        ws = writer.sheets[hoja]
-        pct_fmt = wb.add_format({"num_format": "0.00%"})
-        total_fmt = wb.add_format({"bold": True})
+        fig_region = px.bar(
+            conteo_region,
+            x="Dirección Regional",
+            y="Cantidad",
+            title="Cantidad de registros por Dirección Regional",
+            text="Cantidad"
+        )
 
-        ws.set_column("A:A", 18)
-        ws.set_column("B:B", 55)
-        ws.set_column("C:C", 12)
-        ws.set_column("D:D", 12, pct_fmt)
-        ws.set_column("E:E", 18, pct_fmt)
-        ws.set_column("F:F", 12)
-        ws.set_column("G:G", 10)
+        fig_region.update_layout(
+            title_x=0.5,
+            plot_bgcolor="white",
+            paper_bgcolor="white"
+        )
 
-        n = len(df_x)
-        cats = f"=Pareto!$B$2:$B${n+1}"
-        vals = f"=Pareto!$C$2:$C${n+1}"
-        pcts = f"=Pareto!$E$2:$E${n+1}"
-        total = int(df_par["frecuencia"].sum())
-
-        ws.write(n + 2, 1, "TOTAL:", total_fmt)
-        ws.write(n + 2, 2, total, total_fmt)
-
-        chart = wb.add_chart({"type": "column"})
-        points = [{"fill": {"color": (VERDE if s == "80%" else AZUL)}} for s in df_par["segmento_real"]]
-        chart.add_series({
-            "name": "Frecuencia",
-            "categories": cats,
-            "values": vals,
-            "points": points
-        })
-
-        line = wb.add_chart({"type": "line"})
-        line.add_series({
-            "name": "% acumulado",
-            "categories": cats,
-            "values": pcts,
-            "y2_axis": True,
-            "marker": {"type": "circle"}
-        })
-
-        chart.combine(line)
-        chart.set_y_axis({"name": "Frecuencia"})
-        chart.set_y2_axis({
-            "name": "Porcentaje acumulado",
-            "min": 0, "max": 1.10,
-            "major_unit": 0.10,
-            "num_format": "0%"
-        })
-
-        title_text = titulo.strip() if titulo else ""
-        chart.set_title({"name": title_text or "Diagrama de Pareto"})
-        chart.set_legend({"position": "bottom"})
-        chart.set_size({"width": 1180, "height": 420})
-        ws.insert_chart("I2", chart)
-    return output.getvalue()
+        st.plotly_chart(
+            fig_region,
+            use_container_width=True
+        )
+        # ======================================================
+# appADMIN.py
+# PARTE 3 DE 5
+# MÓDULO DE VALIDACIÓN DE ACTIVIDADES,
+# ACTUALIZACIÓN DE ESTADOS Y DESCARGA DE EXCEL VALIDADO
+# ======================================================
 
 
-# ============================================================================
-# ============================== PARTE 5/10 =================================
-# ======================== Conectores Google Sheets (gspread) ================
-# ============================================================================
+# ======================================================
+# ACTUALIZAR VALIDACIÓN POR ID
+# ======================================================
 
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
+def actualizar_validacion_registro(
+    id_registro,
+    estado_validacion,
+    observaciones_validacion,
+    funcionario_validador
+):
+    df = st.session_state.df_admin.copy()
 
-def _gc():
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=SCOPES
-    )
-    return gspread.authorize(creds)
+    mascara = df["ID"].astype(str) == str(id_registro)
 
-
-def _open_sheet():
-    gc = _gc()
-    return gc.open_by_url(SPREADSHEET_URL)
-
-
-def _ensure_ws(sh, title: str, header: List[str]):
-    try:
-        ws = sh.worksheet(title)
-    except gspread.exceptions.WorksheetNotFound:
-        ws = sh.add_worksheet(title=title, rows=1000, cols=max(10, len(header)))
-        ws.append_row(header)
-        return ws
-
-    values = ws.get_all_values()
-    if not values:
-        ws.append_row(header)
-    else:
-        first = values[0]
-        if [c.strip().lower() for c in first] != [c.strip().lower() for c in header]:
-            ws.clear()
-            ws.append_row(header)
-    return ws
-
-
-def sheets_cargar_portafolio() -> Dict[str, Dict[str, int]]:
-    """Lee 'paretos' (nombre, descriptor, frecuencia). Ignora vacíos y <=0."""
-    try:
-        sh = _open_sheet()
-        ws = _ensure_ws(sh, WS_PARETOS, ["nombre", "descriptor", "frecuencia"])
-        rows = ws.get_all_records()
-        port: Dict[str, Dict[str, int]] = {}
-        for r in rows:
-            nom = str(r.get("nombre", "")).strip()
-            desc = str(r.get("descriptor", "")).strip()
-            freq = int(pd.to_numeric(r.get("frecuencia", 0), errors="coerce") or 0)
-            if not nom or not desc or freq <= 0:
-                continue
-            bucket = port.setdefault(nom, {})
-            bucket[desc] = bucket.get(desc, 0) + freq
-        return port
-    except Exception:
-        return {}
-
-
-def sheets_guardar_pareto(nombre: str, freq_map: Dict[str, int], sobrescribir: bool = True):
-    """Guarda filas válidas. Si 'sobrescribir', elimina solo las filas del mismo nombre."""
-    sh = _open_sheet()
-    ws = _ensure_ws(sh, WS_PARETOS, ["nombre", "descriptor", "frecuencia"])
-    if sobrescribir:
-        vals = ws.get_all_values()
-        header = vals[0] if vals else ["nombre", "descriptor", "frecuencia"]
-        others = [r for r in vals[1:] if (len(r) > 0 and r[0].strip().lower() != nombre.strip().lower())]
-        ws.clear()
-        ws.update("A1", [header])
-        if others:
-            ws.append_rows(others, value_input_option="RAW")
-    rows_new = [[nombre, d, int(f)] for d, f in normalizar_freq_map(freq_map).items()]
-    if rows_new:
-        ws.append_rows(rows_new, value_input_option="RAW")
-
-
-def sheets_eliminar_pareto(nombre: str) -> bool:
-    """
-    Elimina todas las filas en Sheets cuyo campo 'nombre' coincida con el nombre indicado.
-    Retorna True si se eliminaron filas.
-    """
-    try:
-        sh = _open_sheet()
-        ws = _ensure_ws(sh, WS_PARETOS, ["nombre", "descriptor", "frecuencia"])
-        vals = ws.get_all_values()
-        if not vals or len(vals) <= 1:
-            return False
-        header = vals[0]
-        others = [r for r in vals[1:] if (len(r) > 0 and r[0].strip().lower() != nombre.strip().lower())]
-        ws.clear()
-        ws.update("A1", [header])
-        if others:
-            ws.append_rows(others, value_input_option="RAW")
-        return True
-    except Exception as e:
-        st.warning(f"No se pudo eliminar '{nombre}' de Google Sheets: {e}")
+    if not mascara.any():
         return False
-# ============================================================================
-# ============================== PARTE 6/10 =================================
-# =================== Estado de sesión + Estilos básicos PDF =================
-# ============================================================================
 
-# ---- Estado de sesión ----
-st.session_state.setdefault("freq_map", {})
-st.session_state.setdefault("portafolio", {})
-st.session_state.setdefault("msel", [])
-st.session_state.setdefault("editor_df", pd.DataFrame(columns=["descriptor", "frecuencia"]))
-st.session_state.setdefault("last_msel", [])
-st.session_state.setdefault("reset_after_save", False)
+    df.loc[mascara, "Estado Validación"] = estado_validacion
+    df.loc[mascara, "Observaciones Validación"] = observaciones_validacion
+    df.loc[mascara, "Funcionario Validador"] = funcionario_validador
+    df.loc[mascara, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-# NUEVO: si cambió la URL del Sheet, vaciar portafolio para no arrastrar datos viejos
-st.session_state.setdefault("sheet_url_loaded", None)
-if st.session_state["sheet_url_loaded"] != SPREADSHEET_URL:
-    st.session_state["portafolio"] = {}
-    st.session_state["sheet_url_loaded"] = SPREADSHEET_URL
+    st.session_state.df_admin = df.reset_index(drop=True)
 
-# Cargar portafolio desde Sheets solo si está vacío
-if not st.session_state["portafolio"]:
-    loaded = sheets_cargar_portafolio()
-    if loaded:
-        st.session_state["portafolio"].update(loaded)
-
-# Reset después de guardar
-if st.session_state.get("reset_after_save", False):
-    st.session_state["freq_map"] = {}
-    st.session_state["msel"] = []
-    st.session_state["editor_df"] = pd.DataFrame(columns=["descriptor", "frecuencia"])
-    st.session_state["last_msel"] = []
-    st.session_state.pop("editor_freq", None)
-    st.session_state["reset_after_save"] = False
-
-# ---- Estilos PDF / páginas ----
-PAGE_W, PAGE_H = A4
+    return True
 
 
-def _styles():
-    ss = getSampleStyleSheet()
-    ss.add(ParagraphStyle(
-        name="CoverTitle", fontName="Helvetica-Bold",
-        fontSize=30, leading=36, textColor=TEXTO, alignment=1, spaceAfter=10
-    ))
-    ss.add(ParagraphStyle(
-        name="CoverSubtitle", parent=ss["Normal"], fontSize=12,
-        leading=16, textColor=GRIS, alignment=1, spaceAfter=10
-    ))
-    ss.add(ParagraphStyle(
-        name="CoverDate", parent=ss["Normal"], fontSize=15,
-        leading=18, textColor=TEXTO, alignment=1, spaceBefore=8
-    ))
-    ss.add(ParagraphStyle(
-        name="TitleBig", parent=ss["Title"], fontSize=24,
-        leading=28, textColor=TEXTO, alignment=0, spaceAfter=10
-    ))
-    ss.add(ParagraphStyle(
-        name="TitleBigCenter", parent=ss["Title"], fontSize=24,
-        leading=28, textColor=TEXTO, alignment=1, spaceAfter=10
-    ))
-    ss.add(ParagraphStyle(name="H1", parent=ss["Heading1"],
-                          fontSize=18, leading=22, textColor=TEXTO, spaceAfter=8))
-    ss.add(ParagraphStyle(name="H1Center", parent=ss["Heading1"],
-                          fontSize=18, leading=22, textColor=TEXTO, spaceAfter=8, alignment=1))
-    ss.add(ParagraphStyle(name="Body", parent=ss["Normal"],
-                          fontSize=11, leading=14, textColor="#111"))
-    ss.add(ParagraphStyle(name="Small", parent=ss["Normal"],
-                          fontSize=9.6, leading=12, textColor=GRIS))
-    ss.add(ParagraphStyle(name="TableHead", parent=ss["Normal"],
-                          fontSize=11, leading=13, textColor=colors.white))
+# ======================================================
+# ACTUALIZAR VALIDACIÓN MASIVA
+# ======================================================
 
-    # ⚠️ No usar "Bullet" (ya existe). Creamos uno propio:
-    ss.add(ParagraphStyle(
-        name="BulletList", parent=ss["Body"],
-        leftIndent=12, bulletIndent=0, spaceBefore=2, spaceAfter=2
-    ))
-    return ss
+def actualizar_validacion_masiva(
+    ids_registros,
+    estado_validacion,
+    observaciones_validacion,
+    funcionario_validador
+):
+    df = st.session_state.df_admin.copy()
+
+    ids_texto = [str(x) for x in ids_registros]
+
+    mascara = df["ID"].astype(str).isin(ids_texto)
+
+    if not mascara.any():
+        return False
+
+    df.loc[mascara, "Estado Validación"] = estado_validacion
+    df.loc[mascara, "Observaciones Validación"] = observaciones_validacion
+    df.loc[mascara, "Funcionario Validador"] = funcionario_validador
+    df.loc[mascara, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    st.session_state.df_admin = df.reset_index(drop=True)
+
+    return True
 
 
-def _page_cover(canv, doc):
-    canv.setFillColor(colors.HexColor(TEXTO))
-    canv.rect(0, PAGE_H - 0.9 * cm, PAGE_W, 0.9 * cm, fill=1, stroke=0)
+# ======================================================
+# TARJETAS RESUMEN DE VALIDACIÓN
+# ======================================================
+
+def mostrar_resumen_validacion(df):
+    if df.empty:
+        return
+
+    total = len(df)
+    aprobadas = len(df[df["Estado Validación"] == "Aprobada"])
+    rechazadas = len(df[df["Estado Validación"] == "Rechazada"])
+    pendientes = len(df[df["Estado Validación"] == "Pendiente"])
+    observadas = len(df[df["Estado Validación"] == "Con observaciones"])
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        st.metric("Total filtrado", total)
+
+    with col2:
+        st.metric("Aprobadas", aprobadas)
+
+    with col3:
+        st.metric("Pendientes", pendientes)
+
+    with col4:
+        st.metric("Rechazadas", rechazadas)
+
+    with col5:
+        st.metric("Con observaciones", observadas)
 
 
-def _page_normal(_canv, _doc):
-    pass
+# ======================================================
+# MOSTRAR BADGE DE ESTADO
+# ======================================================
 
+def mostrar_badge_estado(estado):
+    color = COLORES_VALIDACION.get(estado, COLOR_AMARILLO)
 
-def _page_last(canv, _doc):
-    canv.setFillColor(colors.HexColor(TEXTO))
-    canv.rect(0, 0, PAGE_W, 0.9 * cm, fill=1, stroke=0)
-# ============================================================================
-# ============================== PARTE 7/10 =================================
-# ============ Imágenes para PDF (Pareto/Modalidades) y textos helper =======
-# ============================================================================
-
-def _wrap_for_two_lines(labels: List[str]) -> List[str]:
-    """Envuelve etiquetas en máximo 2 líneas."""
-    if not labels:
-        return labels
-    max_len = max(len(str(x)) for x in labels)
-    if max_len > 60:
-        w = 25
-    elif max_len > 40:
-        w = 20
-    elif max_len > 25:
-        w = 16
-    else:
-        w = 14
-    result = []
-    for label in labels:
-        parts = _wrap_labels([label], width=w)
-        if len(parts) > 2:
-            parts = parts[:2]
-        result.append("\n".join(parts))
-    return result
-
-def _pareto_png(df_par: pd.DataFrame, titulo: str) -> bytes:
-    """
-    PNG del Pareto para PDF:
-    - Etiquetas 90° a 2 líneas
-    - bbox_inches='tight' para eliminar aire
-    """
-    n_labels = len(df_par)
-    labels   = [str(t) for t in df_par["descriptor"].tolist()]
-    labels_w = _wrap_for_two_lines(labels)
-
-    x        = np.arange(n_labels)
-    freqs    = df_par["frecuencia"].to_numpy()
-    pct_acum = df_par["pct_acum"].to_numpy()
-    colors_b = _colors_for_segments(df_par["segmento_real"].tolist())
-
-    fig_w = max(12.0, 0.60 * n_labels)
-    fig_h = 6.6
-    fs    = 9 if n_labels > 28 else 10
-    dpi   = 220
-
-    fig, ax1 = plt.subplots(figsize=(fig_w, fig_h), dpi=dpi)
-    ax1.bar(x, freqs, color=colors_b, zorder=2)
-    ax1.set_ylabel("Frecuencia")
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(labels_w, rotation=90, ha="center", va="top", fontsize=fs)
-    ax1.set_title(titulo if titulo.strip() else "Diagrama de Pareto", color=TEXTO, fontsize=16)
-
-    ax2 = ax1.twinx()
-    ax2.plot(x, pct_acum, marker="o", linewidth=2, color=TEXTO, zorder=3)
-    ax2.set_ylabel("% acumulado"); ax2.set_ylim(0, 110)
-
-    if (df_par["segmento_real"] == "80%").any():
-        cut_idx = np.where(df_par["segmento_real"].to_numpy() == "80%")[0].max()
-        ax1.axvline(cut_idx + 0.5, linestyle=":", color="k")
-    ax2.axhline(80, linestyle="--", linewidth=1, color="#666666")
-    ax1.grid(True, axis="y", alpha=0.25, zorder=1)
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="PNG", dpi=dpi, bbox_inches="tight", pad_inches=0.08)
-    plt.close(fig)
-    return buf.getvalue()
-
-
-
-# --- Etiquetado temático (se mantiene interno) ---
-def _tema_descriptor(descriptor: str) -> str:
-    d = descriptor.lower()
-    if "droga" in d or "búnker" in d or "bunker" in d or "narco" in d or "venta de drogas" in d:
-        return "drogas"
-    if "robo" in d or "hurto" in d or "asalto" in d or "vehícul" in d or "comercio" in d:
-        return "delitos contra la propiedad"
-    if "violencia" in d or "lesion" in d or "homicidio" in d:
-        return "violencia"
-    if "infraestructura" in d or "alumbrado" in d or "lotes" in d:
-        return "condiciones urbanas / entorno"
-    return "seguridad y convivencia"
-
-
-def _resumen_texto(df_par: pd.DataFrame) -> str:
-    if df_par.empty:
-        return "Sin datos disponibles."
-    total = int(df_par["frecuencia"].sum())
-    n = len(df_par)
-    top = df_par.iloc[0]
-    idx80 = int(np.where(df_par["segmento_real"].to_numpy() == "80%")[0].max() + 1) if (df_par["segmento_real"]=="80%").any() else 0
-    return (f"Se registran <b>{total}</b> hechos distribuidos en <b>{n}</b> descriptores. "
-            f"El descriptor de mayor incidencia es <b>{top['descriptor']}</b>, con <b>{int(top['frecuencia'])}</b> casos "
-            f"({float(top['porcentaje']):.2f}%). El punto de corte del <b>80%</b> se alcanza con "
-            f"<b>{idx80}</b> descriptores, útiles para la priorización operativa.")
-
-
-def _texto_modalidades(descriptor: str, pares: List[Tuple[str, float]]) -> str:
-    pares_filtrados = [(l, p) for l, p in pares if str(l).strip() and (p or 0) > 0]
-    pares_orden = sorted(pares_filtrados, key=lambda x: x[1], reverse=True)
-    if not pares_orden:
-        return (f"Para <b>{descriptor}</b> no se reportaron modalidades con porcentaje. "
-                "Se sugiere recolectar esta información para focalizar acciones.")
-    top_txt = "; ".join([f"<b>{l}</b> ({p:.1f}%)" for l, p in pares_orden[:2]])
-    return (f"En <b>{descriptor}</b> destacan: {top_txt}. "
-            "Esto orienta intervenciones específicas sobre las variantes de mayor peso.")
-
-
-def _modalidades_png(title: str, data_pairs: List[Tuple[str, float]], kind: str = "barh") -> bytes:
-    labels = [l for l, p in data_pairs if str(l).strip()]
-    vals   = [float(p or 0) for l, p in data_pairs if str(l).strip()]
-    if not labels:
-        labels, vals = ["Sin datos"], [100.0]
-
-    order = np.argsort(vals)[::-1]
-    labels = [labels[i] for i in order]
-    vals   = [vals[i]   for i in order]
-    n = len(labels)
-
-    import matplotlib as mpl
-    from matplotlib.patches import FancyBboxPatch, Circle
-
-    cmap = mpl.cm.get_cmap("Blues")
-    colors_seq = [cmap(0.35 + 0.5*(i/max(1, n-1))) for i in range(n)]
-
-    if kind == "donut":
-        fig, ax = plt.subplots(figsize=(7.8, 5.4))
-        wedges, _, _ = ax.pie(
-            vals, labels=None, autopct=lambda p: f"{p:.1f}%",
-            startangle=90, pctdistance=0.8,
-            wedgeprops=dict(width=0.4, edgecolor="white"),
-            colors=colors_seq
-        )
-        ax.legend(wedges, [f"{l} ({v:.1f}%)" for l, v in zip(labels, vals)],
-                  title="Modalidades", loc="center left",
-                  bbox_to_anchor=(1.02, 0.5), fontsize=9)
-        ax.set_title(title, color=TEXTO)
-
-    elif kind == "lollipop":
-        fig, ax = plt.subplots(figsize=(11.5, 5.4))
-        y = np.arange(n)
-        ax.hlines(y=y, xmin=0, xmax=vals, color="#94a3b8", linewidth=2)
-        ax.plot(vals, y, "o", markersize=8, color=AZUL)
-        ax.set_yticks(y)
-        ax.set_yticklabels(_wrap_labels(labels, 35))
-        ax.invert_yaxis()
-        ax.set_xlabel("Porcentaje"); ax.set_xlim(0, max(100, max(vals)*1.05))
-        for i, v in enumerate(vals):
-            ax.text(v + 1, i, f"{v:.1f}%", va="center", fontsize=10)
-        ax.set_title(title, color=TEXTO)
-
-    elif kind == "bar":
-        fig, ax = plt.subplots(figsize=(11.5, 5.4))
-        x = np.arange(n)
-        ax.bar(x, vals, color=colors_seq)
-        ax.set_xticks(x)
-        ax.set_xticklabels(_wrap_labels(labels, 20), rotation=0)
-        ax.set_ylabel("Porcentaje"); ax.set_ylim(0, max(100, max(vals)*1.15))
-        for i, v in enumerate(vals):
-            ax.text(i, v + max(vals)*0.03, f"{v:.1f}%", ha="center", fontsize=10)
-        ax.set_title(title, color=TEXTO)
-
-    elif kind == "comp100":
-        fig, ax = plt.subplots(figsize=(11.5, 3.0))
-        left = 0.0
-        for i, (lab, v) in enumerate(zip(labels, vals)):
-            w = max(0.0, float(v))
-            ax.barh(0, w, left=left, color=colors_seq[i])
-            if w >= 7:
-                ax.text(left + w/2, 0, f"{lab}\n{v:.1f}%", va="center", ha="center", fontsize=9, color="white")
-            left += w
-        ax.set_xlim(0, max(100, sum(vals)))
-        ax.set_yticks([]); ax.set_xlabel("Porcentaje (composición)")
-        ax.set_title(title, color=TEXTO)
-        ax.grid(False)
-
-    elif kind == "pill":
-        fig_height = 0.9 + n*0.85
-        fig, ax = plt.subplots(figsize=(10.8, fig_height))
-        ax.set_xlim(0, 100); ax.set_ylim(0, n)
-        ax.axis("off")
-        track_h = 0.72
-        round_r = track_h/2
-
-        for i, (lab, v) in enumerate(zip(labels, vals)):
-            y = n - 1 - i + (1 - track_h)/2
-            track = FancyBboxPatch(
-                (0.8, y), 98.4, track_h,
-                boxstyle=f"round,pad=0,rounding_size={round_r}",
-                linewidth=1, edgecolor="#9dbbd6", facecolor="#e6f0fb"
-            )
-            ax.add_patch(track)
-
-            prog_w = max(0.001, min(98.4, float(v)))
-            prog = FancyBboxPatch(
-                (0.8, y), prog_w, track_h,
-                boxstyle=f"round,pad=0,rounding_size={round_r}",
-                linewidth=0, facecolor=AZUL, alpha=0.35
-            )
-            ax.add_patch(prog)
-
-            ax.add_patch(Circle((0.8 + round_r*0.6, y + track_h/2), round_r*0.9, color=AZUL, alpha=0.9))
-            badge_w = 12.0; badge_h = track_h*0.8
-            badge_x = 5.0;  badge_y = y + (track_h - badge_h)/2
-            badge = FancyBboxPatch(
-                (badge_x, badge_y), badge_w, badge_h,
-                boxstyle=f"round,pad=0.25,rounding_size={badge_h/2}",
-                linewidth=1, edgecolor="#cfd8e3", facecolor="white"
-            )
-            ax.add_patch(badge)
-            ax.text(badge_x + badge_w/2, y + track_h/2, f"{v:.1f}%", ha="center", va="center", fontsize=10)
-            ax.text(badge_x + badge_w + 3.0, y + track_h/2, lab, va="center", ha="left",
-                    fontsize=12, color="#0f172a")
-
-        ax.set_title(title, color=TEXTO)
-
-    else:  # 'barh'
-        fig, ax = plt.subplots(figsize=(11.5, 5.4))
-        y = np.arange(n)
-        ax.barh(y, vals, color=colors_seq)
-        ax.set_yticks(y)
-        ax.set_yticklabels(_wrap_labels(labels, 35))
-        ax.invert_yaxis()
-        ax.set_xlabel("Porcentaje")
-        ax.set_xlim(0, max(100, max(vals)*1.05))
-        for i, v in enumerate(vals):
-            ax.text(v + 1, i, f"{v:.1f}%", va="center", fontsize=10)
-        ax.set_title(title, color=TEXTO)
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="PNG", dpi=dpi, bbox_inches="tight", pad_inches=0.08)
-    plt.close(fig)
-    return buf.getvalue()
-
-
-
-# ============================================================================
-# ============================== PARTE 8/10 =================================
-# ========= Tabla PDF, generador de Informe PDF y UI de desgloses ===========
-# ============================================================================
-
-def _tabla_resultados_flowable(df_par: pd.DataFrame, doc_width: float) -> Table:
-    """
-    Cuadro simplificado: Descriptor | Frecuencia | %
-    Incluye una fila final con 'Total de respuestas tratadas'.
-    """
-    fracs = [0.62, 0.20, 0.18]  # Descriptor, Frecuencia, %
-    col_widths = [f * doc_width for f in fracs]
-    stys = _styles()
-
-    from reportlab.lib.styles import ParagraphStyle
-    cell_style = ParagraphStyle(
-        name="CellWrap",
-        parent=stys["Normal"],
-        fontSize=9.6,
-        leading=12,
-        textColor="#111111",
-        wordWrap="CJK",
-        spaceBefore=0,
-        spaceAfter=0,
+    st.markdown(
+        f"""
+        <div style="
+            background:{color};
+            color:white;
+            padding:8px 14px;
+            border-radius:12px;
+            text-align:center;
+            font-weight:900;
+            margin-bottom:10px;
+        ">
+            {estado}
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
-    head = [
-        Paragraph("Descriptor", stys["TableHead"]),
-        Paragraph("Frecuencia", stys["TableHead"]),
-        Paragraph("Porcentaje", stys["TableHead"]),
-    ]
-    data = [head]
 
-    total_respuestas = int(df_par["frecuencia"].sum()) if not df_par.empty else 0
-    for _, r in df_par.iterrows():
-        descriptor = Paragraph(str(r["descriptor"]), cell_style)
-        frecuencia = int(r["frecuencia"])
-        pct = f'{float(r["porcentaje"]):.2f}%'
-        data.append([descriptor, frecuencia, pct])
+# ======================================================
+# MÓDULO PRINCIPAL DE VALIDACIÓN
+# ======================================================
 
-    total_row = [Paragraph("<b>Total de respuestas tratadas</b>", cell_style), total_respuestas, ""]
-    data.append(total_row)
-    total_index = len(data) - 1
+def modulo_validacion_actividades(df_filtrado):
+    st.markdown("## Validación de actividades")
 
-    t = Table(data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor(TEXTO)),
-        ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
-        ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
-        ("FONTSIZE",   (0,0), (-1,0), 11),
-        ("FONTSIZE",   (0,1), (-1,-1), 9.6),
-        ("ALIGN",      (0,1), (0,-1), "LEFT"),
-        ("ALIGN",      (1,1), (-1,-2), "RIGHT"),
-        ("LEFTPADDING",(0,0), (-1,-1), 6),
-        ("RIGHTPADDING",(0,0), (-1,-1), 6),
-        ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
-        ("ROWBACKGROUNDS", (0,1), (-1,-2), [colors.whitesmoke, colors.Color(0.97,0.97,0.97)]),
-        ("GRID", (0,0), (-1,-1), 0.25, colors.lightgrey),
-        ("BACKGROUND", (0,total_index), (-1,total_index), colors.Color(0.93, 0.96, 0.99)),
-        ("FONTNAME",   (0,total_index), (-1,total_index), "Helvetica-Bold"),
-        ("ALIGN",      (1,total_index), (1,total_index), "RIGHT"),
-        ("ALIGN",      (2,total_index), (2,total_index), "RIGHT"),
-    ]))
-    return t
+    if df_filtrado.empty:
+        st.info("No hay registros disponibles con los filtros aplicados.")
+        return
 
+    mostrar_resumen_validacion(df_filtrado)
 
-def _altura_img_según_filas(n_filas: int) -> float:
-    """(Sin uso directo ahora, mantenida por compatibilidad)."""
-    if n_filas >= 28:
-        return 5.8
-    if n_filas >= 20:
-        return 6.8
-    if n_filas >= 14:
-        return 7.6
-    return 8.6
-
-
-def generar_pdf_informe(nombre_informe: str,
-                        df_par: pd.DataFrame,
-                        desgloses: List[Dict]) -> bytes:
-    """
-    Genera el informe PDF completo: portada, introducción, gráfico, tabla,
-    modalidades y conclusiones. Inserta el gráfico de Pareto a ancho completo,
-    calculando la altura proporcional al PNG generado (misma apariencia que en la app).
-    """
-    if df_par.empty:
-        st.warning("No hay datos válidos para generar el informe.")
-        return b""
-
-    buf = io.BytesIO()
-    doc = BaseDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm
+    st.markdown(
+        """
+        <div class="card-validacion">
+            <div class="texto-admin">
+                En este apartado puede revisar cada actividad registrada en PUMI,
+                aprobarla, rechazarla o dejarla con observaciones. Las observaciones
+                quedarán guardadas dentro del Excel administrativo validado.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-    frame_std  = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="normal")
-    frame_last = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="last")
 
-    doc.addPageTemplates([
-        PageTemplate(id="Cover",  frames=[frame_std], onPage=_page_cover),
-        PageTemplate(id="Normal", frames=[frame_std], onPage=_page_normal),
-        PageTemplate(id="Last",   frames=[frame_last], onPage=_page_last),
-    ])
-    stys = _styles()
-    story: List = []
+    st.markdown("### Validación masiva")
 
-    # ---------- PORTADA ----------
-    story += [NextPageTemplate("Normal")]
-    story += [Spacer(1, 2.2*cm)]
-    story += [Paragraph(f"Informe de Resultados Diagrama de Pareto - {nombre_informe}", stys["CoverTitle"])]
-    story += [Paragraph("Estrategia Sembremos Seguridad", stys["CoverSubtitle"])]
-    story += [Paragraph(datetime.now().strftime("Fecha: %d/%m/%Y"), stys["CoverDate"])]
-    story += [PageBreak()]
+    ids_filtrados = df_filtrado["ID"].astype(str).tolist()
 
-    # ---------- INTRODUCCIÓN ----------
-    story += [Paragraph("Introducción", stys["TitleBig"]), Spacer(1, 0.2*cm)]
-    story += [Paragraph(
-        "Este informe presenta un análisis tipo <b>Pareto (80/20)</b> sobre los descriptores seleccionados. "
-        "El objetivo es identificar los elementos que concentran la mayor parte de los hechos reportados para apoyar la "
-        "priorización operativa y la toma de decisiones. El documento incluye el gráfico de Pareto, un cuadro "
-        "resumido con frecuencia y porcentaje por descriptor, y al final una sección de conclusiones y recomendaciones.",
-        stys["Body"]
-    ), Spacer(1, 0.35*cm)]
+    ids_seleccionados = st.multiselect(
+        "Seleccione IDs para aplicar una validación masiva",
+        ids_filtrados
+    )
 
-    # ---------- RESULTADOS ----------
-    story += [Paragraph("Resultados generales", stys["TitleBig"]), Spacer(1, 0.2*cm)]
-    story += [Paragraph(_resumen_texto(df_par), stys["Body"]), Spacer(1, 0.3*cm)]
+    colm1, colm2, colm3 = st.columns(3)
 
-    # --- Gráfico Pareto a ancho completo con altura proporcional ---
-    from PIL import Image as PILImage
-    pareto_png = _pareto_png(df_par, "Diagrama de Pareto")
-    with io.BytesIO(pareto_png) as _b:
-        im = PILImage.open(_b)
-        w_px, h_px = im.size
+    with colm1:
+        estado_masivo = st.selectbox(
+            "Estado masivo",
+            ["Pendiente", "Aprobada", "Rechazada", "Con observaciones"],
+            key="estado_masivo"
+        )
 
-    width_pts  = doc.width
-    height_pts = (h_px / w_px) * width_pts
+    with colm2:
+        funcionario_masivo = st.text_input(
+            "Funcionario validador",
+            key="funcionario_masivo"
+        )
 
-    # 1) Gráfico + descripción siempre juntos
-    story.append(KeepTogether([
-        RLImage(io.BytesIO(pareto_png), width=width_pts, height=height_pts),
-        Spacer(1, 0.30*cm),
-        Paragraph(
-            "El diagrama muestra la frecuencia por descriptor (barras en verde/azul) y el <b>porcentaje acumulado</b> (línea). "
-            "La línea punteada del 80% indica el <b>punto de corte</b> para priorización.",
-            stys["Small"]
-        ),
-    ]))
+    with colm3:
+        st.write("")
+        st.write("")
+        aplicar_masivo = st.button("✅ Aplicar validación masiva")
 
-    # 2) Salto de página si el gráfico es largo
-    if len(df_par) >= 12:
-        story.append(PageBreak())
+    observacion_masiva = st.text_area(
+        "Observaciones para validación masiva",
+        key="observacion_masiva"
+    )
 
-    # 3) Tabla siempre en bloque único (no se corta)
-    story.append(KeepTogether([
-        Spacer(1, 0.25*cm),
-        _tabla_resultados_flowable(df_par, doc.width),
-    ]))
-
-
-    # ---------- MODALIDADES ----------
-    for sec in desgloses:
-        descriptor = sec.get("descriptor", "").strip()
-        rows = sec.get("rows", [])
-        chart_kind = sec.get("chart", "barh")
-        pares = [(r.get("Etiqueta",""), float(r.get("%", 0) or 0)) for r in rows]
-
-        bloque = [
-            Spacer(1, 0.4*cm),
-            Paragraph(f"Modalidades de la problemática — {descriptor}", stys["TitleBig"]),
-            Spacer(1, 0.1*cm),
-            Paragraph(_texto_modalidades(descriptor, pares), stys["Small"]),
-            Spacer(1, 0.2*cm),
-            RLImage(io.BytesIO(_modalidades_png(descriptor or 'Modalidades', pares, kind=chart_kind)),
-                    width=doc.width, height=8.5*cm),
-        ]
-        story.append(KeepTogether(bloque))
-
-    # ---------- CIERRE ----------
-    story += [PageBreak(), NextPageTemplate("Last")]
-    story += [
-        Paragraph("Conclusiones y recomendaciones", stys["TitleBigCenter"]),
-        Spacer(1, 0.2*cm),
-    ]
-
-    bullets = [
-        "Priorizar intervenciones sobre los descriptores que conforman el <b>80% acumulado</b>.",
-        "Coordinar acciones interinstitucionales enfocadas en las <b>modalidades</b> con mayor porcentaje.",
-        "Fortalecer la participación comunitaria y el control territorial en puntos críticos.",
-        "Monitorear indicadores mensualmente para evaluar la efectividad de las acciones.",
-    ]
-    for b in bullets:
-        story += [Paragraph(b, stys["BulletList"], bulletText="•")]
-
-    story += [
-        Spacer(1, 0.8*cm),
-        Paragraph("Dirección de Programas Policiales Preventivos – MSP", stys["H1Center"]),
-        Paragraph("Sembremos Seguridad", stys["H1Center"]),
-    ]
-
-    doc.build(story)
-    return buf.getvalue()
-
-
-# === UI formulario de desgloses (para editor y unificado) ===
-def ui_desgloses(descriptor_list: List[str], key_prefix: str) -> List[Dict]:
-    st.caption("Opcional: agrega secciones de ‘Modalidades’. Cada sección admite hasta 10 filas (Etiqueta + %).")
-    max_secs = max(0, len(descriptor_list))
-    default_val = 1 if max_secs > 0 else 0
-    n_secs = st.number_input("Cantidad de secciones de Modalidades",
-                             min_value=0, max_value=max_secs, value=default_val, step=1,
-                             key=f"{key_prefix}_nsecs")
-    desgloses: List[Dict] = []
-    for i in range(n_secs):
-        with st.expander(f"Sección Modalidades #{i+1}", expanded=(i == 0)):
-            dsel = st.selectbox(f"Descriptor para la sección #{i+1}",
-                                options=["(elegir)"] + descriptor_list, index=0, key=f"{key_prefix}_desc_{i}")
-
-            chart_kind = st.selectbox(
-                "Tipo de gráfico",
-                options=[("Barras horizontales", "barh"),
-                         ("Barras verticales", "bar"),
-                         ("Lollipop (palo+punto)", "lollipop"),
-                         ("Dona / Pie", "donut"),
-                         ("Barra 100% (composición)", "comp100"),
-                         ("Píldora (progreso redondeado)", "pill")],
-                index=0, format_func=lambda x: x[0], key=f"{key_prefix}_chart_{i}"
-            )[1]
-
-            rows = [{"Etiqueta":"", "%":0.0} for _ in range(10)]
-            df_rows = pd.DataFrame(rows)
-            de = st.data_editor(
-                df_rows, key=f"{key_prefix}_rows_{i}", use_container_width=True,
-                column_config={
-                    "Etiqueta": st.column_config.TextColumn("Etiqueta / Modalidad", width="large"),
-                    "%": st.column_config.NumberColumn("Porcentaje", min_value=0.0, max_value=100.0, step=0.1)
-                },
-                num_rows="fixed"
+    if aplicar_masivo:
+        if not ids_seleccionados:
+            st.warning("Debe seleccionar al menos un ID.")
+        elif funcionario_masivo.strip() == "":
+            st.warning("Debe indicar el funcionario validador.")
+        else:
+            actualizado = actualizar_validacion_masiva(
+                ids_registros=ids_seleccionados,
+                estado_validacion=estado_masivo,
+                observaciones_validacion=observacion_masiva,
+                funcionario_validador=funcionario_masivo
             )
-            total_pct = float(pd.to_numeric(de["%"], errors="coerce").fillna(0).sum())
-            st.caption(f"Suma actual: {total_pct:.1f}% (recomendado ≈100%)")
 
-            if dsel != "(elegir)":
-                desgloses.append({"descriptor": dsel,
-                                  "rows": de.to_dict(orient="records"),
-                                  "chart": chart_kind})
-    return desgloses
+            if actualizado:
+                st.success("Validación masiva aplicada correctamente.")
+                st.rerun()
+            else:
+                st.error("No se pudo aplicar la validación masiva.")
 
-# ============================================================================
-# ============================== PARTE 9/10 =================================
-# ========================== Interfaz principal (UI) =========================
-# ============================================================================
+    st.markdown("---")
+    st.markdown("### Validación individual")
 
-st.title("📊 Análisis Pareto 80/20 – Descriptores y Portafolio")
-
-tab_editor, tab_portafolio, tab_unificado = st.tabs([
-    "➕ Crear / Editar Pareto individual",
-    "📁 Portafolio guardado",
-    "📄 Informe PDF (unificado)"
-])
-
-# ---------------------------------------------------------------------------
-# TAB 1 — Editor individual
-# ---------------------------------------------------------------------------
-with tab_editor:
-    st.subheader("✏️ Editor de Pareto individual")
-
-    nombre_pareto = st.text_input("Nombre del Pareto", "").strip()
-
-    # Selector múltiple (CATÁLOGO EMBEBIDO) — ahora con key fijo
-    opts = [c["descriptor"] for c in CATALOGO]
-    msel = st.multiselect(
-        "Selecciona los descriptores a incluir",
-        options=opts,
-        key="msel"  # ✅ deja que el widget maneje su estado, sin default manual
+    id_validar = st.selectbox(
+        "Seleccione el ID del registro a validar",
+        ids_filtrados,
+        key="id_validar_individual"
     )
 
-    # Si hay selección, preparamos/actualizamos el DF del editor
-    if msel:
-        # Si la selección de descriptores cambió, reconstruimos el DF
-        if msel != st.session_state.get("last_msel", []):
-            data = []
-            # Usamos los valores actuales de freq_map para no perder frecuencias ya digitadas
-            freq_map_actual = st.session_state.get("freq_map", {})
-            for d in msel:
-                data.append({
-                    "descriptor": d,
-                    "frecuencia": freq_map_actual.get(d, 0)
-                })
-            st.session_state["editor_df"] = pd.DataFrame(data)
-            st.session_state["last_msel"] = list(msel)
+    fila_validar = df_filtrado[
+        df_filtrado["ID"].astype(str) == str(id_validar)
+    ]
 
-        # Editor de frecuencias (se alimenta desde session_state["editor_df"])
-        df_edit = st.data_editor(
-            st.session_state["editor_df"],
-            num_rows="dynamic",
-            use_container_width=True,
-            key="editor_freq",
-            column_config={
-                "descriptor": st.column_config.TextColumn("Descriptor", width="large"),
-                "frecuencia": st.column_config.NumberColumn("Frecuencia", min_value=0, step=1)
-            }
-        )
+    if fila_validar.empty:
+        st.warning("No se encontró el registro seleccionado.")
+        return
 
-        # Actualizar el DF y el freq_map en sesión con lo que el usuario acaba de escribir
-        st.session_state["editor_df"] = df_edit
-        freq_map = dict(zip(df_edit["descriptor"], df_edit["frecuencia"]))
-        st.session_state["freq_map"] = freq_map
+    fila = fila_validar.iloc[0].to_dict()
 
-        # Cálculo y vista previa del Pareto
-        df_par = calcular_pareto(df_desde_freq_map(freq_map))
-        st.divider()
-        st.subheader("📊 Diagrama de Pareto (Vista previa)")
-        dibujar_pareto(df_par, nombre_pareto)
-        st.download_button(
-            "📥 Exportar Excel con gráfico",
-            exportar_excel_con_grafico(df_par, nombre_pareto),
-            file_name=f"Pareto_{nombre_pareto or 'sin_nombre'}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    estado_actual = fila.get("Estado Validación", "Pendiente")
+    mostrar_badge_estado(estado_actual)
 
-        st.divider()
-        desgloses = ui_desgloses(df_par["descriptor"].tolist(), key_prefix="editor")
+    with st.expander("Ver detalle completo del registro", expanded=True):
 
         col1, col2 = st.columns(2)
+
         with col1:
-            if st.button("💾 Guardar en Portafolio (y Sheets)", type="primary", use_container_width=True):
-                if nombre_pareto:
-                    st.session_state["portafolio"][nombre_pareto] = normalizar_freq_map(freq_map)
-                    sheets_guardar_pareto(nombre_pareto, freq_map, sobrescribir=True)
-                    st.success(f"Pareto '{nombre_pareto}' guardado correctamente.")
-                    st.session_state["reset_after_save"] = True
-                    st.rerun()  # ✅ mantiene el comportamiento
-                else:
-                    st.warning("Asigna un nombre al Pareto antes de guardar.")
+            st.markdown("#### Datos generales")
+            st.write(f"**ID:** {fila.get('ID', '')}")
+            st.write(f"**Fecha:** {fila.get('Fecha Actividad', '')}")
+            st.write(f"**Hora:** {fila.get('Hora Actividad', '')}")
+            st.write(f"**Dirección Regional:** {fila.get('Dirección Regional', '')}")
+            st.write(f"**Delegación:** {fila.get('Delegación', '')}")
+            st.write(f"**Responsable:** {fila.get('Responsable', '')}")
+            st.write(f"**Usuario Registra:** {fila.get('Usuario Registra', '')}")
+
         with col2:
-            if st.button("🧾 Generar Informe PDF individual", use_container_width=True):
-                if not nombre_pareto:
-                    st.warning("Asigna un nombre para el informe.")
-                else:
-                    pdf_bytes = generar_pdf_informe(nombre_pareto, df_par, desgloses)
-                    if pdf_bytes:
-                        st.download_button(
-                            label="📥 Descargar PDF",
-                            data=pdf_bytes,
-                            file_name=f"Informe_{nombre_pareto}.pdf",
-                            mime="application/pdf"
-                        )
+            st.markdown("#### Actividad")
+            st.write(f"**Responde a:** {fila.get('Responde a', '')}")
+            st.write(f"**Programa:** {fila.get('Programa', '')}")
+            st.write(f"**Actividad:** {fila.get('Actividad', '')}")
+            st.write(f"**Lugar:** {fila.get('Lugar', '')}")
+            st.write(f"**Provincia:** {fila.get('Provincia', '')}")
+            st.write(f"**Cantón:** {fila.get('Cantón', '')}")
+            st.write(f"**Distrito:** {fila.get('Distrito', '')}")
 
-    else:
-        # Si no hay descriptores seleccionados, limpiamos estructuras del editor
-        st.session_state["freq_map"] = {}
-        st.session_state["editor_df"] = pd.DataFrame(columns=["descriptor", "frecuencia"])
-        st.session_state["last_msel"] = []
-        st.info("Selecciona al menos un descriptor del catálogo para comenzar.")
+        st.markdown("#### Participantes")
+        colp1, colp2, colp3, colp4 = st.columns(4)
 
-# ---------------------------------------------------------------------------
-# TAB 2 — Portafolio de Paretos
-# ---------------------------------------------------------------------------
-with tab_portafolio:
-    st.subheader("📁 Paretos almacenados en portafolio")
+        with colp1:
+            st.metric("Total", fila.get("Cantidad Participantes", 0))
 
-    port = st.session_state["portafolio"]
-    if not port:
-        st.info("No hay Paretos guardados todavía.")
-    else:
-        for nombre, mapa in list(port.items()):
-            with st.expander(f"{nombre}", expanded=False):
-                dfp = calcular_pareto(df_desde_freq_map(mapa))
-                dibujar_pareto(dfp, nombre)
-                st.caption(f"Total de respuestas tratadas: {int(dfp['frecuencia'].sum())}")
+        with colp2:
+            st.metric("Hombres", fila.get("Cantidad Hombres", 0))
 
-                # Acciones
-                colA, colB, colC = st.columns([1,1,2])
-                with colA:
-                    st.download_button(
-                        "📥 Excel con gráfico",
-                        exportar_excel_con_grafico(dfp, nombre),
-                        file_name=f"Pareto_{nombre}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"dl_{nombre}"
-                    )
-                with colB:
-                    if st.button(f"🗑️ Eliminar '{nombre}'", key=f"del_{nombre}"):
-                        del st.session_state["portafolio"][nombre]
-                        ok = sheets_eliminar_pareto(nombre)
-                        if ok:
-                            st.success(f"El Pareto '{nombre}' fue eliminado del sistema y de Google Sheets.")
-                        else:
-                            st.warning(f"El Pareto '{nombre}' se eliminó localmente, pero no pudo borrarse en Sheets.")
-                        st.rerun()  # ✅ reemplazo de experimental_rerun
-                with colC:
-                    try:
-                        pop = st.popover("📄 Informe PDF de este Pareto")
-                    except Exception:
-                        pop = st.expander("📄 Informe PDF de este Pareto", expanded=False)
-                    with pop:
-                        nombre_inf_ind = st.text_input("Nombre del informe", value=f"{nombre}", key=f"inf_nom_{nombre}")
-                        desgloses_ind = ui_desgloses(dfp["descriptor"].tolist(), key_prefix=f"inf_{nombre}")
-                        if st.button("Generar PDF", key=f"btn_inf_{nombre}"):
-                            pdf_bytes = generar_pdf_informe(nombre_inf_ind, dfp, desgloses_ind)
-                            if pdf_bytes:
-                                st.download_button(
-                                    "⬇️ Descargar PDF",
-                                    data=pdf_bytes,
-                                    file_name=f"informe_{nombre.lower().replace(' ', '_')}.pdf",
-                                    mime="application/pdf",
-                                    key=f"dl_inf_{nombre}",
-                                )
+        with colp3:
+            st.metric("Mujeres", fila.get("Cantidad Mujeres", 0))
 
-# ---------------------------------------------------------------------------
-# TAB 3 — Informe unificado
-# ---------------------------------------------------------------------------
-with tab_unificado:
-    st.subheader("📄 Informe PDF (unificado)")
+        with colp4:
+            st.metric("Referencia", fila.get("Número de Referencia", ""))
 
-    port = st.session_state["portafolio"]
-    if not port:
-        st.info("Guarda al menos un Pareto para generar el informe unificado.")
-    else:
-        nombres = list(port.keys())
-        seleccion = st.multiselect(
-            "Selecciona los Paretos a incluir en el informe unificado",
-            options=nombres,
-            default=nombres
+        st.markdown("#### Observaciones del registro")
+        st.info(fila.get("Observaciones", "Sin observaciones registradas."))
+
+        if fila.get("Latitud", "") and fila.get("Longitud", ""):
+            st.markdown("#### Ubicación del registro")
+
+            df_unico = pd.DataFrame([fila])
+            mostrar_mapa_admin(
+                df_unico,
+                key=f"mapa_validacion_{id_validar}"
+            )
+
+    st.markdown("### Actualizar validación")
+
+    estados = ["Pendiente", "Aprobada", "Rechazada", "Con observaciones"]
+
+    indice_estado = 0
+
+    if estado_actual in estados:
+        indice_estado = estados.index(estado_actual)
+
+    colv1, colv2 = st.columns(2)
+
+    with colv1:
+        nuevo_estado = st.selectbox(
+            "Estado de validación",
+            estados,
+            index=indice_estado,
+            key="nuevo_estado_individual"
         )
 
-        if seleccion:
-            mapas = [port[n] for n in seleccion]
-            mapa_total = combinar_maps(mapas)
-            df_uni = calcular_pareto(df_desde_freq_map(mapa_total))
-            st.subheader("📊 Vista previa Pareto Unificado")
-            dibujar_pareto(df_uni, "Pareto Unificado")
-            st.caption(f"Total de respuestas tratadas: {int(df_uni['frecuencia'].sum())}")
+    with colv2:
+        funcionario_validador = st.text_input(
+            "Funcionario validador",
+            value=str(fila.get("Funcionario Validador", "")),
+            key="funcionario_validador_individual"
+        )
 
-            desgloses_uni = ui_desgloses(df_uni["descriptor"].tolist(), key_prefix="uni")
+    observaciones_validacion = st.text_area(
+        "Observaciones de validación",
+        value=str(fila.get("Observaciones Validación", "")),
+        key="observaciones_validacion_individual"
+    )
 
-            if st.button("📄 Generar Informe PDF (Unificado)", type="primary"):
-                pdf_bytes = generar_pdf_informe("Pareto Unificado", df_uni, desgloses_uni)
-                if pdf_bytes:
-                    st.download_button(
-                        label="📥 Descargar Informe PDF (Unificado)",
-                        data=pdf_bytes,
-                        file_name="Informe_Pareto_Unificado.pdf",
-                        mime="application/pdf"
-                    )
+    if st.button("💾 Guardar validación del registro"):
+        if funcionario_validador.strip() == "":
+            st.warning("Debe indicar el funcionario validador.")
+        else:
+            actualizado = actualizar_validacion_registro(
+                id_registro=id_validar,
+                estado_validacion=nuevo_estado,
+                observaciones_validacion=observaciones_validacion,
+                funcionario_validador=funcionario_validador
+            )
 
-# ============================================================================
-# ============================== PARTE 10/10 ================================
-# ======================== Créditos y limpieza final ========================
-# ============================================================================
-
-st.divider()
-st.markdown("""
-<div style="text-align:center; font-size:14px; color:gray;">
-Desarrollado para la Estrategia <b>Sembremos Seguridad</b><br>
-Aplicación de análisis Pareto 80/20 con Google Sheets + ReportLab<br>
-Versión 2025⚙️
-</div>
-""", unsafe_allow_html=True)
-
-# Limpieza opcional de variables de sesión obsoletas
-for key in ["sheet_url_loaded", "reset_after_save"]:
-    if key not in st.session_state:
-        st.session_state[key] = None
-
-# Mensaje final
-st.toast("✅ App lista. Puedes generar, guardar y eliminar Paretos con total integración.", icon="✅")
+            if actualizado:
+                st.success("Validación guardada correctamente.")
+                st.rerun()
+            else:
+                st.error("No se pudo guardar la validación.")
 
 
+# ======================================================
+# DESCARGA DE EXCEL ADMIN VALIDADO
+# ======================================================
+
+def boton_descargar_excel_admin(df, key="descarga_excel_admin"):
+    if df is None or df.empty:
+        st.info("No hay registros para descargar.")
+        return
+
+    nombre_archivo = generar_nombre_reporte(df, tipo="XLSX")
+
+    st.download_button(
+        "⬇️ Descargar Excel administrativo validado",
+        data=convertir_excel_admin(df),
+        file_name=nombre_archivo,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=key
+    )
+
+
+# ======================================================
+# TABLA RESUMIDA PARA REVISIÓN
+# ======================================================
+
+def mostrar_tabla_resumen_validacion(df):
+    if df.empty:
+        st.info("No hay registros para mostrar.")
+        return
+
+    columnas_resumen = [
+        "ID",
+        "Fecha Actividad",
+        "Dirección Regional",
+        "Delegación",
+        "Programa",
+        "Actividad",
+        "Cantidad Participantes",
+        "Estado Validación",
+        "Observaciones Validación",
+        "Funcionario Validador",
+        "Fecha Validación"
+    ]
+
+    columnas_existentes = [
+        col for col in columnas_resumen
+        if col in df.columns
+    ]
+
+    st.dataframe(
+        df[columnas_existentes],
+        use_container_width=True,
+        hide_index=True
+    )
+    # ======================================================
+# appADMIN.py
+# PARTE 4 DE 5
+# GENERACIÓN DE INFORME PDF DE VALIDACIÓN
+# CON PORTADA, RESUMEN, TABLAS, GRÁFICOS Y MAPA
+# ======================================================
+
+
+# ======================================================
+# ESTILOS PDF
+# ======================================================
+
+def obtener_estilos_pdf():
+    estilos = getSampleStyleSheet()
+
+    estilos.add(
+        ParagraphStyle(
+            name="TituloPrincipalPDF",
+            parent=estilos["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=22,
+            leading=26,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor(COLOR_AZUL),
+            spaceAfter=14
+        )
+    )
+
+    estilos.add(
+        ParagraphStyle(
+            name="SubtituloPDF",
+            parent=estilos["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=18,
+            alignment=TA_LEFT,
+            textColor=colors.HexColor(COLOR_AZUL),
+            spaceBefore=10,
+            spaceAfter=8
+        )
+    )
+
+    estilos.add(
+        ParagraphStyle(
+            name="TextoPDF",
+            parent=estilos["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            alignment=TA_JUSTIFY,
+            textColor=colors.HexColor("#222222")
+        )
+    )
+
+    estilos.add(
+        ParagraphStyle(
+            name="TextoTablaPDF",
+            parent=estilos["BodyText"],
+            fontName="Helvetica",
+            fontSize=7,
+            leading=9,
+            alignment=TA_LEFT,
+            textColor=colors.HexColor("#222222")
+        )
+    )
+
+    estilos.add(
+        ParagraphStyle(
+            name="TextoTablaCentroPDF",
+            parent=estilos["BodyText"],
+            fontName="Helvetica",
+            fontSize=7,
+            leading=9,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#222222")
+        )
+    )
+
+    return estilos
+
+
+# ======================================================
+# CONVERTIR TEXTO A PÁRRAFO SEGURO PARA PDF
+# ======================================================
+
+def parrafo_pdf(texto, estilo):
+    texto = "" if texto is None else str(texto)
+    texto = texto.replace("&", "&amp;")
+    texto = texto.replace("<", "&lt;")
+    texto = texto.replace(">", "&gt;")
+    texto = texto.replace("\n", "<br/>")
+
+    return Paragraph(texto, estilo)
+
+
+# ======================================================
+# ENCABEZADO Y PIE DE PÁGINA PDF
+# ======================================================
+
+def dibujar_encabezado_pie_pdf(canvas, doc):
+    canvas.saveState()
+
+    ancho, alto = landscape(letter)
+
+    canvas.setFillColor(colors.HexColor(COLOR_AZUL))
+    canvas.rect(0, alto - 1.05 * cm, ancho, 1.05 * cm, fill=1, stroke=0)
+
+    canvas.setFillColor(colors.white)
+    canvas.setFont("Helvetica-Bold", 8)
+    canvas.drawString(
+        1.2 * cm,
+        alto - 0.65 * cm,
+        "P.U.M.I. 2026 - Informe Administrativo de Validación"
+    )
+
+    canvas.setFillColor(colors.HexColor(COLOR_DORADO))
+    canvas.rect(0, 0.95 * cm, ancho, 0.08 * cm, fill=1, stroke=0)
+
+    canvas.setFillColor(colors.HexColor("#444444"))
+    canvas.setFont("Helvetica", 8)
+    canvas.drawString(
+        1.2 * cm,
+        0.55 * cm,
+        f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
+
+    canvas.drawRightString(
+        ancho - 1.2 * cm,
+        0.55 * cm,
+        f"Página {doc.page}"
+    )
+
+    canvas.restoreState()
+
+
+# ======================================================
+# CARGAR LOGO PARA PDF
+# ======================================================
+
+def obtener_logo_pdf(ruta, ancho=4.0 * cm, alto=2.0 * cm):
+    if not os.path.exists(ruta):
+        return ""
+
+    try:
+        img = Image(ruta, width=ancho, height=alto)
+        img.hAlign = "CENTER"
+        return img
+    except Exception:
+        return ""
+
+
+# ======================================================
+# PORTADA DEL INFORME PDF
+# ======================================================
+
+def construir_portada_pdf(elementos, df, estilos):
+    logo_min = obtener_logo_pdf(LOGO_MINISTERIO, 5.0 * cm, 1.7 * cm)
+    logo_pumi = obtener_logo_pdf(LOGO_PUMI, 4.0 * cm, 2.0 * cm)
+    logo_fp = obtener_logo_pdf(LOGO_FUERZA_PUBLICA, 5.0 * cm, 2.0 * cm)
+
+    tabla_logos = Table(
+        [[logo_min, logo_pumi, logo_fp]],
+        colWidths=[8 * cm, 8 * cm, 8 * cm]
+    )
+
+    tabla_logos.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(COLOR_DORADO)),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+
+    elementos.append(tabla_logos)
+    elementos.append(Spacer(1, 0.7 * cm))
+
+    elementos.append(
+        parrafo_pdf(
+            "INFORME ADMINISTRATIVO DE VALIDACIÓN DE ACTIVIDADES",
+            estilos["TituloPrincipalPDF"]
+        )
+    )
+
+    elementos.append(
+        parrafo_pdf(
+            "Sistema P.U.M.I. 2026",
+            estilos["TituloPrincipalPDF"]
+        )
+    )
+
+    total = len(df)
+    participantes = 0
+
+    if not df.empty and "Cantidad Participantes" in df.columns:
+        participantes = int(
+            pd.to_numeric(
+                df["Cantidad Participantes"],
+                errors="coerce"
+            ).fillna(0).sum()
+        )
+
+    regiones = ", ".join(
+        df["Dirección Regional"]
+        .replace("", pd.NA)
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    ) if "Dirección Regional" in df.columns and not df.empty else "Sin datos"
+
+    delegaciones = ", ".join(
+        df["Delegación"]
+        .replace("", pd.NA)
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    ) if "Delegación" in df.columns and not df.empty else "Sin datos"
+
+    texto_portada = (
+        "El presente informe consolida la información de actividades registradas "
+        "en el sistema PUMI 2026, incorporando su estado administrativo de validación, "
+        "observaciones, métricas principales, distribución territorial y elementos "
+        "de análisis para la toma de decisiones."
+    )
+
+    elementos.append(parrafo_pdf(texto_portada, estilos["TextoPDF"]))
+    elementos.append(Spacer(1, 0.5 * cm))
+
+    datos_portada = [
+        ["Total de registros analizados", str(total)],
+        ["Total de participantes", str(participantes)],
+        ["Dirección Regional", regiones if regiones else "Varias"],
+        ["Delegación", delegaciones if delegaciones else "Varias"],
+        ["Fecha de generación", datetime.now().strftime("%d/%m/%Y %H:%M")]
+    ]
+
+    tabla = Table(datos_portada, colWidths=[7 * cm, 17 * cm])
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor(COLOR_AZUL)),
+                ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (1, 0), (1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+
+    elementos.append(tabla)
+    elementos.append(PageBreak())
+
+
+# ======================================================
+# RESUMEN EJECUTIVO PDF
+# ======================================================
+
+def construir_resumen_pdf(elementos, df, estilos):
+    elementos.append(parrafo_pdf("1. Resumen ejecutivo", estilos["SubtituloPDF"]))
+
+    texto = (
+        "Esta sección presenta una síntesis de los registros incluidos en el informe, "
+        "considerando el total de actividades, participantes y el estado de validación "
+        "administrativa. Los datos corresponden a la información filtrada en el panel "
+        "antes de generar el documento."
+    )
+
+    elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    total = len(df)
+    participantes = int(
+        pd.to_numeric(
+            df["Cantidad Participantes"],
+            errors="coerce"
+        ).fillna(0).sum()
+    ) if "Cantidad Participantes" in df.columns and not df.empty else 0
+
+    aprobadas = len(df[df["Estado Validación"] == "Aprobada"]) if not df.empty else 0
+    pendientes = len(df[df["Estado Validación"] == "Pendiente"]) if not df.empty else 0
+    rechazadas = len(df[df["Estado Validación"] == "Rechazada"]) if not df.empty else 0
+    observadas = len(df[df["Estado Validación"] == "Con observaciones"]) if not df.empty else 0
+
+    datos = [
+        ["Indicador", "Resultado"],
+        ["Total de actividades", total],
+        ["Total de participantes", participantes],
+        ["Actividades aprobadas", aprobadas],
+        ["Actividades pendientes", pendientes],
+        ["Actividades rechazadas", rechazadas],
+        ["Actividades con observaciones", observadas]
+    ]
+
+    tabla = Table(datos, colWidths=[10 * cm, 5 * cm])
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (1, 1), (1, -1), "CENTER"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+
+    elementos.append(tabla)
+    elementos.append(Spacer(1, 0.4 * cm))
+
+
+# ======================================================
+# FILTROS APLICADOS EN PDF
+# ======================================================
+
+def construir_filtros_pdf(elementos, estilos):
+    filtros = st.session_state.get("filtros_admin_aplicados", {})
+
+    elementos.append(parrafo_pdf("2. Filtros aplicados", estilos["SubtituloPDF"]))
+
+    if not filtros:
+        elementos.append(parrafo_pdf("No se registraron filtros específicos.", estilos["TextoPDF"]))
+        return
+
+    datos = [["Filtro", "Valor aplicado"]]
+
+    for clave, valor in filtros.items():
+        if isinstance(valor, list):
+            valor = ", ".join(valor) if valor else "Todos"
+        elif not valor:
+            valor = "Todos"
+
+        datos.append([clave, valor])
+
+    tabla = Table(datos, colWidths=[6 * cm, 18 * cm])
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+            ]
+        )
+    )
+
+    elementos.append(tabla)
+    elementos.append(Spacer(1, 0.4 * cm))
+
+
+# ======================================================
+# TABLA AGRUPADA PDF
+# ======================================================
+
+def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
+    if df.empty or columna not in df.columns:
+        return
+
+    elementos.append(parrafo_pdf(titulo, estilos["SubtituloPDF"]))
+
+    resumen = (
+        df.groupby(columna)
+        .size()
+        .reset_index(name="Cantidad")
+        .sort_values("Cantidad", ascending=False)
+    )
+
+    datos = [["Categoría", "Cantidad"]]
+
+    for _, row in resumen.iterrows():
+        datos.append(
+            [
+                parrafo_pdf(row[columna], estilos["TextoTablaPDF"]),
+                parrafo_pdf(row["Cantidad"], estilos["TextoTablaCentroPDF"])
+            ]
+        )
+
+    tabla = Table(datos, colWidths=[18 * cm, 4 * cm], repeatRows=1)
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#BFBFBF")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (1, 1), (1, -1), "CENTER"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+
+    elementos.append(tabla)
+    elementos.append(Spacer(1, 0.35 * cm))
+
+
+# ======================================================
+# TABLA DETALLADA DE REGISTROS PDF
+# ======================================================
+
+def construir_tabla_detalle_pdf(elementos, df, estilos):
+    elementos.append(PageBreak())
+    elementos.append(parrafo_pdf("5. Detalle de actividades validadas", estilos["SubtituloPDF"]))
+
+    texto = (
+        "La siguiente tabla muestra el detalle de los registros incluidos en el informe. "
+        "Para evitar cortes inadecuados, los textos extensos se ajustan dentro de cada celda."
+    )
+
+    elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    columnas = [
+        "ID",
+        "Fecha Actividad",
+        "Dirección Regional",
+        "Delegación",
+        "Programa",
+        "Actividad",
+        "Cantidad Participantes",
+        "Estado Validación",
+        "Observaciones Validación"
+    ]
+
+    columnas = [c for c in columnas if c in df.columns]
+
+    datos = [[parrafo_pdf(c, estilos["TextoTablaCentroPDF"]) for c in columnas]]
+
+    for _, row in df.iterrows():
+        fila = []
+
+        for col in columnas:
+            valor = row.get(col, "")
+            fila.append(parrafo_pdf(valor, estilos["TextoTablaPDF"]))
+
+        datos.append(fila)
+
+    anchos = [
+        1.2 * cm,
+        2.1 * cm,
+        3.5 * cm,
+        3.5 * cm,
+        2.2 * cm,
+        5.8 * cm,
+        2.0 * cm,
+        2.6 * cm,
+        4.8 * cm
+    ]
+
+    anchos = anchos[:len(columnas)]
+
+    tabla = Table(datos, colWidths=anchos, repeatRows=1)
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#BFBFBF")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    elementos.append(tabla)
+
+
+# ======================================================
+# AGREGAR IMAGEN OPCIONAL AL PDF
+# Para pantallazos manuales de mapa o gráficos.
+# ======================================================
+
+def agregar_imagen_opcional_pdf(elementos, archivo, titulo, descripcion, estilos):
+    if archivo is None:
+        return
+
+    try:
+        elementos.append(PageBreak())
+        elementos.append(parrafo_pdf(titulo, estilos["SubtituloPDF"]))
+        elementos.append(parrafo_pdf(descripcion, estilos["TextoPDF"]))
+        elementos.append(Spacer(1, 0.3 * cm))
+
+        imagen_bytes = BytesIO(archivo.read())
+        img = Image(imagen_bytes, width=22 * cm, height=11.5 * cm)
+        img.hAlign = "CENTER"
+
+        elementos.append(img)
+        elementos.append(Spacer(1, 0.4 * cm))
+
+    except Exception:
+        elementos.append(parrafo_pdf("No se pudo agregar la imagen adjunta.", estilos["TextoPDF"]))
+
+
+# ======================================================
+# GENERAR PDF COMPLETO
+# ======================================================
+
+def generar_pdf_validacion(
+    df,
+    incluir_tabla_detalle=True,
+    imagen_mapa=None,
+    imagen_grafico=None
+):
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        rightMargin=1.1 * cm,
+        leftMargin=1.1 * cm,
+        topMargin=1.5 * cm,
+        bottomMargin=1.3 * cm
+    )
+
+    estilos = obtener_estilos_pdf()
+    elementos = []
+
+    construir_portada_pdf(elementos, df, estilos)
+    construir_resumen_pdf(elementos, df, estilos)
+    construir_filtros_pdf(elementos, estilos)
+
+    elementos.append(PageBreak())
+    elementos.append(parrafo_pdf("3. Resumen analítico", estilos["SubtituloPDF"]))
+
+    elementos.append(
+        parrafo_pdf(
+            "En este apartado se presenta la distribución de los registros según "
+            "estado de validación, programa y Dirección Regional. Estos cuadros permiten "
+            "identificar concentración de actividades y estado del proceso administrativo.",
+            estilos["TextoPDF"]
+        )
+    )
+
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    construir_tabla_agrupada_pdf(
+        elementos,
+        df,
+        "Estado Validación",
+        "3.1 Distribución por estado de validación",
+        estilos
+    )
+
+    construir_tabla_agrupada_pdf(
+        elementos,
+        df,
+        "Programa",
+        "3.2 Distribución por programa",
+        estilos
+    )
+
+    construir_tabla_agrupada_pdf(
+        elementos,
+        df,
+        "Dirección Regional",
+        "3.3 Distribución por Dirección Regional",
+        estilos
+    )
+
+    construir_tabla_agrupada_pdf(
+        elementos,
+        df,
+        "Delegación",
+        "3.4 Distribución por delegación",
+        estilos
+    )
+
+    agregar_imagen_opcional_pdf(
+        elementos,
+        imagen_grafico,
+        "4. Pantallazo de gráficos del dashboard",
+        "La siguiente imagen corresponde al pantallazo cargado desde la app administrativa. "
+        "Debe reflejar los gráficos generados con los filtros aplicados.",
+        estilos
+    )
+
+    agregar_imagen_opcional_pdf(
+        elementos,
+        imagen_mapa,
+        "5. Pantallazo del mapa de actividades",
+        "La siguiente imagen corresponde al mapa filtrado de actividades. "
+        "Permite visualizar la distribución territorial de los registros seleccionados.",
+        estilos
+    )
+
+    if incluir_tabla_detalle:
+        construir_tabla_detalle_pdf(elementos, df, estilos)
+
+    doc.build(
+        elementos,
+        onFirstPage=dibujar_encabezado_pie_pdf,
+        onLaterPages=dibujar_encabezado_pie_pdf
+    )
+
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+# ======================================================
+# MÓDULO VISUAL PARA GENERAR INFORME PDF
+# ======================================================
+
+def modulo_informe_pdf(df_filtrado):
+    st.markdown("## Generar informe PDF de validación")
+
+    if df_filtrado.empty:
+        st.info("No hay datos filtrados para generar informe.")
+        return
+
+    st.markdown(
+        """
+        <div class="card-admin">
+            <div class="texto-admin">
+                Este módulo genera un informe PDF administrativo con portada,
+                resumen ejecutivo, filtros aplicados, cuadros analíticos,
+                detalle de actividades y posibilidad de adjuntar pantallazos
+                del mapa o gráficos generados en el dashboard.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    incluir_detalle = st.checkbox(
+        "Incluir tabla detallada de actividades",
+        value=True
+    )
+
+    st.markdown("### Pantallazos opcionales para enriquecer el informe")
+
+    imagen_grafico = st.file_uploader(
+        "Cargar pantallazo de gráficos del dashboard",
+        type=["png", "jpg", "jpeg"],
+        key="upload_grafico_pdf"
+    )
+
+    imagen_mapa = st.file_uploader(
+        "Cargar pantallazo del mapa filtrado",
+        type=["png", "jpg", "jpeg"],
+        key="upload_mapa_pdf"
+    )
+
+    st.info(
+        "Para incluir el mapa o gráficos, tome un pantallazo desde la app, "
+        "guárdelo como imagen y cárguelo aquí antes de generar el PDF."
+    )
+
+    if st.button("📄 Generar informe PDF"):
+        pdf_bytes = generar_pdf_validacion(
+            df=df_filtrado,
+            incluir_tabla_detalle=incluir_detalle,
+            imagen_mapa=imagen_mapa,
+            imagen_grafico=imagen_grafico
+        )
+
+        nombre_pdf = generar_nombre_reporte(
+            df_filtrado,
+            tipo="PDF"
+        )
+
+        st.success("Informe PDF generado correctamente.")
+
+        st.download_button(
+            "⬇️ Descargar informe PDF",
+            data=pdf_bytes,
+            file_name=nombre_pdf,
+            mime="application/pdf",
+            key="descargar_pdf_validacion"
+        )
+        # ======================================================
+# appADMIN.py
+# PARTE 5 DE 5
+# FLUJO PRINCIPAL DE LA APP ADMIN:
+# SIDEBAR, CARGA DE EXCEL, MENÚ, DASHBOARD,
+# VALIDACIÓN, INFORME PDF Y DESCARGA
+# ======================================================
+
+
+# ======================================================
+# SIDEBAR
+# ======================================================
+
+mostrar_logo_sidebar()
+
+st.sidebar.markdown("## Panel Administrativo PUMI 2026")
+
+st.sidebar.markdown(
+    """
+    <div style="
+        background:#FFFFFF;
+        padding:14px;
+        border-radius:14px;
+        border-left:6px solid #B88A2A;
+        box-shadow:0px 4px 12px rgba(0,0,0,0.10);
+        margin-bottom:15px;
+        font-size:14px;
+    ">
+    Cargue el Excel generado por la app PUMI para validar,
+    analizar y generar informes administrativos.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ======================================================
+# CARGA DEL EXCEL PUMI
+# ======================================================
+
+archivo_admin = st.sidebar.file_uploader(
+    "Subir Excel generado por PUMI",
+    type=["xlsx"]
+)
+
+if archivo_admin is not None:
+    if st.session_state.archivo_admin_nombre != archivo_admin.name:
+        df_cargado = cargar_excel_pumi_admin(archivo_admin)
+
+        if not df_cargado.empty:
+            st.session_state.df_admin = df_cargado
+            st.session_state.archivo_admin_nombre = archivo_admin.name
+            st.sidebar.success("Excel cargado correctamente.")
+        else:
+            st.sidebar.warning("El Excel no contiene registros válidos.")
+
+
+# ======================================================
+# MENÚ PRINCIPAL
+# ======================================================
+
+menu_admin = st.sidebar.radio(
+    "Menú administrativo",
+    [
+        "Inicio",
+        "Consulta y filtros",
+        "Validación de actividades",
+        "Dashboard",
+        "Informe PDF"
+    ]
+)
+
+
+# ======================================================
+# ENCABEZADO GENERAL
+# ======================================================
+
+mostrar_encabezado_institucional()
+mostrar_titulo_admin()
+
+
+# ======================================================
+# DATAFRAME BASE
+# ======================================================
+
+df_admin = st.session_state.df_admin.copy()
+
+
+# ======================================================
+# INICIO
+# ======================================================
+
+if menu_admin == "Inicio":
+
+    st.markdown(
+        """
+        <div class="card-admin">
+            <div class="subtitulo-admin">
+                Bienvenido al Panel Administrativo PUMI 2026
+            </div>
+            <div class="texto-admin">
+                Esta aplicación permite cargar el Excel generado desde la app PUMI,
+                revisar los registros, aplicar validaciones administrativas,
+                consultar datos mediante filtros, visualizar gráficos y mapas,
+                descargar un Excel validado y generar un informe PDF formal.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if df_admin.empty:
+        st.info("Suba un archivo Excel desde el panel lateral para iniciar.")
+    else:
+        mostrar_metricas_admin(df_admin)
+
+        st.markdown("### Vista rápida de registros cargados")
+
+        mostrar_tabla_resumen_validacion(df_admin)
+
+        st.markdown("### Descargar Excel administrativo")
+
+        boton_descargar_excel_admin(
+            df_admin,
+            key="descarga_inicio_admin"
+        )
+
+
+# ======================================================
+# CONSULTA Y FILTROS
+# ======================================================
+
+elif menu_admin == "Consulta y filtros":
+
+    st.markdown("## Consulta general de registros")
+
+    if df_admin.empty:
+        st.info("Debe cargar primero el Excel generado por PUMI.")
+    else:
+        df_filtrado = aplicar_filtros_admin(df_admin)
+
+        st.markdown("---")
+        mostrar_resumen_validacion(df_filtrado)
+
+        st.markdown("### Registros filtrados")
+        mostrar_tabla_resumen_validacion(df_filtrado)
+
+        st.markdown("### Descargar Excel filtrado validado")
+        boton_descargar_excel_admin(
+            df_filtrado,
+            key="descarga_consulta_filtrada"
+        )
+
+
+# ======================================================
+# VALIDACIÓN DE ACTIVIDADES
+# ======================================================
+
+elif menu_admin == "Validación de actividades":
+
+    if df_admin.empty:
+        st.info("Debe cargar primero el Excel generado por PUMI.")
+    else:
+        df_filtrado = aplicar_filtros_admin(df_admin)
+
+        st.markdown("---")
+
+        modulo_validacion_actividades(df_filtrado)
+
+        st.markdown("---")
+        st.markdown("### Descargar Excel con validaciones")
+
+        boton_descargar_excel_admin(
+            st.session_state.df_admin,
+            key="descarga_validacion_admin"
+        )
+
+
+# ======================================================
+# DASHBOARD
+# ======================================================
+
+elif menu_admin == "Dashboard":
+
+    st.markdown("## Dashboard administrativo")
+
+    if df_admin.empty:
+        st.info("Debe cargar primero el Excel generado por PUMI.")
+    else:
+        df_filtrado = aplicar_filtros_admin(df_admin)
+
+        st.markdown("---")
+
+        mostrar_metricas_admin(df_filtrado)
+
+        st.markdown("---")
+
+        mostrar_graficos_admin(df_filtrado)
+
+        st.markdown("---")
+
+        mostrar_mapa_admin(
+            df_filtrado,
+            key="mapa_dashboard_admin"
+        )
+
+        st.markdown("---")
+        st.markdown("### Registros incluidos en el dashboard")
+
+        mostrar_tabla_resumen_validacion(df_filtrado)
+
+
+# ======================================================
+# INFORME PDF
+# ======================================================
+
+elif menu_admin == "Informe PDF":
+
+    if df_admin.empty:
+        st.info("Debe cargar primero el Excel generado por PUMI.")
+    else:
+        df_filtrado = aplicar_filtros_admin(df_admin)
+
+        st.markdown("---")
+
+        mostrar_metricas_admin(df_filtrado)
+
+        st.markdown("---")
+
+        modulo_informe_pdf(df_filtrado)
+
+
+# ======================================================
+# DESCARGA GLOBAL Y LIMPIEZA EN SIDEBAR
+# ======================================================
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Opciones administrativas")
+
+if df_admin.empty:
+    st.sidebar.info("No hay datos cargados.")
+else:
+    nombre_excel_admin = generar_nombre_reporte(
+        st.session_state.df_admin,
+        tipo="XLSX"
+    )
+
+    st.sidebar.download_button(
+        "⬇️ Descargar Excel validado",
+        data=convertir_excel_admin(st.session_state.df_admin),
+        file_name=nombre_excel_admin,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="descarga_sidebar_admin"
+    )
+
+    if st.sidebar.button("🧹 Limpiar datos cargados"):
+        st.session_state.df_admin = pd.DataFrame(columns=ENCABEZADOS_COMPLETOS)
+        st.session_state.archivo_admin_nombre = ""
+        st.session_state.filtros_admin_aplicados = {}
+        st.sidebar.success("Datos limpiados correctamente.")
+        st.rerun()
 
 
 
