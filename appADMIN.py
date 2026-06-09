@@ -1509,6 +1509,7 @@ def mostrar_graficos_admin(df):
 # PARTE 3 DE 5 CORREGIDA
 # MÓDULO DE VALIDACIÓN INDIVIDUAL DE ACTIVIDADES,
 # ACTUALIZACIÓN DE ESTADOS Y DESCARGA DE EXCEL VALIDADO
+# FECHA DE VALIDACIÓN SIN HORA
 # ======================================================
 
 
@@ -1532,7 +1533,7 @@ def actualizar_validacion_registro(
     df.loc[mascara, "Estado Validación"] = estado_validacion
     df.loc[mascara, "Observaciones Validación"] = observaciones_validacion
     df.loc[mascara, "Funcionario Validador"] = funcionario_validador
-    df.loc[mascara, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+    df.loc[mascara, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y")
 
     st.session_state.df_admin = df.reset_index(drop=True)
 
@@ -1706,8 +1707,7 @@ def modulo_validacion_actividades(df_filtrado):
             <div class="texto-admin">
                 En este apartado puede revisar cada actividad registrada en PUMI
                 y asignar su estado administrativo: aprobada, rechazada, pendiente
-                o con observaciones. No se incluye validación masiva para evitar
-                cambios accidentales en varios registros.
+                o con observaciones.
             </div>
         </div>
         """,
@@ -1896,8 +1896,8 @@ def mostrar_tabla_detallada_admin(df):
 # ======================================================
 # appADMIN.py
 # PARTE 4 DE 5 CORREGIDA
-# INFORME PDF CON PORTADA, RESUMEN, TABLAS,
-# GRÁFICOS INSTITUCIONALES Y PANTALLAZO DEL MAPA
+# INFORME PDF CON FECHA MANUAL, SIN HORA AUTOMÁTICA,
+# GRÁFICOS INSTITUCIONALES E IMAGEN DEL MAPA
 # ======================================================
 
 
@@ -1989,11 +1989,6 @@ def dibujar_encabezado_pie_pdf(canvas, doc):
 
     canvas.setFillColor(colors.HexColor("#444444"))
     canvas.setFont("Helvetica", 8)
-    canvas.drawString(
-        1.2 * cm,
-        0.55 * cm,
-        f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-    )
 
     canvas.drawRightString(
         ancho - 1.2 * cm,
@@ -2221,18 +2216,18 @@ def agregar_graficos_automaticos_pdf(elementos, df, estilos):
         elementos.append(KeepTogether(bloque))
 
 
-def agregar_pantallazo_mapa_pdf(elementos, archivo_mapa, descripcion_mapa, estilos):
+def agregar_imagen_mapa_pdf(elementos, archivo_mapa, descripcion_mapa, estilos):
     if archivo_mapa is None:
         return
 
     try:
         elementos.append(PageBreak())
-        elementos.append(parrafo_pdf("5. Pantallazo del mapa de referencia", estilos["SubtituloPDF"]))
+        elementos.append(parrafo_pdf("5. Imagen del mapa de referencia", estilos["SubtituloPDF"]))
 
         texto = (
             descripcion_mapa
             if descripcion_mapa and str(descripcion_mapa).strip()
-            else "La siguiente imagen corresponde al pantallazo del mapa de actividades filtradas en la app administrativa."
+            else "La siguiente imagen muestra la distribución territorial de las actividades filtradas en la app administrativa."
         )
 
         elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
@@ -2246,10 +2241,10 @@ def agregar_pantallazo_mapa_pdf(elementos, archivo_mapa, descripcion_mapa, estil
         elementos.append(Spacer(1, 0.4 * cm))
 
     except Exception:
-        elementos.append(parrafo_pdf("No se pudo agregar el pantallazo del mapa.", estilos["TextoPDF"]))
+        elementos.append(parrafo_pdf("No se pudo agregar la imagen del mapa.", estilos["TextoPDF"]))
 
 
-def construir_portada_pdf(elementos, df, estilos):
+def construir_portada_pdf(elementos, df, estilos, fecha_informe=""):
     logo_min = obtener_logo_pdf(LOGO_MINISTERIO, 5.0 * cm, 1.7 * cm)
     logo_pumi = obtener_logo_pdf(LOGO_PUMI, 4.0 * cm, 2.0 * cm)
     logo_fp = obtener_logo_pdf(LOGO_FUERZA_PUBLICA, 5.0 * cm, 2.0 * cm)
@@ -2320,7 +2315,7 @@ def construir_portada_pdf(elementos, df, estilos):
         ["Total de participantes", str(participantes)],
         ["Dirección Regional", regiones if regiones else "Varias"],
         ["Delegación", delegaciones if delegaciones else "Varias"],
-        ["Fecha de generación", datetime.now().strftime("%d/%m/%Y %H:%M")]
+        ["Fecha del informe", fecha_informe if fecha_informe else "No indicada"]
     ]
 
     tabla = Table(datos_portada, colWidths=[7 * cm, 17 * cm])
@@ -2523,6 +2518,7 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
 
 def generar_pdf_validacion(
     df,
+    fecha_informe="",
     incluir_tabla_detalle=True,
     incluir_graficos=True,
     imagen_mapa=None,
@@ -2542,7 +2538,7 @@ def generar_pdf_validacion(
     estilos = obtener_estilos_pdf()
     elementos = []
 
-    construir_portada_pdf(elementos, df, estilos)
+    construir_portada_pdf(elementos, df, estilos, fecha_informe)
     construir_resumen_pdf(elementos, df, estilos)
     construir_filtros_pdf(elementos, estilos)
 
@@ -2565,7 +2561,7 @@ def generar_pdf_validacion(
         agregar_graficos_automaticos_pdf(elementos, df, estilos)
 
     if imagen_mapa is not None:
-        agregar_pantallazo_mapa_pdf(
+        agregar_imagen_mapa_pdf(
             elementos,
             imagen_mapa,
             descripcion_mapa,
@@ -2598,11 +2594,18 @@ def modulo_informe_pdf(df_filtrado):
             <div class="texto-admin">
                 Este módulo genera un informe PDF administrativo con portada,
                 resumen ejecutivo, filtros aplicados, cuadros analíticos,
-                gráficos institucionales, pantallazo del mapa y detalle de actividades.
+                gráficos institucionales, imagen del mapa y detalle de actividades.
             </div>
         </div>
         """,
         unsafe_allow_html=True
+    )
+
+    st.markdown("### Datos del informe")
+
+    fecha_informe = st.text_input(
+        "Fecha del informe",
+        value=date.today().strftime("%d/%m/%Y")
     )
 
     st.markdown("### Opciones del informe")
@@ -2621,18 +2624,18 @@ def modulo_informe_pdf(df_filtrado):
             value=True
         )
 
-    st.markdown("### Pantallazo del mapa")
+    st.markdown("### Imagen del mapa")
 
     imagen_mapa = st.file_uploader(
-        "Cargar pantallazo del mapa filtrado para incluirlo en el informe",
+        "Cargar imagen del mapa filtrado para incluirla en el informe",
         type=["png", "jpg", "jpeg"],
         key="upload_mapa_pdf"
     )
 
     descripcion_mapa = st.text_area(
-        "Descripción del pantallazo del mapa",
+        "Descripción de la imagen del mapa",
         value=(
-            "El pantallazo muestra la distribución territorial de las actividades "
+            "La imagen muestra la distribución territorial de las actividades "
             "filtradas en el panel administrativo, según los criterios seleccionados "
             "para la generación del informe."
         )
@@ -2641,6 +2644,7 @@ def modulo_informe_pdf(df_filtrado):
     if st.button("📄 Generar informe PDF"):
         pdf_bytes = generar_pdf_validacion(
             df=df_filtrado,
+            fecha_informe=fecha_informe,
             incluir_tabla_detalle=incluir_detalle,
             incluir_graficos=incluir_graficos,
             imagen_mapa=imagen_mapa,
@@ -2663,8 +2667,8 @@ def modulo_informe_pdf(df_filtrado):
 # PARTE 5 DE 5 CORREGIDA
 # FLUJO PRINCIPAL DE LA APP ADMIN:
 # SIDEBAR, CARGA DE EXCEL, MENÚ, DASHBOARD,
-# VALIDACIÓN INDIVIDUAL, INFORME PDF CON PANTALLAZO
-# DE MAPA Y DESCARGA GLOBAL
+# VALIDACIÓN INDIVIDUAL, INFORME PDF CON FECHA MANUAL,
+# IMAGEN DEL MAPA Y DESCARGA GLOBAL
 # ======================================================
 
 
@@ -2764,7 +2768,7 @@ if menu_admin == "Inicio":
                 revisar los registros, aplicar validaciones administrativas de forma
                 individual, consultar datos mediante filtros, visualizar gráficos y mapas,
                 descargar un Excel validado con colores por estado y generar un informe
-                PDF formal con gráficos institucionales y pantallazo de mapa.
+                PDF formal con gráficos institucionales e imagen del mapa.
             </div>
         </div>
         """,
@@ -2950,6 +2954,4 @@ else:
         st.session_state.grafico_imagen_referencia = None
         st.sidebar.success("Datos limpiados correctamente.")
         st.rerun()
-
-
 
