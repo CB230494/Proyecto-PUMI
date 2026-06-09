@@ -2396,7 +2396,8 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 # ======================================================
 # PARTE 6 DE 10
 # EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL,
-# MARCA DE AGUA VISIBLE, PROTECCIÓN TOTAL Y NOMBRE AUTOMÁTICO
+# MARCA DE AGUA VISIBLE BLOQUEADA, PROTECCIÓN TOTAL
+# Y DESCARGA RÁPIDA
 # ======================================================
 
 
@@ -2440,7 +2441,7 @@ def convertir_excel(df):
 
     # ==================================================
     # MARCA DE AGUA VISIBLE EN LA HOJA
-    # Archivo requerido en el repositorio:
+    # Archivo requerido:
     # marca_agua.png
     # ==================================================
 
@@ -2449,7 +2450,7 @@ def convertir_excel(df):
             marca_agua = Image(MARCA_AGUA_EXCEL)
             marca_agua.width = 900
             marca_agua.height = 520
-            worksheet.add_image(marca_agua, "D6")
+            worksheet.add_image(marca_agua, "A3")
         except Exception:
             pass
 
@@ -2486,7 +2487,7 @@ def convertir_excel(df):
         cell.border = border
 
     # ==================================================
-    # FORMATO DEL CUERPO DE LA TABLA
+    # FORMATO DEL CUERPO
     # ==================================================
 
     for row in worksheet.iter_rows(min_row=2):
@@ -2498,7 +2499,7 @@ def convertir_excel(df):
             cell.border = border
 
     # ==================================================
-    # AJUSTE AUTOMÁTICO DE ANCHO DE COLUMNAS
+    # AJUSTE DE COLUMNAS
     # ==================================================
 
     for column_cells in worksheet.columns:
@@ -2511,7 +2512,6 @@ def convertir_excel(df):
 
                 if len(valor) > max_length:
                     max_length = len(valor)
-
             except Exception:
                 pass
 
@@ -2529,7 +2529,7 @@ def convertir_excel(df):
     worksheet.freeze_panes = "A2"
 
     # ==================================================
-    # MARCA DE AGUA EN IMPRESIÓN / PDF
+    # MARCA DE AGUA PARA IMPRESIÓN / PDF
     # ==================================================
 
     worksheet.oddHeader.center.text = "Dirección de Programas Preventivos Policiales"
@@ -2557,7 +2557,7 @@ def convertir_excel(df):
     worksheet.page_margins.bottom = 0.75
 
     # ==================================================
-    # PROTEGER TODAS LAS CELDAS
+    # BLOQUEAR TODAS LAS CELDAS
     # ==================================================
 
     for fila in worksheet.iter_rows():
@@ -2573,6 +2573,10 @@ def convertir_excel(df):
 
     worksheet.protection.sheet = True
     worksheet.protection.password = "DPPP23"
+
+    # Bloquear objetos, imágenes y escenarios
+    worksheet.protection.objects = True
+    worksheet.protection.scenarios = True
 
     worksheet.protection.formatCells = False
     worksheet.protection.formatColumns = False
@@ -2590,6 +2594,7 @@ def convertir_excel(df):
 
     # ==================================================
     # PROTEGER ESTRUCTURA DEL LIBRO
+    # Contraseña: DPPP23
     # ==================================================
 
     workbook.security.lockStructure = True
@@ -2622,7 +2627,8 @@ def boton_descargar_excel(
         data=convertir_excel(df),
         file_name=nombre_archivo,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key=key
+        key=key,
+        on_click="ignore"
     )
 
 
@@ -2648,7 +2654,8 @@ def boton_descargar_excel_formulario(
         data=convertir_excel(df),
         file_name=nombre_archivo,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key=key
+        key=key,
+        on_click="ignore"
     )
     # ======================================================
 # PARTE 7 DE 10
@@ -3271,7 +3278,7 @@ elif menu == "Registrar actividad":
             use_container_width=True,
             hide_index=True
         )
-        # ======================================================
+# ======================================================
 # PARTE 10 DE 10
 # REGISTROS CARGADOS, EDICIÓN, ELIMINACIÓN,
 # DASHBOARD, MAPA GENERAL Y DESCARGA GLOBAL
@@ -3419,11 +3426,6 @@ elif menu == "Registros cargados":
                     codigo_presupuestario_edit = st.text_input(
                         "Código Presupuestario",
                         value=str(fila.get("Código Presupuestario", ""))
-                    )
-
-                    direccion_mapa_edit = st.text_input(
-                        "Dirección Mapa",
-                        value=str(fila.get("Dirección Mapa", ""))
                     )
 
                     latitud_edit = st.text_input(
@@ -3605,7 +3607,7 @@ elif menu == "Registros cargados":
                         "Lugar": lugar_edit,
                         "Centro Educativo": centro_educativo_edit,
                         "Código Presupuestario": codigo_presupuestario_edit,
-                        "Dirección Mapa": direccion_mapa_edit,
+                        "Dirección Mapa": "",
                         "Latitud": latitud_edit,
                         "Longitud": longitud_edit,
                         "Responsable": responsable_edit,
@@ -3861,7 +3863,8 @@ else:
         data=convertir_excel(df_sidebar),
         file_name=nombre_sidebar,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="descarga_sidebar_global"
+        key="descarga_sidebar_global",
+        on_click="ignore"
     )
 
     if st.sidebar.button("🧹 Limpiar registros de la sesión"):
