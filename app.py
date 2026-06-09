@@ -3041,7 +3041,7 @@ elif menu == "Registrar actividad":
                 f"La suma de los rangos de edad ({suma_edades}) no coincide "
                 f"con la cantidad total de participantes ({cantidad})."
             )
-            # ======================================================
+# ======================================================
 # PARTE 9 DE 10
 # SEGUNDA MITAD DEL FORMULARIO:
 # UBICACIÓN TERRITORIAL, LUGAR, GEOREFERENCIA,
@@ -3163,9 +3163,6 @@ elif menu == "Registrar actividad":
 
     # ==================================================
     # MAPA Y GEOREFERENCIA
-    # CORREGIDO:
-    # El mapa se muestra siempre, aunque se use GPS,
-    # búsqueda por nombre, coordenadas manuales o clic.
     # ==================================================
 
     direccion_mapa = bloque_georreferencia_formulario(
@@ -3176,6 +3173,16 @@ elif menu == "Registrar actividad":
         delegacion=delegacion,
         programa=programa
     )
+
+    metodo_ubicacion_usado = st.session_state.get(
+        "metodo_ubicacion_actual",
+        ""
+    )
+
+    if metodo_ubicacion_usado == "Buscar por nombre del lugar":
+        direccion_mapa_excel = direccion_mapa
+    else:
+        direccion_mapa_excel = ""
 
 
     # ==================================================
@@ -3248,7 +3255,7 @@ elif menu == "Registrar actividad":
             "Lugar": lugar,
             "Centro Educativo": centro_educativo,
             "Código Presupuestario": codigo_presupuestario,
-            "Dirección Mapa": direccion_mapa,
+            "Dirección Mapa": direccion_mapa_excel,
             "Latitud": st.session_state.latitud_registro,
             "Longitud": st.session_state.longitud_registro,
             "Responsable": responsable,
@@ -3282,8 +3289,6 @@ elif menu == "Registrar actividad":
 
     # ==================================================
     # DESCARGA RÁPIDA DESDE EL FORMULARIO
-    # El nombre del archivo se genera automáticamente
-    # con Dirección Regional y Delegación seleccionadas.
     # ==================================================
 
     df_actual = st.session_state.registros_pumi
