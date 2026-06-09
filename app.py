@@ -1769,15 +1769,17 @@ def obtener_delegaciones_unicas():
             if str(x).strip() != ""
         ]
     )
-    # ======================================================
+# ======================================================
 # PARTE 5 DE 10
-# MAPA, GEOREFERENCIA, GPS, BÚSQUEDA POR NOMBRE
+# MAPA, GEOREFERENCIA, GPS, COORDENADAS MANUALES
 # Y MARCADOR VISIBLE SIEMPRE
 # ======================================================
 
 
 # ======================================================
 # GEOREFERENCIAR DIRECCIÓN O LUGAR
+# Se conserva por compatibilidad, pero ya no se usa
+# en el formulario para evitar llenar "Dirección Mapa".
 # ======================================================
 
 @st.cache_data(show_spinner=False)
@@ -1811,7 +1813,6 @@ def georreferenciar_direccion(direccion):
 
 # ======================================================
 # LIMPIAR COORDENADAS
-# Convierte coordenadas escritas como texto a número.
 # ======================================================
 
 def limpiar_coordenada(valor):
@@ -1856,12 +1857,6 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
             name="Mapa claro"
         ).add_to(mapa)
 
-    elif tipo_mapa == "Mapa oscuro":
-        folium.TileLayer(
-            "CartoDB dark_matter",
-            name="Mapa oscuro"
-        ).add_to(mapa)
-
     elif tipo_mapa == "Topográfico":
         folium.TileLayer(
             "OpenTopoMap",
@@ -1885,8 +1880,6 @@ def crear_mapa_base(centro, zoom, tipo_mapa):
 
 # ======================================================
 # OBTENER CENTRO DEL MAPA DE REGISTRO
-# Si ya hay coordenadas, centra el mapa en el punto marcado.
-# Si no hay coordenadas, centra según provincia.
 # ======================================================
 
 def obtener_centro_mapa_registro(provincia):
@@ -1911,17 +1904,11 @@ def obtener_centro_mapa_registro(provincia):
 
 # ======================================================
 # CREAR MAPA DE REGISTRO INDIVIDUAL
-# Este mapa se muestra SIEMPRE, aunque el usuario use:
-# - GPS
-# - Buscar por nombre
-# - Coordenadas manuales
-# - Marcar punto en mapa
 # ======================================================
 
 def crear_mapa_registro_individual(
     provincia,
     tipo_mapa,
-    direccion_mapa="",
     lugar="",
     delegacion="",
     programa="",
@@ -1957,8 +1944,7 @@ def crear_mapa_registro_individual(
             <b>Delegación:</b> {delegacion}<br>
             <b>Programa:</b> {programa}<br>
             <b>Lugar:</b> {lugar}<br>
-            <b>Dirección escrita:</b> {direccion_mapa}<br>
-            <b>Ubicación encontrada:</b> {direccion_encontrada}<br>
+            <b>Referencia:</b> {direccion_encontrada}<br>
             <b>Latitud:</b> {lat_actual}<br>
             <b>Longitud:</b> {lon_actual}<br>
         </div>
@@ -1967,7 +1953,7 @@ def crear_mapa_registro_individual(
         folium.Marker(
             location=[lat_actual, lon_actual],
             popup=folium.Popup(popup_html, max_width=330),
-            tooltip="Punto registrado / encontrado",
+            tooltip="Punto registrado",
             icon=folium.Icon(
                 color="red",
                 icon="map-marker"
@@ -1989,13 +1975,11 @@ def crear_mapa_registro_individual(
 
 # ======================================================
 # MOSTRAR MAPA INTERACTIVO DE REGISTRO
-# Aquí se captura el clic del usuario cuando quiere marcar manualmente.
 # ======================================================
 
 def mostrar_mapa_registro_interactivo(
     provincia,
     tipo_mapa,
-    direccion_mapa="",
     lugar="",
     delegacion="",
     programa="",
@@ -2004,7 +1988,6 @@ def mostrar_mapa_registro_interactivo(
     mapa_registro = crear_mapa_registro_individual(
         provincia=provincia,
         tipo_mapa=tipo_mapa,
-        direccion_mapa=direccion_mapa,
         lugar=lugar,
         delegacion=delegacion,
         programa=programa
@@ -2034,7 +2017,6 @@ def mostrar_mapa_registro_interactivo(
 
 # ======================================================
 # BLOQUE COMPLETO DE GEOREFERENCIA PARA EL FORMULARIO
-# Esta función se usa en la PARTE 9.
 # ======================================================
 
 def bloque_georreferencia_formulario(
@@ -2059,25 +2041,15 @@ def bloque_georreferencia_formulario(
         [
             "OpenStreetMap",
             "Mapa claro",
-            "Mapa oscuro",
             "Topográfico",
             "Satélite"
         ],
         key="tipo_mapa_registro"
     )
 
-    direccion_sugerida = f"{lugar}, {distrito}, {canton}, {provincia}, Costa Rica"
-
-    direccion_mapa = st.text_input(
-        "Dirección o referencia para ubicar en mapa",
-        value=direccion_sugerida,
-        key="direccion_mapa_registro"
-    )
-
     metodo_ubicacion = st.radio(
         "Método para registrar ubicación",
         [
-            "Buscar por nombre del lugar",
             "Usar GPS del dispositivo",
             "Ingresar coordenadas manualmente",
             "Marcar punto en el mapa",
@@ -2090,40 +2062,10 @@ def bloque_georreferencia_formulario(
     st.session_state.metodo_ubicacion_actual = metodo_ubicacion
 
     # ==================================================
-    # BUSCAR POR NOMBRE DEL LUGAR
-    # ==================================================
-
-    if metodo_ubicacion == "Buscar por nombre del lugar":
-        st.info(
-            "Digite o confirme la dirección y presione el botón para buscar. "
-            "El punto encontrado se mostrará inmediatamente en el mapa."
-        )
-
-        if st.button("🔎 Buscar ubicación en el mapa"):
-            lat_busqueda, lon_busqueda, direccion_encontrada = georreferenciar_direccion(
-                direccion_mapa
-            )
-
-            if lat_busqueda is not None and lon_busqueda is not None:
-                st.session_state.latitud_registro = str(lat_busqueda)
-                st.session_state.longitud_registro = str(lon_busqueda)
-                st.session_state.direccion_encontrada_mapa = direccion_encontrada
-
-                st.success("Ubicación encontrada automáticamente.")
-                st.caption(f"Resultado encontrado: {direccion_encontrada}")
-
-                st.rerun()
-            else:
-                st.warning(
-                    "No se logró ubicar el lugar automáticamente. "
-                    "Puede ajustar el texto de búsqueda o marcar el punto en el mapa."
-                )
-
-    # ==================================================
     # USAR GPS DEL DISPOSITIVO
     # ==================================================
 
-    elif metodo_ubicacion == "Usar GPS del dispositivo":
+    if metodo_ubicacion == "Usar GPS del dispositivo":
         st.info(
             "El navegador puede solicitar permiso para acceder a la ubicación "
             "del dispositivo. Cuando se obtenga la ubicación, el punto se verá "
@@ -2210,7 +2152,6 @@ def bloque_georreferencia_formulario(
     mostrar_mapa_registro_interactivo(
         provincia=provincia,
         tipo_mapa=tipo_mapa_registro,
-        direccion_mapa=direccion_mapa,
         lugar=lugar,
         delegacion=delegacion,
         programa=programa,
@@ -2244,12 +2185,11 @@ def bloque_georreferencia_formulario(
             f"Referencia del punto: {st.session_state.direccion_encontrada_mapa}"
         )
 
-    return direccion_mapa
+    return ""
 
 
 # ======================================================
 # PREPARAR DATAFRAME PARA MAPA GENERAL
-# Se usa en Dashboard y registros filtrados.
 # ======================================================
 
 def preparar_dataframe_mapa(df):
@@ -2306,7 +2246,6 @@ def obtener_centro_mapa_por_provincia(df):
 
 # ======================================================
 # CREAR MAPA GENERAL DE REGISTROS
-# Se usa para el Dashboard.
 # ======================================================
 
 def crear_mapa_registros(df, zoom_start=8):
@@ -2455,14 +2394,15 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 # ======================================================
 # PARTE 6 DE 10
 # EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL,
-# PROTECCIÓN TOTAL Y NOMBRE AUTOMÁTICO
+# MARCA DE AGUA, PROTECCIÓN TOTAL Y NOMBRE AUTOMÁTICO
 # ======================================================
 
 
 # ======================================================
 # CONVERTIR DATAFRAME A EXCEL
 # Esta función genera el archivo Excel en memoria.
-# Mantiene únicamente los encabezados oficiales.
+# Mantiene los encabezados oficiales, pero elimina
+# "Dirección Mapa" del Excel final para evitar confusión.
 # Protege la hoja y la estructura del libro.
 # Contraseña de desbloqueo: DPPP23
 # ======================================================
@@ -2474,18 +2414,24 @@ def convertir_excel(df):
 
     columnas_a_eliminar = [
         "Fecha Registro",
-        "Plan Estratégico Relacionado"
+        "Plan Estratégico Relacionado",
+        "Dirección Mapa"
     ]
 
     for col in columnas_a_eliminar:
         if col in df_exportar.columns:
             df_exportar = df_exportar.drop(columns=[col])
 
-    for col in ENCABEZADOS:
+    encabezados_excel = [
+        col for col in ENCABEZADOS
+        if col != "Dirección Mapa"
+    ]
+
+    for col in encabezados_excel:
         if col not in df_exportar.columns:
             df_exportar[col] = ""
 
-    df_exportar = df_exportar[ENCABEZADOS]
+    df_exportar = df_exportar[encabezados_excel]
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_exportar.to_excel(
@@ -2575,7 +2521,35 @@ def convertir_excel(df):
     worksheet.freeze_panes = "A2"
 
     # ==================================================
-    # PROTEGER TODAS LAS CELDAS DE LA HOJA
+    # MARCA DE AGUA EN IMPRESIÓN / DISEÑO DE PÁGINA
+    # ==================================================
+
+    worksheet.oddHeader.center.text = "Dirección de Programas Preventivos Policiales"
+    worksheet.oddHeader.center.size = 24
+    worksheet.oddHeader.center.font = "Arial,Bold"
+    worksheet.oddHeader.center.color = "D9D9D9"
+
+    worksheet.evenHeader.center.text = "Dirección de Programas Preventivos Policiales"
+    worksheet.evenHeader.center.size = 24
+    worksheet.evenHeader.center.font = "Arial,Bold"
+    worksheet.evenHeader.center.color = "D9D9D9"
+
+    # ==================================================
+    # CONFIGURACIÓN DE IMPRESIÓN
+    # ==================================================
+
+    worksheet.page_setup.orientation = "landscape"
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 0
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+
+    worksheet.page_margins.left = 0.25
+    worksheet.page_margins.right = 0.25
+    worksheet.page_margins.top = 0.75
+    worksheet.page_margins.bottom = 0.75
+
+    # ==================================================
+    # PROTEGER TODAS LAS CELDAS
     # ==================================================
 
     for fila in worksheet.iter_rows():
@@ -2624,8 +2598,6 @@ def convertir_excel(df):
 
 # ======================================================
 # BOTÓN DE DESCARGA ESTANDARIZADO
-# Usa automáticamente el nombre:
-# REGISTRO_PUMI_2026_DIRECCION_DELEGACION.xlsx
 # ======================================================
 
 def boton_descargar_excel(
@@ -2654,8 +2626,6 @@ def boton_descargar_excel(
 
 # ======================================================
 # BOTÓN DE DESCARGA SEGÚN SELECCIÓN ACTUAL DEL FORMULARIO
-# Se usa cuando el usuario está en Registrar actividad.
-# Toma la Dirección Regional y Delegación seleccionadas.
 # ======================================================
 
 def boton_descargar_excel_formulario(
@@ -3163,9 +3133,11 @@ elif menu == "Registrar actividad":
 
     # ==================================================
     # MAPA Y GEOREFERENCIA
+    # La función ya no devuelve ni guarda Dirección Mapa.
+    # Esa columna queda siempre vacía y no sale en Excel.
     # ==================================================
 
-    direccion_mapa = bloque_georreferencia_formulario(
+    bloque_georreferencia_formulario(
         provincia=provincia,
         canton=canton,
         distrito=distrito,
@@ -3173,16 +3145,6 @@ elif menu == "Registrar actividad":
         delegacion=delegacion,
         programa=programa
     )
-
-    metodo_ubicacion_usado = st.session_state.get(
-        "metodo_ubicacion_actual",
-        ""
-    )
-
-    if metodo_ubicacion_usado == "Buscar por nombre del lugar":
-        direccion_mapa_excel = direccion_mapa
-    else:
-        direccion_mapa_excel = ""
 
 
     # ==================================================
@@ -3255,7 +3217,7 @@ elif menu == "Registrar actividad":
             "Lugar": lugar,
             "Centro Educativo": centro_educativo,
             "Código Presupuestario": codigo_presupuestario,
-            "Dirección Mapa": direccion_mapa_excel,
+            "Dirección Mapa": "",
             "Latitud": st.session_state.latitud_registro,
             "Longitud": st.session_state.longitud_registro,
             "Responsable": responsable,
