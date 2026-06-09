@@ -589,11 +589,12 @@ def mostrar_titulo_admin():
         """,
         unsafe_allow_html=True
     )
-    # ======================================================
+# ======================================================
 # appADMIN.py
-# PARTE 2 DE 5
+# PARTE 2 DE 5 CORREGIDA
 # CARGA DE EXCEL PUMI, PREPARACIÓN DE DATOS,
-# FILTROS GENERALES, MAPA Y DASHBOARD BASE
+# FILTROS GENERALES, MAPA CON TIPO DE MAPA
+# Y DASHBOARD BASE
 # ======================================================
 
 
@@ -667,11 +668,13 @@ def cargar_excel_pumi_admin(archivo_excel):
 
 # ======================================================
 # EXPORTAR EXCEL ADMINISTRATIVO
-# Conserva los datos originales + validación.
+# Conserva datos originales + validación.
+# Incluye colores especiales en columnas administrativas.
 # ======================================================
 
 def convertir_excel_admin(df):
     output = BytesIO()
+
     df_exportar = preparar_dataframe_admin(df)
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -692,6 +695,12 @@ def convertir_excel_admin(df):
         fill_type="solid"
     )
 
+    fill_header_admin = PatternFill(
+        start_color="B88A2A",
+        end_color="B88A2A",
+        fill_type="solid"
+    )
+
     font_header = Font(
         color="FFFFFF",
         bold=True
@@ -704,8 +713,19 @@ def convertir_excel_admin(df):
         bottom=Side(style="thin", color="BFBFBF")
     )
 
+    columnas_validacion = {
+        "Estado Validación",
+        "Observaciones Validación",
+        "Funcionario Validador",
+        "Fecha Validación"
+    }
+
     for cell in worksheet[1]:
-        cell.fill = fill_header
+        if cell.value in columnas_validacion:
+            cell.fill = fill_header_admin
+        else:
+            cell.fill = fill_header
+
         cell.font = font_header
         cell.alignment = Alignment(
             horizontal="center",
@@ -714,6 +734,20 @@ def convertir_excel_admin(df):
         )
         cell.border = border
 
+    colores_estado = {
+        "Pendiente": "F2C94C",
+        "Aprobada": "1F8A4C",
+        "Rechazada": "B42318",
+        "Con observaciones": "B88A2A"
+    }
+
+    col_estado = None
+
+    for idx, cell in enumerate(worksheet[1], start=1):
+        if cell.value == "Estado Validación":
+            col_estado = idx
+            break
+
     for row in worksheet.iter_rows(min_row=2):
         for cell in row:
             cell.alignment = Alignment(
@@ -721,6 +755,26 @@ def convertir_excel_admin(df):
                 wrap_text=True
             )
             cell.border = border
+
+        if col_estado:
+            celda_estado = row[col_estado - 1]
+            estado = str(celda_estado.value).strip()
+
+            if estado in colores_estado:
+                celda_estado.fill = PatternFill(
+                    start_color=colores_estado[estado],
+                    end_color=colores_estado[estado],
+                    fill_type="solid"
+                )
+                celda_estado.font = Font(
+                    color="FFFFFF",
+                    bold=True
+                )
+                celda_estado.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
 
     for column_cells in worksheet.columns:
         max_length = 0
@@ -845,7 +899,12 @@ def aplicar_filtros_admin(df):
     with col3:
         filtro_estado = st.multiselect(
             "Estado de validación",
-            ["Pendiente", "Aprobada", "Rechazada", "Con observaciones"]
+            [
+                "Pendiente",
+                "Aprobada",
+                "Rechazada",
+                "Con observaciones"
+            ]
         )
 
         filtro_provincia = st.multiselect(
@@ -942,6 +1001,56 @@ def aplicar_filtros_admin(df):
 
 
 # ======================================================
+# CREAR MAPA BASE ADMIN CON TIPO DE MAPA
+# ======================================================
+
+def crear_mapa_base_admin(centro, zoom, tipo_mapa):
+    mapa = folium.Map(
+        location=centro,
+        zoom_start=zoom,
+        tiles=None
+    )
+
+    if tipo_mapa == "OpenStreetMap":
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="OpenStreetMap"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Mapa claro":
+        folium.TileLayer(
+            "CartoDB positron",
+            name="Mapa claro"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Mapa oscuro":
+        folium.TileLayer(
+            "CartoDB dark_matter",
+            name="Mapa oscuro"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Topográfico":
+        folium.TileLayer(
+            "OpenTopoMap",
+            name="Topográfico"
+        ).add_to(mapa)
+
+    elif tipo_mapa == "Satélite":
+        folium.TileLayer(
+            tiles=(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/"
+                "World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            ),
+            attr="Esri World Imagery",
+            name="Satélite"
+        ).add_to(mapa)
+
+    folium.LayerControl().add_to(mapa)
+
+    return mapa
+
+
+# ======================================================
 # DATAFRAME PARA MAPA
 # ======================================================
 
@@ -971,14 +1080,14 @@ def preparar_dataframe_mapa_admin(df):
 # MAPA GENERAL DE REGISTROS ADMIN
 # ======================================================
 
-def crear_mapa_admin(df):
+def crear_mapa_admin(df, tipo_mapa="OpenStreetMap"):
     df_mapa = preparar_dataframe_mapa_admin(df)
 
     if df_mapa.empty:
-        mapa = folium.Map(
-            location=[9.7489, -83.7534],
-            zoom_start=7,
-            tiles="OpenStreetMap"
+        mapa = crear_mapa_base_admin(
+            centro=[9.7489, -83.7534],
+            zoom=7,
+            tipo_mapa=tipo_mapa
         )
         return mapa
 
@@ -995,10 +1104,10 @@ def crear_mapa_admin(df):
         ]
         zoom = 8
 
-    mapa = folium.Map(
-        location=centro,
-        zoom_start=zoom,
-        tiles="OpenStreetMap"
+    mapa = crear_mapa_base_admin(
+        centro=centro,
+        zoom=zoom,
+        tipo_mapa=tipo_mapa
     )
 
     for _, row in df_mapa.iterrows():
@@ -1055,12 +1164,29 @@ def crear_mapa_admin(df):
 def mostrar_mapa_admin(df, key="mapa_admin"):
     st.markdown("### Mapa de actividades filtradas")
 
+    tipo_mapa_admin = st.selectbox(
+        "Tipo de mapa",
+        [
+            "OpenStreetMap",
+            "Mapa claro",
+            "Mapa oscuro",
+            "Topográfico",
+            "Satélite"
+        ],
+        key=f"tipo_mapa_{key}"
+    )
+
+    st.session_state["tipo_mapa_admin_actual"] = tipo_mapa_admin
+
     df_mapa = preparar_dataframe_mapa_admin(df)
 
     if df_mapa.empty:
         st.info("No hay registros con coordenadas para mostrar en el mapa.")
 
-    mapa = crear_mapa_admin(df)
+    mapa = crear_mapa_admin(
+        df,
+        tipo_mapa=tipo_mapa_admin
+    )
 
     st_folium(
         mapa,
@@ -1071,17 +1197,43 @@ def mostrar_mapa_admin(df, key="mapa_admin"):
 
 
 # ======================================================
-# MÉTRICAS Y GRÁFICOS BASE
+# MÉTRICAS ADMIN
 # ======================================================
 
 def mostrar_metricas_admin(df):
     df_metricas = limpiar_dataframe_metricas_admin(df)
 
     total_registros = len(df_metricas)
-    total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if not df_metricas.empty else 0
-    total_aprobadas = len(df_metricas[df_metricas["Estado Validación"] == "Aprobada"]) if not df_metricas.empty else 0
-    total_pendientes = len(df_metricas[df_metricas["Estado Validación"] == "Pendiente"]) if not df_metricas.empty else 0
-    total_rechazadas = len(df_metricas[df_metricas["Estado Validación"] == "Rechazada"]) if not df_metricas.empty else 0
+
+    total_participantes = (
+        int(df_metricas["Cantidad Participantes"].sum())
+        if not df_metricas.empty
+        else 0
+    )
+
+    total_aprobadas = (
+        len(df_metricas[df_metricas["Estado Validación"] == "Aprobada"])
+        if not df_metricas.empty
+        else 0
+    )
+
+    total_pendientes = (
+        len(df_metricas[df_metricas["Estado Validación"] == "Pendiente"])
+        if not df_metricas.empty
+        else 0
+    )
+
+    total_rechazadas = (
+        len(df_metricas[df_metricas["Estado Validación"] == "Rechazada"])
+        if not df_metricas.empty
+        else 0
+    )
+
+    total_observadas = (
+        len(df_metricas[df_metricas["Estado Validación"] == "Con observaciones"])
+        if not df_metricas.empty
+        else 0
+    )
 
     col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -1098,8 +1250,25 @@ def mostrar_metricas_admin(df):
         st.metric("Pendientes", total_pendientes)
 
     with col5:
+        st.metric("Con observaciones", total_observadas)
+
+    col6, col7 = st.columns(2)
+
+    with col6:
         st.metric("Rechazadas", total_rechazadas)
 
+    with col7:
+        porcentaje_aprobacion = 0
+
+        if total_registros > 0:
+            porcentaje_aprobacion = (total_aprobadas / total_registros) * 100
+
+        st.metric("Porcentaje aprobación", f"{porcentaje_aprobacion:.1f}%")
+
+
+# ======================================================
+# GRÁFICOS ADMIN
+# ======================================================
 
 def mostrar_graficos_admin(df):
     df_metricas = limpiar_dataframe_metricas_admin(df)
@@ -1124,7 +1293,14 @@ def mostrar_graficos_admin(df):
             names="Estado Validación",
             values="Cantidad",
             title="Distribución por estado de validación",
-            hole=0.35
+            hole=0.35,
+            color="Estado Validación",
+            color_discrete_map={
+                "Pendiente": COLOR_AMARILLO,
+                "Aprobada": COLOR_VERDE,
+                "Rechazada": COLOR_ROJO,
+                "Con observaciones": COLOR_DORADO
+            }
         )
 
         fig_estado.update_layout(
@@ -1192,10 +1368,10 @@ def mostrar_graficos_admin(df):
             fig_region,
             use_container_width=True
         )
-        # ======================================================
+# ======================================================
 # appADMIN.py
-# PARTE 3 DE 5
-# MÓDULO DE VALIDACIÓN DE ACTIVIDADES,
+# PARTE 3 DE 5 CORREGIDA
+# MÓDULO DE VALIDACIÓN INDIVIDUAL DE ACTIVIDADES,
 # ACTUALIZACIÓN DE ESTADOS Y DESCARGA DE EXCEL VALIDADO
 # ======================================================
 
@@ -1213,35 +1389,6 @@ def actualizar_validacion_registro(
     df = st.session_state.df_admin.copy()
 
     mascara = df["ID"].astype(str) == str(id_registro)
-
-    if not mascara.any():
-        return False
-
-    df.loc[mascara, "Estado Validación"] = estado_validacion
-    df.loc[mascara, "Observaciones Validación"] = observaciones_validacion
-    df.loc[mascara, "Funcionario Validador"] = funcionario_validador
-    df.loc[mascara, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-    st.session_state.df_admin = df.reset_index(drop=True)
-
-    return True
-
-
-# ======================================================
-# ACTUALIZAR VALIDACIÓN MASIVA
-# ======================================================
-
-def actualizar_validacion_masiva(
-    ids_registros,
-    estado_validacion,
-    observaciones_validacion,
-    funcionario_validador
-):
-    df = st.session_state.df_admin.copy()
-
-    ids_texto = [str(x) for x in ids_registros]
-
-    mascara = df["ID"].astype(str).isin(ids_texto)
 
     if not mascara.any():
         return False
@@ -1300,13 +1447,14 @@ def mostrar_badge_estado(estado):
         <div style="
             background:{color};
             color:white;
-            padding:8px 14px;
-            border-radius:12px;
+            padding:9px 16px;
+            border-radius:14px;
             text-align:center;
             font-weight:900;
-            margin-bottom:10px;
+            margin-bottom:12px;
+            box-shadow:0px 4px 10px rgba(0,0,0,0.16);
         ">
-            {estado}
+            Estado actual: {estado}
         </div>
         """,
         unsafe_allow_html=True
@@ -1314,11 +1462,101 @@ def mostrar_badge_estado(estado):
 
 
 # ======================================================
-# MÓDULO PRINCIPAL DE VALIDACIÓN
+# MOSTRAR TARJETA DEL REGISTRO
+# ======================================================
+
+def mostrar_tarjeta_registro_validacion(fila):
+    st.markdown(
+        """
+        <div class="card-validacion">
+            <div class="texto-admin">
+                Detalle del registro seleccionado para revisión administrativa.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### Datos generales")
+        st.write(f"**ID:** {fila.get('ID', '')}")
+        st.write(f"**Fecha:** {fila.get('Fecha Actividad', '')}")
+        st.write(f"**Hora:** {fila.get('Hora Actividad', '')}")
+        st.write(f"**Dirección Regional:** {fila.get('Dirección Regional', '')}")
+        st.write(f"**Delegación:** {fila.get('Delegación', '')}")
+        st.write(f"**Responsable:** {fila.get('Responsable', '')}")
+        st.write(f"**Usuario Registra:** {fila.get('Usuario Registra', '')}")
+
+    with col2:
+        st.markdown("#### Actividad")
+        st.write(f"**Responde a:** {fila.get('Responde a', '')}")
+        st.write(f"**Programa:** {fila.get('Programa', '')}")
+        st.write(f"**Actividad:** {fila.get('Actividad', '')}")
+        st.write(f"**Lugar:** {fila.get('Lugar', '')}")
+        st.write(f"**Provincia:** {fila.get('Provincia', '')}")
+        st.write(f"**Cantón:** {fila.get('Cantón', '')}")
+        st.write(f"**Distrito:** {fila.get('Distrito', '')}")
+
+    st.markdown("#### Participantes")
+
+    colp1, colp2, colp3, colp4 = st.columns(4)
+
+    with colp1:
+        st.metric("Total", fila.get("Cantidad Participantes", 0))
+
+    with colp2:
+        st.metric("Hombres", fila.get("Cantidad Hombres", 0))
+
+    with colp3:
+        st.metric("Mujeres", fila.get("Cantidad Mujeres", 0))
+
+    with colp4:
+        st.metric("Referencia", fila.get("Número de Referencia", ""))
+
+    colr1, colr2, colr3, colr4 = st.columns(4)
+
+    with colr1:
+        st.metric("Edad 10 a 18", fila.get("Edad 10 a 18", 0))
+
+    with colr2:
+        st.metric("Edad 19 a 30", fila.get("Edad 19 a 30", 0))
+
+    with colr3:
+        st.metric("Edad 31 a 45", fila.get("Edad 31 a 45", 0))
+
+    with colr4:
+        st.metric("Edad 46+", fila.get("Edad 46 en adelante", 0))
+
+    st.markdown("#### Observaciones del registro original")
+
+    observacion_original = str(fila.get("Observaciones", "")).strip()
+
+    if observacion_original:
+        st.info(observacion_original)
+    else:
+        st.info("Sin observaciones registradas.")
+
+    st.markdown("#### Datos de referencia")
+
+    colref1, colref2 = st.columns(2)
+
+    with colref1:
+        st.write(f"**Número de referencia:** {fila.get('Número de Referencia', '')}")
+        st.write(f"**Expediente referencia:** {fila.get('Número de Expediente Referencia', '')}")
+
+    with colref2:
+        st.write(f"**Instituciones participantes:** {fila.get('Instituciones Participantes', '')}")
+        st.write(f"**Dirección mapa:** {fila.get('Dirección Mapa', '')}")
+
+
+# ======================================================
+# MÓDULO PRINCIPAL DE VALIDACIÓN INDIVIDUAL
 # ======================================================
 
 def modulo_validacion_actividades(df_filtrado):
-    st.markdown("## Validación de actividades")
+    st.markdown("## Validación individual de actividades")
 
     if df_filtrado.empty:
         st.info("No hay registros disponibles con los filtros aplicados.")
@@ -1330,70 +1568,19 @@ def modulo_validacion_actividades(df_filtrado):
         """
         <div class="card-validacion">
             <div class="texto-admin">
-                En este apartado puede revisar cada actividad registrada en PUMI,
-                aprobarla, rechazarla o dejarla con observaciones. Las observaciones
-                quedarán guardadas dentro del Excel administrativo validado.
+                En este apartado puede revisar cada actividad registrada en PUMI
+                y asignar su estado administrativo: aprobada, rechazada, pendiente
+                o con observaciones. No se incluye validación masiva para evitar
+                cambios accidentales en varios registros.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    st.markdown("### Validación masiva")
+    st.markdown("### Selección del registro")
 
     ids_filtrados = df_filtrado["ID"].astype(str).tolist()
-
-    ids_seleccionados = st.multiselect(
-        "Seleccione IDs para aplicar una validación masiva",
-        ids_filtrados
-    )
-
-    colm1, colm2, colm3 = st.columns(3)
-
-    with colm1:
-        estado_masivo = st.selectbox(
-            "Estado masivo",
-            ["Pendiente", "Aprobada", "Rechazada", "Con observaciones"],
-            key="estado_masivo"
-        )
-
-    with colm2:
-        funcionario_masivo = st.text_input(
-            "Funcionario validador",
-            key="funcionario_masivo"
-        )
-
-    with colm3:
-        st.write("")
-        st.write("")
-        aplicar_masivo = st.button("✅ Aplicar validación masiva")
-
-    observacion_masiva = st.text_area(
-        "Observaciones para validación masiva",
-        key="observacion_masiva"
-    )
-
-    if aplicar_masivo:
-        if not ids_seleccionados:
-            st.warning("Debe seleccionar al menos un ID.")
-        elif funcionario_masivo.strip() == "":
-            st.warning("Debe indicar el funcionario validador.")
-        else:
-            actualizado = actualizar_validacion_masiva(
-                ids_registros=ids_seleccionados,
-                estado_validacion=estado_masivo,
-                observaciones_validacion=observacion_masiva,
-                funcionario_validador=funcionario_masivo
-            )
-
-            if actualizado:
-                st.success("Validación masiva aplicada correctamente.")
-                st.rerun()
-            else:
-                st.error("No se pudo aplicar la validación masiva.")
-
-    st.markdown("---")
-    st.markdown("### Validación individual")
 
     id_validar = st.selectbox(
         "Seleccione el ID del registro a validar",
@@ -1412,62 +1599,36 @@ def modulo_validacion_actividades(df_filtrado):
     fila = fila_validar.iloc[0].to_dict()
 
     estado_actual = fila.get("Estado Validación", "Pendiente")
+
     mostrar_badge_estado(estado_actual)
 
     with st.expander("Ver detalle completo del registro", expanded=True):
+        mostrar_tarjeta_registro_validacion(fila)
 
-        col1, col2 = st.columns(2)
+        lat = str(fila.get("Latitud", "")).strip()
+        lon = str(fila.get("Longitud", "")).strip()
 
-        with col1:
-            st.markdown("#### Datos generales")
-            st.write(f"**ID:** {fila.get('ID', '')}")
-            st.write(f"**Fecha:** {fila.get('Fecha Actividad', '')}")
-            st.write(f"**Hora:** {fila.get('Hora Actividad', '')}")
-            st.write(f"**Dirección Regional:** {fila.get('Dirección Regional', '')}")
-            st.write(f"**Delegación:** {fila.get('Delegación', '')}")
-            st.write(f"**Responsable:** {fila.get('Responsable', '')}")
-            st.write(f"**Usuario Registra:** {fila.get('Usuario Registra', '')}")
-
-        with col2:
-            st.markdown("#### Actividad")
-            st.write(f"**Responde a:** {fila.get('Responde a', '')}")
-            st.write(f"**Programa:** {fila.get('Programa', '')}")
-            st.write(f"**Actividad:** {fila.get('Actividad', '')}")
-            st.write(f"**Lugar:** {fila.get('Lugar', '')}")
-            st.write(f"**Provincia:** {fila.get('Provincia', '')}")
-            st.write(f"**Cantón:** {fila.get('Cantón', '')}")
-            st.write(f"**Distrito:** {fila.get('Distrito', '')}")
-
-        st.markdown("#### Participantes")
-        colp1, colp2, colp3, colp4 = st.columns(4)
-
-        with colp1:
-            st.metric("Total", fila.get("Cantidad Participantes", 0))
-
-        with colp2:
-            st.metric("Hombres", fila.get("Cantidad Hombres", 0))
-
-        with colp3:
-            st.metric("Mujeres", fila.get("Cantidad Mujeres", 0))
-
-        with colp4:
-            st.metric("Referencia", fila.get("Número de Referencia", ""))
-
-        st.markdown("#### Observaciones del registro")
-        st.info(fila.get("Observaciones", "Sin observaciones registradas."))
-
-        if fila.get("Latitud", "") and fila.get("Longitud", ""):
+        if lat and lon:
             st.markdown("#### Ubicación del registro")
 
             df_unico = pd.DataFrame([fila])
+
             mostrar_mapa_admin(
                 df_unico,
                 key=f"mapa_validacion_{id_validar}"
             )
+        else:
+            st.info("Este registro no tiene coordenadas disponibles.")
 
-    st.markdown("### Actualizar validación")
+    st.markdown("---")
+    st.markdown("### Actualizar validación del registro")
 
-    estados = ["Pendiente", "Aprobada", "Rechazada", "Con observaciones"]
+    estados = [
+        "Pendiente",
+        "Aprobada",
+        "Rechazada",
+        "Con observaciones"
+    ]
 
     indice_estado = 0
 
@@ -1497,9 +1658,21 @@ def modulo_validacion_actividades(df_filtrado):
         key="observaciones_validacion_individual"
     )
 
+    if nuevo_estado in ["Rechazada", "Con observaciones"]:
+        if observaciones_validacion.strip() == "":
+            st.warning(
+                "Para registros rechazados o con observaciones, se recomienda "
+                "indicar claramente el motivo en el campo de observaciones."
+            )
+
     if st.button("💾 Guardar validación del registro"):
         if funcionario_validador.strip() == "":
             st.warning("Debe indicar el funcionario validador.")
+        elif nuevo_estado in ["Rechazada", "Con observaciones"] and observaciones_validacion.strip() == "":
+            st.warning(
+                "Debe agregar una observación cuando el estado sea Rechazada "
+                "o Con observaciones."
+            )
         else:
             actualizado = actualizar_validacion_registro(
                 id_registro=id_validar,
@@ -1568,11 +1741,37 @@ def mostrar_tabla_resumen_validacion(df):
         use_container_width=True,
         hide_index=True
     )
-    # ======================================================
+
+
+# ======================================================
+# TABLA DETALLADA ADMINISTRATIVA
+# ======================================================
+
+def mostrar_tabla_detallada_admin(df):
+    if df.empty:
+        st.info("No hay registros para mostrar.")
+        return
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True
+    )
+# ======================================================
 # appADMIN.py
-# PARTE 4 DE 5
-# GENERACIÓN DE INFORME PDF DE VALIDACIÓN
-# CON PORTADA, RESUMEN, TABLAS, GRÁFICOS Y MAPA
+# PARTE 4 DE 5 CORREGIDA
+# GENERACIÓN DE INFORME PDF AUTOMÁTICO
+# CON PORTADA, RESUMEN, TABLAS, GRÁFICOS GENERADOS
+# DESDE LA APP Y MAPA SEGÚN TIPO SELECCIONADO
+# ======================================================
+
+
+# ======================================================
+# NOTA IMPORTANTE
+# Para exportar gráficos Plotly como imagen dentro del PDF,
+# agregue en requirements.txt:
+#
+# kaleido
 # ======================================================
 
 
@@ -1720,6 +1919,360 @@ def obtener_logo_pdf(ruta, ancho=4.0 * cm, alto=2.0 * cm):
 
 
 # ======================================================
+# GENERAR IMAGEN DE GRÁFICO PLOTLY PARA PDF
+# ======================================================
+
+def convertir_figura_plotly_a_imagen(fig):
+    try:
+        imagen_bytes = fig.to_image(
+            format="png",
+            width=1200,
+            height=650,
+            scale=2
+        )
+        return BytesIO(imagen_bytes)
+    except Exception:
+        return None
+
+
+# ======================================================
+# CREAR FIGURAS PARA PDF DESDE LOS DATOS FILTRADOS
+# ======================================================
+
+def crear_figuras_pdf_admin(df):
+    figuras = []
+
+    df_metricas = limpiar_dataframe_metricas_admin(df)
+
+    if df_metricas.empty:
+        return figuras
+
+    # ==================================================
+    # GRÁFICO 1: ESTADO DE VALIDACIÓN
+    # ==================================================
+
+    if "Estado Validación" in df_metricas.columns:
+        conteo_estado = (
+            df_metricas
+            .groupby("Estado Validación")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
+
+        if not conteo_estado.empty:
+            fig_estado = px.pie(
+                conteo_estado,
+                names="Estado Validación",
+                values="Cantidad",
+                title="Distribución por estado de validación",
+                hole=0.35,
+                color="Estado Validación",
+                color_discrete_map={
+                    "Pendiente": COLOR_AMARILLO,
+                    "Aprobada": COLOR_VERDE,
+                    "Rechazada": COLOR_ROJO,
+                    "Con observaciones": COLOR_DORADO
+                }
+            )
+
+            fig_estado.update_layout(
+                title_x=0.5,
+                paper_bgcolor="white",
+                font=dict(size=16)
+            )
+
+            figuras.append(
+                {
+                    "titulo": "Gráfico 1. Distribución por estado de validación",
+                    "descripcion": (
+                        "Este gráfico muestra la proporción de actividades según "
+                        "su estado administrativo de validación: aprobadas, pendientes, "
+                        "rechazadas o con observaciones."
+                    ),
+                    "figura": fig_estado
+                }
+            )
+
+    # ==================================================
+    # GRÁFICO 2: PROGRAMA
+    # ==================================================
+
+    if "Programa" in df_metricas.columns:
+        conteo_programa = (
+            df_metricas
+            .groupby("Programa")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
+
+        if not conteo_programa.empty:
+            fig_programa = px.bar(
+                conteo_programa,
+                x="Programa",
+                y="Cantidad",
+                title="Cantidad de registros por programa",
+                text="Cantidad"
+            )
+
+            fig_programa.update_layout(
+                title_x=0.5,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(size=15)
+            )
+
+            figuras.append(
+                {
+                    "titulo": "Gráfico 2. Cantidad de registros por programa",
+                    "descripcion": (
+                        "Este gráfico permite identificar cuáles programas concentran "
+                        "mayor cantidad de actividades dentro del conjunto filtrado."
+                    ),
+                    "figura": fig_programa
+                }
+            )
+
+    # ==================================================
+    # GRÁFICO 3: DIRECCIÓN REGIONAL
+    # ==================================================
+
+    if "Dirección Regional" in df_metricas.columns:
+        conteo_region = (
+            df_metricas
+            .groupby("Dirección Regional")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
+
+        if not conteo_region.empty:
+            fig_region = px.bar(
+                conteo_region,
+                x="Dirección Regional",
+                y="Cantidad",
+                title="Cantidad de registros por Dirección Regional",
+                text="Cantidad"
+            )
+
+            fig_region.update_layout(
+                title_x=0.5,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(size=15),
+                xaxis_tickangle=-30
+            )
+
+            figuras.append(
+                {
+                    "titulo": "Gráfico 3. Cantidad de registros por Dirección Regional",
+                    "descripcion": (
+                        "Este gráfico muestra la distribución de registros según "
+                        "la Dirección Regional indicada en el Excel cargado."
+                    ),
+                    "figura": fig_region
+                }
+            )
+
+    # ==================================================
+    # GRÁFICO 4: DELEGACIÓN
+    # ==================================================
+
+    if "Delegación" in df_metricas.columns:
+        conteo_delegacion = (
+            df_metricas
+            .groupby("Delegación")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+            .head(15)
+        )
+
+        if not conteo_delegacion.empty:
+            fig_delegacion = px.bar(
+                conteo_delegacion,
+                x="Delegación",
+                y="Cantidad",
+                title="Top delegaciones por cantidad de registros",
+                text="Cantidad"
+            )
+
+            fig_delegacion.update_layout(
+                title_x=0.5,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(size=15),
+                xaxis_tickangle=-30
+            )
+
+            figuras.append(
+                {
+                    "titulo": "Gráfico 4. Top delegaciones por cantidad de registros",
+                    "descripcion": (
+                        "Este gráfico resume las delegaciones con mayor cantidad "
+                        "de registros dentro de los filtros seleccionados."
+                    ),
+                    "figura": fig_delegacion
+                }
+            )
+
+    return figuras
+
+
+# ======================================================
+# AGREGAR GRÁFICOS AUTOMÁTICOS AL PDF
+# ======================================================
+
+def agregar_graficos_automaticos_pdf(elementos, df, estilos):
+    figuras = crear_figuras_pdf_admin(df)
+
+    if not figuras:
+        elementos.append(
+            parrafo_pdf(
+                "No se generaron gráficos automáticos porque no hay datos suficientes.",
+                estilos["TextoPDF"]
+            )
+        )
+        return
+
+    elementos.append(PageBreak())
+    elementos.append(parrafo_pdf("4. Gráficos automáticos del dashboard", estilos["SubtituloPDF"]))
+
+    elementos.append(
+        parrafo_pdf(
+            "Los siguientes gráficos fueron generados automáticamente desde la app "
+            "administrativa, utilizando los registros y filtros aplicados antes de "
+            "crear este informe.",
+            estilos["TextoPDF"]
+        )
+    )
+
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    for item in figuras:
+        imagen = convertir_figura_plotly_a_imagen(item["figura"])
+
+        if imagen is None:
+            elementos.append(
+                parrafo_pdf(
+                    f"No se pudo generar la imagen de: {item['titulo']}. "
+                    "Verifique que la librería kaleido esté incluida en requirements.txt.",
+                    estilos["TextoPDF"]
+                )
+            )
+            continue
+
+        bloque = []
+
+        bloque.append(parrafo_pdf(item["titulo"], estilos["SubtituloPDF"]))
+        bloque.append(parrafo_pdf(item["descripcion"], estilos["TextoPDF"]))
+        bloque.append(Spacer(1, 0.2 * cm))
+
+        img = Image(imagen, width=22 * cm, height=11 * cm)
+        img.hAlign = "CENTER"
+
+        bloque.append(img)
+        bloque.append(Spacer(1, 0.4 * cm))
+
+        elementos.append(KeepTogether(bloque))
+
+
+# ======================================================
+# CONSTRUIR TABLA DE MAPA PARA PDF
+# Como Folium es interactivo, en PDF se agrega una tabla
+# territorial de puntos con coordenadas y tipo de mapa usado.
+# ======================================================
+
+def agregar_mapa_referencia_pdf(elementos, df, tipo_mapa, estilos):
+    df_mapa = preparar_dataframe_mapa_admin(df)
+
+    elementos.append(PageBreak())
+    elementos.append(parrafo_pdf("5. Referencia territorial y mapa", estilos["SubtituloPDF"]))
+
+    texto = (
+        f"El mapa interactivo fue generado dentro de la app administrativa con el tipo "
+        f"de mapa seleccionado: {tipo_mapa}. Para el informe PDF se incorpora una "
+        f"tabla territorial con los registros que poseen coordenadas, permitiendo "
+        f"identificar la ubicación de cada actividad validada."
+    )
+
+    elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
+    elementos.append(Spacer(1, 0.3 * cm))
+
+    if df_mapa.empty:
+        elementos.append(
+            parrafo_pdf(
+                "No existen registros con coordenadas disponibles para incluir referencia territorial.",
+                estilos["TextoPDF"]
+            )
+        )
+        return
+
+    columnas = [
+        "ID",
+        "Dirección Regional",
+        "Delegación",
+        "Programa",
+        "Lugar",
+        "Estado Validación",
+        "Latitud",
+        "Longitud"
+    ]
+
+    columnas = [col for col in columnas if col in df_mapa.columns]
+
+    datos = [
+        [parrafo_pdf(col, estilos["TextoTablaCentroPDF"]) for col in columnas]
+    ]
+
+    for _, row in df_mapa.iterrows():
+        fila = []
+
+        for col in columnas:
+            fila.append(
+                parrafo_pdf(
+                    row.get(col, ""),
+                    estilos["TextoTablaPDF"]
+                )
+            )
+
+        datos.append(fila)
+
+    anchos = [
+        1.2 * cm,
+        3.3 * cm,
+        3.1 * cm,
+        2.2 * cm,
+        5.0 * cm,
+        2.6 * cm,
+        2.1 * cm,
+        2.1 * cm
+    ]
+
+    anchos = anchos[:len(columnas)]
+
+    tabla = Table(datos, colWidths=anchos, repeatRows=1)
+
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#BFBFBF")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    elementos.append(tabla)
+
+
+# ======================================================
 # PORTADA DEL INFORME PDF
 # ======================================================
 
@@ -1764,6 +2317,7 @@ def construir_portada_pdf(elementos, df, estilos):
     )
 
     total = len(df)
+
     participantes = 0
 
     if not df.empty and "Cantidad Participantes" in df.columns:
@@ -1811,6 +2365,7 @@ def construir_portada_pdf(elementos, df, estilos):
     ]
 
     tabla = Table(datos_portada, colWidths=[7 * cm, 17 * cm])
+
     tabla.setStyle(
         TableStyle(
             [
@@ -1850,6 +2405,7 @@ def construir_resumen_pdf(elementos, df, estilos):
     elementos.append(Spacer(1, 0.3 * cm))
 
     total = len(df)
+
     participantes = int(
         pd.to_numeric(
             df["Cantidad Participantes"],
@@ -1873,6 +2429,7 @@ def construir_resumen_pdf(elementos, df, estilos):
     ]
 
     tabla = Table(datos, colWidths=[10 * cm, 5 * cm])
+
     tabla.setStyle(
         TableStyle(
             [
@@ -1917,6 +2474,7 @@ def construir_filtros_pdf(elementos, estilos):
         datos.append([clave, valor])
 
     tabla = Table(datos, colWidths=[6 * cm, 18 * cm])
+
     tabla.setStyle(
         TableStyle(
             [
@@ -1963,6 +2521,7 @@ def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
         )
 
     tabla = Table(datos, colWidths=[18 * cm, 4 * cm], repeatRows=1)
+
     tabla.setStyle(
         TableStyle(
             [
@@ -1989,11 +2548,11 @@ def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
 
 def construir_tabla_detalle_pdf(elementos, df, estilos):
     elementos.append(PageBreak())
-    elementos.append(parrafo_pdf("5. Detalle de actividades validadas", estilos["SubtituloPDF"]))
+    elementos.append(parrafo_pdf("6. Detalle de actividades validadas", estilos["SubtituloPDF"]))
 
     texto = (
         "La siguiente tabla muestra el detalle de los registros incluidos en el informe. "
-        "Para evitar cortes inadecuados, los textos extensos se ajustan dentro de cada celda."
+        "Los textos extensos se ajustan dentro de cada celda para evitar cortes inadecuados."
     )
 
     elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
@@ -2039,6 +2598,7 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
     anchos = anchos[:len(columnas)]
 
     tabla = Table(datos, colWidths=anchos, repeatRows=1)
+
     tabla.setStyle(
         TableStyle(
             [
@@ -2058,40 +2618,15 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
 
 
 # ======================================================
-# AGREGAR IMAGEN OPCIONAL AL PDF
-# Para pantallazos manuales de mapa o gráficos.
-# ======================================================
-
-def agregar_imagen_opcional_pdf(elementos, archivo, titulo, descripcion, estilos):
-    if archivo is None:
-        return
-
-    try:
-        elementos.append(PageBreak())
-        elementos.append(parrafo_pdf(titulo, estilos["SubtituloPDF"]))
-        elementos.append(parrafo_pdf(descripcion, estilos["TextoPDF"]))
-        elementos.append(Spacer(1, 0.3 * cm))
-
-        imagen_bytes = BytesIO(archivo.read())
-        img = Image(imagen_bytes, width=22 * cm, height=11.5 * cm)
-        img.hAlign = "CENTER"
-
-        elementos.append(img)
-        elementos.append(Spacer(1, 0.4 * cm))
-
-    except Exception:
-        elementos.append(parrafo_pdf("No se pudo agregar la imagen adjunta.", estilos["TextoPDF"]))
-
-
-# ======================================================
 # GENERAR PDF COMPLETO
 # ======================================================
 
 def generar_pdf_validacion(
     df,
     incluir_tabla_detalle=True,
-    imagen_mapa=None,
-    imagen_grafico=None
+    incluir_graficos=True,
+    incluir_mapa=True,
+    tipo_mapa="OpenStreetMap"
 ):
     buffer = BytesIO()
 
@@ -2117,8 +2652,9 @@ def generar_pdf_validacion(
     elementos.append(
         parrafo_pdf(
             "En este apartado se presenta la distribución de los registros según "
-            "estado de validación, programa y Dirección Regional. Estos cuadros permiten "
-            "identificar concentración de actividades y estado del proceso administrativo.",
+            "estado de validación, programa, Dirección Regional y delegación. "
+            "Estos cuadros permiten identificar concentración de actividades y "
+            "estado del proceso administrativo.",
             estilos["TextoPDF"]
         )
     )
@@ -2157,26 +2693,27 @@ def generar_pdf_validacion(
         estilos
     )
 
-    agregar_imagen_opcional_pdf(
-        elementos,
-        imagen_grafico,
-        "4. Pantallazo de gráficos del dashboard",
-        "La siguiente imagen corresponde al pantallazo cargado desde la app administrativa. "
-        "Debe reflejar los gráficos generados con los filtros aplicados.",
-        estilos
-    )
+    if incluir_graficos:
+        agregar_graficos_automaticos_pdf(
+            elementos,
+            df,
+            estilos
+        )
 
-    agregar_imagen_opcional_pdf(
-        elementos,
-        imagen_mapa,
-        "5. Pantallazo del mapa de actividades",
-        "La siguiente imagen corresponde al mapa filtrado de actividades. "
-        "Permite visualizar la distribución territorial de los registros seleccionados.",
-        estilos
-    )
+    if incluir_mapa:
+        agregar_mapa_referencia_pdf(
+            elementos,
+            df,
+            tipo_mapa,
+            estilos
+        )
 
     if incluir_tabla_detalle:
-        construir_tabla_detalle_pdf(elementos, df, estilos)
+        construir_tabla_detalle_pdf(
+            elementos,
+            df,
+            estilos
+        )
 
     doc.build(
         elementos,
@@ -2205,44 +2742,71 @@ def modulo_informe_pdf(df_filtrado):
             <div class="texto-admin">
                 Este módulo genera un informe PDF administrativo con portada,
                 resumen ejecutivo, filtros aplicados, cuadros analíticos,
-                detalle de actividades y posibilidad de adjuntar pantallazos
-                del mapa o gráficos generados en el dashboard.
+                gráficos generados automáticamente desde la app, referencia
+                territorial y detalle de actividades validadas.
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    incluir_detalle = st.checkbox(
-        "Incluir tabla detallada de actividades",
-        value=True
+    st.markdown("### Opciones del informe")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        incluir_detalle = st.checkbox(
+            "Incluir tabla detallada de actividades",
+            value=True
+        )
+
+    with col2:
+        incluir_graficos = st.checkbox(
+            "Incluir gráficos automáticos",
+            value=True
+        )
+
+    with col3:
+        incluir_mapa = st.checkbox(
+            "Incluir referencia territorial del mapa",
+            value=True
+        )
+
+    tipo_mapa_pdf = st.selectbox(
+        "Tipo de mapa para referencia del informe",
+        [
+            "OpenStreetMap",
+            "Mapa claro",
+            "Mapa oscuro",
+            "Topográfico",
+            "Satélite"
+        ],
+        key="tipo_mapa_pdf"
     )
 
-    st.markdown("### Pantallazos opcionales para enriquecer el informe")
+    st.session_state["tipo_mapa_admin_actual"] = tipo_mapa_pdf
 
-    imagen_grafico = st.file_uploader(
-        "Cargar pantallazo de gráficos del dashboard",
-        type=["png", "jpg", "jpeg"],
-        key="upload_grafico_pdf"
-    )
+    st.markdown("### Vista previa del mapa según filtros")
 
-    imagen_mapa = st.file_uploader(
-        "Cargar pantallazo del mapa filtrado",
-        type=["png", "jpg", "jpeg"],
-        key="upload_mapa_pdf"
-    )
+    if incluir_mapa:
+        mostrar_mapa_admin(
+            df_filtrado,
+            key="mapa_informe_pdf_preview"
+        )
 
     st.info(
-        "Para incluir el mapa o gráficos, tome un pantallazo desde la app, "
-        "guárdelo como imagen y cárguelo aquí antes de generar el PDF."
+        "Los gráficos se generan automáticamente desde los datos filtrados. "
+        "Para que salgan como imágenes dentro del PDF, recuerde incluir "
+        "la librería kaleido en requirements.txt."
     )
 
     if st.button("📄 Generar informe PDF"):
         pdf_bytes = generar_pdf_validacion(
             df=df_filtrado,
             incluir_tabla_detalle=incluir_detalle,
-            imagen_mapa=imagen_mapa,
-            imagen_grafico=imagen_grafico
+            incluir_graficos=incluir_graficos,
+            incluir_mapa=incluir_mapa,
+            tipo_mapa=tipo_mapa_pdf
         )
 
         nombre_pdf = generar_nombre_reporte(
@@ -2259,12 +2823,13 @@ def modulo_informe_pdf(df_filtrado):
             mime="application/pdf",
             key="descargar_pdf_validacion"
         )
-        # ======================================================
+# ======================================================
 # appADMIN.py
-# PARTE 5 DE 5
+# PARTE 5 DE 5 CORREGIDA
 # FLUJO PRINCIPAL DE LA APP ADMIN:
 # SIDEBAR, CARGA DE EXCEL, MENÚ, DASHBOARD,
-# VALIDACIÓN, INFORME PDF Y DESCARGA
+# VALIDACIÓN INDIVIDUAL, INFORME PDF AUTOMÁTICO
+# Y DESCARGA GLOBAL
 # ======================================================
 
 
@@ -2361,9 +2926,10 @@ if menu_admin == "Inicio":
             </div>
             <div class="texto-admin">
                 Esta aplicación permite cargar el Excel generado desde la app PUMI,
-                revisar los registros, aplicar validaciones administrativas,
-                consultar datos mediante filtros, visualizar gráficos y mapas,
-                descargar un Excel validado y generar un informe PDF formal.
+                revisar los registros, aplicar validaciones administrativas de forma
+                individual, consultar datos mediante filtros, visualizar gráficos y mapas,
+                descargar un Excel validado con colores por estado y generar un informe
+                PDF formal con gráficos automáticos y referencia territorial.
             </div>
         </div>
         """,
@@ -2404,9 +2970,11 @@ elif menu_admin == "Consulta y filtros":
         mostrar_resumen_validacion(df_filtrado)
 
         st.markdown("### Registros filtrados")
+
         mostrar_tabla_resumen_validacion(df_filtrado)
 
         st.markdown("### Descargar Excel filtrado validado")
+
         boton_descargar_excel_admin(
             df_filtrado,
             key="descarga_consulta_filtrada"
@@ -2418,6 +2986,8 @@ elif menu_admin == "Consulta y filtros":
 # ======================================================
 
 elif menu_admin == "Validación de actividades":
+
+    st.markdown("## Módulo de validación administrativa")
 
     if df_admin.empty:
         st.info("Debe cargar primero el Excel generado por PUMI.")
@@ -2470,12 +3040,21 @@ elif menu_admin == "Dashboard":
 
         mostrar_tabla_resumen_validacion(df_filtrado)
 
+        st.markdown("### Descargar Excel del dashboard filtrado")
+
+        boton_descargar_excel_admin(
+            df_filtrado,
+            key="descarga_dashboard_filtrado"
+        )
+
 
 # ======================================================
 # INFORME PDF
 # ======================================================
 
 elif menu_admin == "Informe PDF":
+
+    st.markdown("## Informe PDF administrativo")
 
     if df_admin.empty:
         st.info("Debe cargar primero el Excel generado por PUMI.")
@@ -2518,9 +3097,10 @@ else:
         st.session_state.df_admin = pd.DataFrame(columns=ENCABEZADOS_COMPLETOS)
         st.session_state.archivo_admin_nombre = ""
         st.session_state.filtros_admin_aplicados = {}
+        st.session_state.mapa_imagen_referencia = None
+        st.session_state.grafico_imagen_referencia = None
         st.sidebar.success("Datos limpiados correctamente.")
         st.rerun()
-
 
 
 
