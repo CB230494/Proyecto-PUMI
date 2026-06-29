@@ -1955,6 +1955,70 @@ def convertir_entero_seguro(valor):
         return 0
 
 
+
+def obtener_opciones_columna_regional(columna, df_base=None, filtros=None, valor_actual=""):
+    """Devuelve opciones limpias para selectbox usando los datos cargados."""
+    if df_base is None:
+        df_base = st.session_state.df_admin.copy()
+    else:
+        df_base = df_base.copy()
+
+    if filtros:
+        for col_filtro, valor_filtro in filtros.items():
+            if col_filtro in df_base.columns and str(valor_filtro).strip() != "":
+                df_base = df_base[
+                    df_base[col_filtro].astype(str).apply(normalizar_texto)
+                    == normalizar_texto(valor_filtro)
+                ]
+
+    opciones = []
+    if columna in df_base.columns:
+        opciones = (
+            df_base[columna]
+            .replace("", pd.NA)
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+            .drop_duplicates()
+            .tolist()
+        )
+
+    opciones = [x for x in opciones if x and x.lower() != "nan"]
+    opciones = sorted(opciones)
+
+    valor_actual = str(valor_actual).strip()
+    if valor_actual and valor_actual.lower() != "nan" and valor_actual not in opciones:
+        opciones.insert(0, valor_actual)
+
+    if not opciones:
+        opciones = [valor_actual] if valor_actual else [""]
+
+    return opciones
+
+
+def indice_opcion_seguro(opciones, valor_actual):
+    valor_actual = str(valor_actual).strip()
+    try:
+        return opciones.index(valor_actual)
+    except Exception:
+        return 0
+
+
+def selectbox_edicion_regional(label, columna, fila, key, df_base=None, filtros=None):
+    valor_actual = str(fila.get(columna, "")).strip()
+    opciones = obtener_opciones_columna_regional(
+        columna=columna,
+        df_base=df_base,
+        filtros=filtros,
+        valor_actual=valor_actual
+    )
+    return st.selectbox(
+        label,
+        opciones,
+        index=indice_opcion_seguro(opciones, valor_actual),
+        key=key
+    )
+
 def modulo_editar_eliminar_registros(df_filtrado):
     st.markdown("## Editar o eliminar registros")
 
@@ -1975,6 +2039,7 @@ def modulo_editar_eliminar_registros(df_filtrado):
         unsafe_allow_html=True
     )
 
+    df_base = st.session_state.df_admin.copy()
     indices_filtrados = df_filtrado.index.tolist()
 
     indice_editar = st.selectbox(
@@ -1996,22 +2061,105 @@ def modulo_editar_eliminar_registros(df_filtrado):
         mostrar_tarjeta_registro_validacion(fila)
 
     st.markdown("### Editar registro")
+    st.info(
+        "Los campos que originalmente eran de selección en la delegación ahora también se pueden volver a seleccionar aquí, "
+        "usando las opciones encontradas en los Excel cargados."
+    )
 
     with st.form("form_editar_registro_regional"):
         col1, col2 = st.columns(2)
 
         with col1:
-            fecha_actividad = st.text_input("Fecha Actividad", value=str(fila.get("Fecha Actividad", "")))
-            hora_actividad = st.text_input("Hora Actividad", value=str(fila.get("Hora Actividad", "")))
-            direccion_regional = st.text_input("Dirección Regional", value=str(fila.get("Dirección Regional", "")))
-            delegacion = st.text_input("Delegación", value=str(fila.get("Delegación", "")))
-            responde_a = st.text_area("Responde a", value=str(fila.get("Responde a", "")), height=80)
-            programa = st.text_input("Programa", value=str(fila.get("Programa", "")))
-            actividad = st.text_area("Actividad", value=str(fila.get("Actividad", "")), height=90)
-            provincia = st.text_input("Provincia", value=str(fila.get("Provincia", "")))
-            canton = st.text_input("Cantón", value=str(fila.get("Cantón", "")))
-            distrito = st.text_input("Distrito", value=str(fila.get("Distrito", "")))
-            tipo_lugar = st.text_input("Tipo Lugar", value=str(fila.get("Tipo Lugar", "")))
+            fecha_actividad = st.text_input(
+                "Fecha Actividad",
+                value=str(fila.get("Fecha Actividad", ""))
+            )
+
+            hora_actividad = st.text_input(
+                "Hora Actividad",
+                value=str(fila.get("Hora Actividad", ""))
+            )
+
+            direccion_regional = selectbox_edicion_regional(
+                "Dirección Regional",
+                "Dirección Regional",
+                fila,
+                key=f"edit_region_{indice_editar}",
+                df_base=df_base
+            )
+
+            delegacion = selectbox_edicion_regional(
+                "Delegación",
+                "Delegación",
+                fila,
+                key=f"edit_delegacion_{indice_editar}",
+                df_base=df_base,
+                filtros={"Dirección Regional": direccion_regional}
+            )
+
+            responde_a = selectbox_edicion_regional(
+                "Responde a",
+                "Responde a",
+                fila,
+                key=f"edit_responde_{indice_editar}",
+                df_base=df_base
+            )
+
+            programa = selectbox_edicion_regional(
+                "Programa",
+                "Programa",
+                fila,
+                key=f"edit_programa_{indice_editar}",
+                df_base=df_base,
+                filtros={"Responde a": responde_a}
+            )
+
+            actividad = selectbox_edicion_regional(
+                "Actividad",
+                "Actividad",
+                fila,
+                key=f"edit_actividad_{indice_editar}",
+                df_base=df_base,
+                filtros={"Responde a": responde_a, "Programa": programa}
+            )
+
+            provincia = selectbox_edicion_regional(
+                "Provincia",
+                "Provincia",
+                fila,
+                key=f"edit_provincia_{indice_editar}",
+                df_base=df_base
+            )
+
+            canton = selectbox_edicion_regional(
+                "Cantón",
+                "Cantón",
+                fila,
+                key=f"edit_canton_{indice_editar}",
+                df_base=df_base,
+                filtros={"Provincia": provincia}
+            )
+
+            distrito = selectbox_edicion_regional(
+                "Distrito",
+                "Distrito",
+                fila,
+                key=f"edit_distrito_{indice_editar}",
+                df_base=df_base,
+                filtros={"Provincia": provincia, "Cantón": canton}
+            )
+
+            tipo_lugar_opciones = ["Centro educativo", "Otro lugar"]
+            tipo_lugar_actual = str(fila.get("Tipo Lugar", "")).strip()
+            if tipo_lugar_actual and tipo_lugar_actual not in tipo_lugar_opciones:
+                tipo_lugar_opciones.insert(0, tipo_lugar_actual)
+            tipo_lugar = st.selectbox(
+                "Tipo Lugar",
+                tipo_lugar_opciones,
+                index=indice_opcion_seguro(tipo_lugar_opciones, tipo_lugar_actual),
+                key=f"edit_tipo_lugar_{indice_editar}"
+            )
+
             lugar = st.text_input("Lugar", value=str(fila.get("Lugar", "")))
             centro_educativo = st.text_input("Centro Educativo", value=str(fila.get("Centro Educativo", "")))
             codigo_presupuestario = st.text_input("Código Presupuestario", value=str(fila.get("Código Presupuestario", "")))
