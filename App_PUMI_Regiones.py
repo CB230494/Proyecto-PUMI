@@ -1908,6 +1908,297 @@ def modulo_validacion_actividades(df_filtrado):
                 st.error("No se pudo guardar la verificación.")
 
 
+
+# ======================================================
+# EDITAR Y ELIMINAR REGISTROS REGIONALES
+# ======================================================
+
+def eliminar_registro_regional(indice_registro):
+    df = st.session_state.df_admin.copy()
+
+    try:
+        indice_registro = int(indice_registro)
+    except Exception:
+        return False
+
+    if indice_registro not in df.index:
+        return False
+
+    df = df.drop(index=indice_registro).reset_index(drop=True)
+    st.session_state.df_admin = preparar_dataframe_admin(df)
+    return True
+
+
+def actualizar_registro_regional_completo(indice_registro, nuevos_datos):
+    df = st.session_state.df_admin.copy()
+
+    try:
+        indice_registro = int(indice_registro)
+    except Exception:
+        return False
+
+    if indice_registro not in df.index:
+        return False
+
+    for col, valor in nuevos_datos.items():
+        if col in df.columns:
+            df.loc[indice_registro, col] = valor
+
+    st.session_state.df_admin = preparar_dataframe_admin(df.reset_index(drop=True))
+    return True
+
+
+def convertir_entero_seguro(valor):
+    try:
+        return int(pd.to_numeric(valor, errors="coerce"))
+    except Exception:
+        return 0
+
+
+def modulo_editar_eliminar_registros(df_filtrado):
+    st.markdown("## Editar o eliminar registros")
+
+    if df_filtrado.empty:
+        st.info("No hay registros disponibles con los filtros aplicados.")
+        return
+
+    st.markdown(
+        """
+        <div class="card-validacion">
+            <div class="texto-admin">
+                En este apartado el coordinador regional puede corregir datos puntuales
+                antes de enviar el Excel unificado al nivel nacional. También puede eliminar
+                registros que no correspondan a la Dirección Regional o que estén duplicados.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    indices_filtrados = df_filtrado.index.tolist()
+
+    indice_editar = st.selectbox(
+        "Seleccione el registro a editar o eliminar",
+        indices_filtrados,
+        format_func=lambda idx: etiqueta_registro_regional(df_filtrado, idx),
+        key="indice_editar_eliminar_regional"
+    )
+
+    if indice_editar not in df_filtrado.index:
+        st.warning("No se encontró el registro seleccionado.")
+        return
+
+    fila = df_filtrado.loc[indice_editar].to_dict()
+
+    mostrar_badge_estado(fila.get("Estado Verificación Regional", "Pendiente de verificación"))
+
+    with st.expander("Ver detalle actual del registro", expanded=False):
+        mostrar_tarjeta_registro_validacion(fila)
+
+    st.markdown("### Editar registro")
+
+    with st.form("form_editar_registro_regional"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            fecha_actividad = st.text_input("Fecha Actividad", value=str(fila.get("Fecha Actividad", "")))
+            hora_actividad = st.text_input("Hora Actividad", value=str(fila.get("Hora Actividad", "")))
+            direccion_regional = st.text_input("Dirección Regional", value=str(fila.get("Dirección Regional", "")))
+            delegacion = st.text_input("Delegación", value=str(fila.get("Delegación", "")))
+            responde_a = st.text_area("Responde a", value=str(fila.get("Responde a", "")), height=80)
+            programa = st.text_input("Programa", value=str(fila.get("Programa", "")))
+            actividad = st.text_area("Actividad", value=str(fila.get("Actividad", "")), height=90)
+            provincia = st.text_input("Provincia", value=str(fila.get("Provincia", "")))
+            canton = st.text_input("Cantón", value=str(fila.get("Cantón", "")))
+            distrito = st.text_input("Distrito", value=str(fila.get("Distrito", "")))
+            tipo_lugar = st.text_input("Tipo Lugar", value=str(fila.get("Tipo Lugar", "")))
+            lugar = st.text_input("Lugar", value=str(fila.get("Lugar", "")))
+            centro_educativo = st.text_input("Centro Educativo", value=str(fila.get("Centro Educativo", "")))
+            codigo_presupuestario = st.text_input("Código Presupuestario", value=str(fila.get("Código Presupuestario", "")))
+            latitud = st.text_input("Latitud", value=str(fila.get("Latitud", "")))
+            longitud = st.text_input("Longitud", value=str(fila.get("Longitud", "")))
+
+        with col2:
+            responsable = st.text_input("Responsable", value=str(fila.get("Responsable", "")))
+            cantidad_participantes = st.number_input(
+                "Cantidad Participantes",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Cantidad Participantes", 0))
+            )
+            cantidad_hombres = st.number_input(
+                "Cantidad Hombres",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Cantidad Hombres", 0))
+            )
+            cantidad_mujeres = st.number_input(
+                "Cantidad Mujeres",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Cantidad Mujeres", 0))
+            )
+            edad_10_18 = st.number_input(
+                "Edad 10 a 18",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Edad 10 a 18", 0))
+            )
+            edad_19_30 = st.number_input(
+                "Edad 19 a 30",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Edad 19 a 30", 0))
+            )
+            edad_31_45 = st.number_input(
+                "Edad 31 a 45",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Edad 31 a 45", 0))
+            )
+            edad_46_mas = st.number_input(
+                "Edad 46 en adelante",
+                min_value=0,
+                step=1,
+                value=convertir_entero_seguro(fila.get("Edad 46 en adelante", 0))
+            )
+            instituciones = st.text_area("Instituciones Participantes", value=str(fila.get("Instituciones Participantes", "")), height=80)
+            numero_referencia = st.text_input("Número de Referencia", value=str(fila.get("Número de Referencia", "")))
+            numero_expediente = st.text_input("Número de Expediente Referencia", value=str(fila.get("Número de Expediente Referencia", "")))
+            observaciones = st.text_area("Observaciones del registro", value=str(fila.get("Observaciones", "")), height=90)
+            usuario_registra = st.text_input("Usuario Registra", value=str(fila.get("Usuario Registra", "")))
+            archivo_origen = st.text_input("Archivo Origen", value=str(fila.get("Archivo Origen", "")), disabled=True)
+
+        st.markdown("#### Verificación regional")
+
+        estados = [
+            "Pendiente de verificación",
+            "Verificada para envío",
+            "Devuelta a delegación",
+            "Con observaciones regionales"
+        ]
+
+        estado_actual = str(fila.get("Estado Verificación Regional", "Pendiente de verificación"))
+        indice_estado = estados.index(estado_actual) if estado_actual in estados else 0
+
+        colv1, colv2 = st.columns(2)
+
+        with colv1:
+            estado_verificacion = st.selectbox(
+                "Estado Verificación Regional",
+                estados,
+                index=indice_estado
+            )
+            coordinador_regional = st.text_input(
+                "Coordinador Regional",
+                value=str(fila.get("Coordinador Regional", ""))
+            )
+
+        with colv2:
+            fecha_verificacion = st.text_input(
+                "Fecha Verificación Regional",
+                value=str(fila.get("Fecha Verificación Regional", ""))
+            )
+            observaciones_verificacion = st.text_area(
+                "Observaciones Verificación Regional",
+                value=str(fila.get("Observaciones Verificación Regional", "")),
+                height=95
+            )
+
+        guardar_cambios = st.form_submit_button("💾 Guardar cambios del registro")
+
+    suma_sexo = cantidad_hombres + cantidad_mujeres
+    suma_edades = edad_10_18 + edad_19_30 + edad_31_45 + edad_46_mas
+
+    if cantidad_participantes > 0:
+        if suma_sexo != cantidad_participantes:
+            st.warning(
+                f"La suma de hombres y mujeres ({suma_sexo}) no coincide con el total de participantes ({cantidad_participantes})."
+            )
+        if suma_edades != cantidad_participantes:
+            st.warning(
+                f"La suma de rangos de edad ({suma_edades}) no coincide con el total de participantes ({cantidad_participantes})."
+            )
+
+    if guardar_cambios:
+        if cantidad_participantes > 0 and suma_sexo != cantidad_participantes:
+            st.error("No se puede guardar: hombres + mujeres no coincide con el total de participantes.")
+            return
+
+        if cantidad_participantes > 0 and suma_edades != cantidad_participantes:
+            st.error("No se puede guardar: los rangos de edad no coinciden con el total de participantes.")
+            return
+
+        nuevos_datos = {
+            "Fecha Actividad": fecha_actividad,
+            "Hora Actividad": hora_actividad,
+            "Dirección Regional": direccion_regional,
+            "Delegación": delegacion,
+            "Responde a": responde_a,
+            "Programa": programa,
+            "Actividad": actividad,
+            "Provincia": provincia,
+            "Cantón": canton,
+            "Distrito": distrito,
+            "Tipo Lugar": tipo_lugar,
+            "Lugar": lugar,
+            "Centro Educativo": centro_educativo,
+            "Código Presupuestario": codigo_presupuestario,
+            "Dirección Mapa": "",
+            "Latitud": latitud,
+            "Longitud": longitud,
+            "Responsable": responsable,
+            "Cantidad Participantes": cantidad_participantes,
+            "Cantidad Hombres": cantidad_hombres,
+            "Cantidad Mujeres": cantidad_mujeres,
+            "Edad 10 a 18": edad_10_18,
+            "Edad 19 a 30": edad_19_30,
+            "Edad 31 a 45": edad_31_45,
+            "Edad 46 en adelante": edad_46_mas,
+            "Instituciones Participantes": instituciones,
+            "Número de Referencia": numero_referencia,
+            "Número de Expediente Referencia": numero_expediente,
+            "Observaciones": observaciones,
+            "Usuario Registra": usuario_registra,
+            "Estado Verificación Regional": estado_verificacion,
+            "Observaciones Verificación Regional": observaciones_verificacion,
+            "Coordinador Regional": coordinador_regional,
+            "Fecha Verificación Regional": fecha_verificacion,
+        }
+
+        actualizado = actualizar_registro_regional_completo(indice_editar, nuevos_datos)
+
+        if actualizado:
+            st.success("Registro actualizado correctamente.")
+            st.rerun()
+        else:
+            st.error("No se pudo actualizar el registro.")
+
+    st.markdown("---")
+    st.markdown("### Eliminar registro")
+
+    st.warning(
+        "Esta acción elimina el registro de la sesión regional actual. "
+        "El cambio se reflejará en el Excel unificado que descargue después."
+    )
+
+    confirmar_eliminacion = st.checkbox(
+        "Confirmo que deseo eliminar este registro",
+        key="confirmar_eliminacion_regional"
+    )
+
+    if st.button("🗑️ Eliminar registro seleccionado"):
+        if not confirmar_eliminacion:
+            st.warning("Debe marcar la confirmación antes de eliminar.")
+        else:
+            eliminado = eliminar_registro_regional(indice_editar)
+            if eliminado:
+                st.success("Registro eliminado correctamente.")
+                st.rerun()
+            else:
+                st.error("No se pudo eliminar el registro.")
+
+
 # ======================================================
 # DESCARGA DE EXCEL ADMIN VALIDADO
 # ======================================================
@@ -2081,6 +2372,7 @@ menu_admin = st.sidebar.radio(
         "Inicio",
         "Consulta y filtros",
         "Verificación de actividades",
+        "Editar o eliminar registros",
         "Dashboard"
     ]
 )
@@ -2193,6 +2485,33 @@ elif menu_admin == "Verificación de actividades":
         boton_descargar_excel_admin(
             st.session_state.df_admin,
             key="descarga_validacion_admin"
+        )
+
+
+
+# ======================================================
+# EDITAR O ELIMINAR REGISTROS
+# ======================================================
+
+elif menu_admin == "Editar o eliminar registros":
+
+    st.markdown("## Módulo regional de edición y eliminación")
+
+    if df_admin.empty:
+        st.info("Debe cargar primero el Excel generado por PUMI.")
+    else:
+        df_filtrado = aplicar_filtros_admin(df_admin)
+
+        st.markdown("---")
+
+        modulo_editar_eliminar_registros(df_filtrado)
+
+        st.markdown("---")
+        st.markdown("### Descargar Excel actualizado")
+
+        boton_descargar_excel_admin(
+            st.session_state.df_admin,
+            key="descarga_edicion_regional"
         )
 
 
