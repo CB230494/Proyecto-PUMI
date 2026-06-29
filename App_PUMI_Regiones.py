@@ -1569,30 +1569,61 @@ def mostrar_graficos_admin(df):
 
 
 # ======================================================
-# ACTUALIZAR VALIDACIÓN POR ID
+# ACTUALIZAR VERIFICACIÓN POR ÍNDICE ÚNICO
 # ======================================================
 
 def actualizar_validacion_registro(
-    id_registro,
+    indice_registro,
     estado_validacion,
     observaciones_validacion,
     funcionario_verificador
 ):
     df = st.session_state.df_admin.copy()
 
-    mascara = df["ID"].astype(str) == str(id_registro)
-
-    if not mascara.any():
+    try:
+        indice_registro = int(indice_registro)
+    except Exception:
         return False
 
-    df.loc[mascara, "Estado Verificación Regional"] = estado_validacion
-    df.loc[mascara, "Observaciones Verificación Regional"] = observaciones_validacion
-    df.loc[mascara, "Coordinador Regional"] = funcionario_verificador
-    df.loc[mascara, "Fecha Verificación Regional"] = datetime.now().strftime("%d/%m/%Y")
+    if indice_registro not in df.index:
+        return False
+
+    df.loc[indice_registro, "Estado Verificación Regional"] = estado_validacion
+    df.loc[indice_registro, "Observaciones Verificación Regional"] = observaciones_validacion
+    df.loc[indice_registro, "Coordinador Regional"] = funcionario_verificador
+    df.loc[indice_registro, "Fecha Verificación Regional"] = datetime.now().strftime("%d/%m/%Y")
 
     st.session_state.df_admin = df.reset_index(drop=True)
 
     return True
+
+
+def etiqueta_registro_regional(df, indice):
+    try:
+        fila = df.loc[indice]
+    except Exception:
+        return str(indice)
+
+    delegacion = str(fila.get("Delegación", "")).strip()
+    id_registro = str(fila.get("ID", "")).strip()
+    archivo = str(fila.get("Archivo Origen", "")).strip()
+    actividad = str(fila.get("Actividad", "")).strip()
+
+    if not delegacion:
+        delegacion = "Delegación sin dato"
+
+    if not id_registro:
+        id_registro = "Sin ID"
+
+    etiqueta = f"{delegacion} | ID {id_registro}"
+
+    if archivo:
+        etiqueta += f" | Archivo: {archivo}"
+
+    if actividad:
+        etiqueta += f" | {actividad}"
+
+    return etiqueta
 
 
 # ======================================================
@@ -1771,23 +1802,21 @@ def modulo_validacion_actividades(df_filtrado):
 
     st.markdown("### Selección del registro")
 
-    ids_filtrados = df_filtrado["ID"].astype(str).tolist()
+    indices_filtrados = df_filtrado.index.tolist()
 
-    id_verificar = st.selectbox(
-        "Seleccione el ID del registro a verificar",
-        ids_filtrados,
-        key="id_verificar_individual"
+    indice_verificar = st.selectbox(
+        "Seleccione el registro a verificar",
+        indices_filtrados,
+        format_func=lambda idx: etiqueta_registro_regional(df_filtrado, idx),
+        key="indice_verificar_individual"
     )
 
-    fila_verificar = df_filtrado[
-        df_filtrado["ID"].astype(str) == str(id_verificar)
-    ]
-
-    if fila_verificar.empty:
+    if indice_verificar not in df_filtrado.index:
         st.warning("No se encontró el registro seleccionado.")
         return
 
-    fila = fila_verificar.iloc[0].to_dict()
+    fila = df_filtrado.loc[indice_verificar].to_dict()
+    id_verificar = str(fila.get("ID", ""))
 
     estado_actual = fila.get("Estado Verificación Regional", "Pendiente de verificación")
 
@@ -1866,7 +1895,7 @@ def modulo_validacion_actividades(df_filtrado):
             )
         else:
             actualizado = actualizar_validacion_registro(
-                id_registro=id_verificar,
+                indice_registro=indice_verificar,
                 estado_validacion=nuevo_estado,
                 observaciones_validacion=observaciones_validacion,
                 funcionario_verificador=funcionario_verificador
@@ -1909,6 +1938,7 @@ def mostrar_tabla_resumen_validacion(df):
         return
 
     columnas_resumen = [
+        "Archivo Origen",
         "ID",
         "Fecha Actividad",
         "Dirección Regional",
