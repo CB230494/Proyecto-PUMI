@@ -44,6 +44,8 @@ LOGO_MINISTERIO = "Logo2.jpeg"
 LOGO_PUMI = "logo_pumi.jpeg"
 LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
 MARCA_AGUA_EXCEL = "marca_agua.png"
+ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
+ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
 
 NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
 
@@ -152,6 +154,41 @@ CENTROS_PROVINCIA = {
     "Puntarenas": [9.9763, -84.8384],
     "Limón": [9.9917, -83.0360]
 }
+
+
+PROGRAMAS_BASE = [
+    "DARE",
+    "GREAT",
+    "MPAS",
+    "PSCC",
+    "VIF",
+    "Política Pública"
+]
+
+REGIONES_BASE = [
+    "R1 San José Central",
+    "R2 San José Norte",
+    "R3 San José Sur",
+    "R4 Alajuela",
+    "R5 Cartago",
+    "R6 Heredia",
+    "R7 Chorotega",
+    "R8 Puntarenas",
+    "R9 Limón",
+    "R10 Brunca",
+    "R11 Chorotega Norte",
+    "R12"
+]
+
+PROVINCIAS_BASE = [
+    "San José",
+    "Alajuela",
+    "Cartago",
+    "Heredia",
+    "Guanacaste",
+    "Puntarenas",
+    "Limón"
+]
 
 
 # ======================================================
@@ -1909,6 +1946,299 @@ def modulo_validacion_actividades(df_filtrado):
 
 
 
+
+# ======================================================
+# CATÁLOGOS BASE PARA EDICIÓN REGIONAL
+# Estas funciones usan las mismas bases de la app donde
+# las delegaciones registran: Datos Importantes.xlsx y
+# BASE DE DATOS MEP 2025.xlsx.
+# ======================================================
+
+def obtener_columna_por_nombre(df, posibles_nombres):
+    columnas = list(df.columns)
+    for posible in posibles_nombres:
+        posible_norm = normalizar_texto(posible)
+        for col in columnas:
+            if normalizar_texto(col) == posible_norm:
+                return col
+    return None
+
+
+def ordenar_regiones_numericamente(lista_regiones):
+    def extraer_numero_region(region):
+        texto = str(region)
+        numero = ""
+        for caracter in texto:
+            if caracter.isdigit():
+                numero += caracter
+            elif numero:
+                break
+        return int(numero) if numero else 999
+    return sorted(lista_regiones, key=extraer_numero_region)
+
+
+def separar_responde_a(valor):
+    if pd.isna(valor):
+        return []
+    texto = str(valor).strip()
+    if texto == "" or texto.lower() == "nan":
+        return []
+    return [parte.strip() for parte in texto.split("/") if parte.strip()]
+
+
+@st.cache_data
+def cargar_datos_importantes():
+    columnas_base = [
+        "Provincia", "Cantón", "Distrito", "Dirección Regional",
+        "Delegación", "Responde a", "Actividad Realizada", "Programa"
+    ]
+
+    if not os.path.exists(ARCHIVO_DATOS_IMPORTANTES):
+        return pd.DataFrame(columns=columnas_base)
+
+    try:
+        df_original = pd.read_excel(ARCHIVO_DATOS_IMPORTANTES)
+
+        col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
+        col_canton = obtener_columna_por_nombre(df_original, ["Cantón", "Canton"])
+        col_distrito = obtener_columna_por_nombre(df_original, ["Distrito", "Distritos"])
+        col_region = obtener_columna_por_nombre(df_original, ["Dirección Regional", "Direccion Regional"])
+        col_delegacion = obtener_columna_por_nombre(df_original, ["Delegación", "Delegacion"])
+        col_responde_a = obtener_columna_por_nombre(df_original, ["Responde a", "Responde a:", "Responde", "Responda a", "Responda a:"])
+        col_actividad = obtener_columna_por_nombre(df_original, ["Actividad Realizada", "Actividad"])
+        col_programa = obtener_columna_por_nombre(df_original, ["Programa"])
+
+        columnas_requeridas = [
+            col_provincia, col_canton, col_distrito, col_region,
+            col_delegacion, col_responde_a, col_actividad, col_programa
+        ]
+
+        if not all(columnas_requeridas):
+            st.warning(
+                "El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas. "
+                "Debe incluir: Provincia, Cantón, Distrito, Dirección Regional, Delegación, "
+                "Responde a, Actividad Realizada y Programa."
+            )
+            return pd.DataFrame(columns=columnas_base)
+
+        df = df_original[[
+            col_provincia, col_canton, col_distrito, col_region,
+            col_delegacion, col_responde_a, col_actividad, col_programa
+        ]].copy()
+        df.columns = columnas_base
+
+        for col in columnas_base:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+        df = df.replace("nan", "")
+        df = df.drop_duplicates()
+
+        df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
+        df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+        df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
+        df["Región_Normalizada"] = df["Dirección Regional"].apply(normalizar_texto)
+        df["Delegación_Normalizada"] = df["Delegación"].apply(normalizar_texto)
+        df["Responde_a_Normalizado"] = df["Responde a"].apply(normalizar_texto)
+        df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(normalizar_texto)
+        df["Programa_Normalizado"] = df["Programa"].apply(normalizar_texto)
+
+        filas_expandidas = []
+        for _, fila in df.iterrows():
+            opciones_responde = separar_responde_a(fila["Responde a"])
+            if not opciones_responde:
+                opciones_responde = [fila["Responde a"]]
+            for opcion in opciones_responde:
+                nueva_fila = fila.copy()
+                nueva_fila["Responde a"] = opcion
+                nueva_fila["Responde_a_Normalizado"] = normalizar_texto(opcion)
+                filas_expandidas.append(nueva_fila)
+
+        if filas_expandidas:
+            df = pd.DataFrame(filas_expandidas).drop_duplicates()
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error leyendo {ARCHIVO_DATOS_IMPORTANTES}")
+        st.exception(e)
+        return pd.DataFrame(columns=columnas_base)
+
+
+def agregar_valor_actual(opciones, valor_actual):
+    opciones = [str(x).strip() for x in opciones if str(x).strip() and str(x).strip().lower() != "nan"]
+    opciones = list(dict.fromkeys(opciones))
+    valor_actual = str(valor_actual).strip()
+    if valor_actual and valor_actual.lower() != "nan" and valor_actual not in opciones:
+        opciones.insert(0, valor_actual)
+    if not opciones:
+        opciones = [valor_actual] if valor_actual else [""]
+    return opciones
+
+
+def obtener_regiones_datos(valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty:
+        return agregar_valor_actual(ordenar_regiones_numericamente(REGIONES_BASE), valor_actual)
+    regiones = df["Dirección Regional"].dropna().unique().tolist()
+    regiones = [x for x in regiones if str(x).strip()]
+    return agregar_valor_actual(ordenar_regiones_numericamente(regiones), valor_actual)
+
+
+def obtener_delegaciones_por_region(region, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not region:
+        return agregar_valor_actual([], valor_actual)
+    region_norm = normalizar_texto(region)
+    delegaciones = df[df["Región_Normalizada"] == region_norm]["Delegación"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(delegaciones), valor_actual)
+
+
+def obtener_responde_a_datos(valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or "Responde a" not in df.columns:
+        return agregar_valor_actual([], valor_actual)
+    responde_a = df["Responde a"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(responde_a), valor_actual)
+
+
+def obtener_programas_por_responde_a(responde_a, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not responde_a:
+        return agregar_valor_actual(PROGRAMAS_BASE, valor_actual)
+    responde_norm = normalizar_texto(responde_a)
+    programas = df[df["Responde_a_Normalizado"] == responde_norm]["Programa"].dropna().unique().tolist()
+
+    programas_limpios = []
+    for programa in programas:
+        if normalizar_texto(programa) == "GREAT CAMP":
+            if "GREAT" not in programas_limpios:
+                programas_limpios.append("GREAT")
+        elif programa not in programas_limpios:
+            programas_limpios.append(programa)
+
+    orden_oficial = [p for p in PROGRAMAS_BASE if p in programas_limpios]
+    extras = sorted([p for p in programas_limpios if p not in orden_oficial])
+    return agregar_valor_actual(orden_oficial + extras, valor_actual)
+
+
+def obtener_actividades_por_responde_a_programa(responde_a, programa, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not responde_a or not programa:
+        return agregar_valor_actual([], valor_actual)
+
+    responde_norm = normalizar_texto(responde_a)
+    programa_norm = normalizar_texto(programa)
+
+    if programa_norm == "GREAT":
+        actividades = df[
+            (df["Responde_a_Normalizado"] == responde_norm) &
+            (df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"]))
+        ]["Actividad Realizada"].dropna().unique().tolist()
+    else:
+        actividades = df[
+            (df["Responde_a_Normalizado"] == responde_norm) &
+            (df["Programa_Normalizado"] == programa_norm)
+        ]["Actividad Realizada"].dropna().unique().tolist()
+
+    return agregar_valor_actual(sorted(actividades), valor_actual)
+
+
+def obtener_provincias_datos(valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty:
+        return agregar_valor_actual(PROVINCIAS_BASE, valor_actual)
+    provincias = df["Provincia"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(provincias), valor_actual)
+
+
+def obtener_cantones_por_provincia(provincia, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not provincia:
+        return agregar_valor_actual([], valor_actual)
+    provincia_norm = normalizar_texto(provincia)
+    cantones = df[df["Provincia_Normalizada"] == provincia_norm]["Cantón"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(cantones), valor_actual)
+
+
+def obtener_distritos_por_provincia_canton(provincia, canton, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not provincia or not canton:
+        return agregar_valor_actual([], valor_actual)
+    provincia_norm = normalizar_texto(provincia)
+    canton_norm = normalizar_texto(canton)
+    distritos = df[
+        (df["Provincia_Normalizada"] == provincia_norm) &
+        (df["Cantón_Normalizado"] == canton_norm)
+    ]["Distrito"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(distritos), valor_actual)
+
+
+@st.cache_data
+def cargar_base_mep():
+    columnas_base = ["PROVINCIA", "NOMBRE", "CODIGO_PRESUPUESTARIO"]
+    if not os.path.exists(ARCHIVO_MEP):
+        return pd.DataFrame(columns=columnas_base)
+    try:
+        df_original = pd.read_excel(ARCHIVO_MEP)
+        col_provincia = obtener_columna_por_nombre(df_original, ["PROVINCIA", "Provincia"])
+        col_nombre = obtener_columna_por_nombre(df_original, ["NOMBRE", "Nombre", "CENTRO EDUCATIVO", "Centro Educativo", "INSTITUCION", "Institución"])
+        col_codigo = obtener_columna_por_nombre(df_original, ["CODIGO PRESUPUESTARIO", "CÓDIGO PRESUPUESTARIO", "Codigo Presupuestario", "Código Presupuestario", "CODIGO", "CÓDIGO"])
+
+        if not col_provincia or not col_nombre:
+            return pd.DataFrame(columns=columnas_base)
+        if not col_codigo:
+            df_original["CODIGO_PRESUPUESTARIO_TMP"] = ""
+            col_codigo = "CODIGO_PRESUPUESTARIO_TMP"
+
+        df = df_original[[col_provincia, col_nombre, col_codigo]].copy()
+        df.columns = columnas_base
+        for col in columnas_base:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+        df["PROVINCIA_NORMALIZADA"] = df["PROVINCIA"].apply(normalizar_texto)
+        df["NOMBRE_NORMALIZADO"] = df["NOMBRE"].apply(normalizar_texto)
+        df["CENTRO_MOSTRAR"] = df.apply(
+            lambda row: f"{row['NOMBRE']} - Código: {row['CODIGO_PRESUPUESTARIO']}"
+            if row["CODIGO_PRESUPUESTARIO"].strip() != "" else row["NOMBRE"],
+            axis=1
+        )
+        return df.drop_duplicates(subset=["PROVINCIA_NORMALIZADA", "NOMBRE_NORMALIZADO", "CODIGO_PRESUPUESTARIO"])
+    except Exception as e:
+        st.error(f"Error leyendo {ARCHIVO_MEP}")
+        st.exception(e)
+        return pd.DataFrame(columns=columnas_base)
+
+
+def obtener_centros_por_provincia(provincia, valor_actual=""):
+    df = cargar_base_mep()
+    if df.empty or not provincia:
+        return agregar_valor_actual([], valor_actual)
+    provincia_norm = normalizar_texto(provincia)
+    centros = df[df["PROVINCIA_NORMALIZADA"] == provincia_norm]["CENTRO_MOSTRAR"].dropna().astype(str).drop_duplicates().sort_values().tolist()
+    return agregar_valor_actual(centros, valor_actual)
+
+
+def obtener_datos_centro_educativo(centro_mostrar):
+    df = cargar_base_mep()
+    if df.empty or not centro_mostrar:
+        return centro_mostrar, ""
+    fila = df[df["CENTRO_MOSTRAR"] == centro_mostrar]
+    if fila.empty:
+        return centro_mostrar, ""
+    nombre = fila.iloc[0].get("NOMBRE", "")
+    codigo = fila.iloc[0].get("CODIGO_PRESUPUESTARIO", "")
+    return nombre, codigo
+
+
+def selectbox_con_valor_actual(label, opciones, valor_actual, key):
+    opciones = agregar_valor_actual(opciones, valor_actual)
+    return st.selectbox(
+        label,
+        opciones,
+        index=indice_opcion_seguro(opciones, valor_actual),
+        key=key
+    )
+
 # ======================================================
 # EDITAR Y ELIMINAR REGISTROS REGIONALES
 # ======================================================
@@ -2063,7 +2393,7 @@ def modulo_editar_eliminar_registros(df_filtrado):
     st.markdown("### Editar registro")
     st.info(
         "Los campos que originalmente eran de selección en la delegación ahora también se pueden volver a seleccionar aquí, "
-        "usando las opciones encontradas en los Excel cargados."
+        "usando las opciones oficiales de las bases de datos del sistema: Datos Importantes.xlsx y BASE DE DATOS MEP 2025.xlsx."
     )
 
     with st.form("form_editar_registro_regional"):
@@ -2080,73 +2410,60 @@ def modulo_editar_eliminar_registros(df_filtrado):
                 value=str(fila.get("Hora Actividad", ""))
             )
 
-            direccion_regional = selectbox_edicion_regional(
+            direccion_regional = selectbox_con_valor_actual(
                 "Dirección Regional",
-                "Dirección Regional",
-                fila,
-                key=f"edit_region_{indice_editar}",
-                df_base=df_base
+                obtener_regiones_datos(fila.get("Dirección Regional", "")),
+                fila.get("Dirección Regional", ""),
+                key=f"edit_region_{indice_editar}"
             )
 
-            delegacion = selectbox_edicion_regional(
+            delegacion = selectbox_con_valor_actual(
                 "Delegación",
-                "Delegación",
-                fila,
-                key=f"edit_delegacion_{indice_editar}",
-                df_base=df_base,
-                filtros={"Dirección Regional": direccion_regional}
+                obtener_delegaciones_por_region(direccion_regional, fila.get("Delegación", "")),
+                fila.get("Delegación", ""),
+                key=f"edit_delegacion_{indice_editar}"
             )
 
-            responde_a = selectbox_edicion_regional(
+            responde_a = selectbox_con_valor_actual(
                 "Responde a",
-                "Responde a",
-                fila,
-                key=f"edit_responde_{indice_editar}",
-                df_base=df_base
+                obtener_responde_a_datos(fila.get("Responde a", "")),
+                fila.get("Responde a", ""),
+                key=f"edit_responde_{indice_editar}"
             )
 
-            programa = selectbox_edicion_regional(
+            programa = selectbox_con_valor_actual(
                 "Programa",
-                "Programa",
-                fila,
-                key=f"edit_programa_{indice_editar}",
-                df_base=df_base,
-                filtros={"Responde a": responde_a}
+                obtener_programas_por_responde_a(responde_a, fila.get("Programa", "")),
+                fila.get("Programa", ""),
+                key=f"edit_programa_{indice_editar}"
             )
 
-            actividad = selectbox_edicion_regional(
+            actividad = selectbox_con_valor_actual(
                 "Actividad",
-                "Actividad",
-                fila,
-                key=f"edit_actividad_{indice_editar}",
-                df_base=df_base,
-                filtros={"Responde a": responde_a, "Programa": programa}
+                obtener_actividades_por_responde_a_programa(responde_a, programa, fila.get("Actividad", "")),
+                fila.get("Actividad", ""),
+                key=f"edit_actividad_{indice_editar}"
             )
 
-            provincia = selectbox_edicion_regional(
+            provincia = selectbox_con_valor_actual(
                 "Provincia",
-                "Provincia",
-                fila,
-                key=f"edit_provincia_{indice_editar}",
-                df_base=df_base
+                obtener_provincias_datos(fila.get("Provincia", "")),
+                fila.get("Provincia", ""),
+                key=f"edit_provincia_{indice_editar}"
             )
 
-            canton = selectbox_edicion_regional(
+            canton = selectbox_con_valor_actual(
                 "Cantón",
-                "Cantón",
-                fila,
-                key=f"edit_canton_{indice_editar}",
-                df_base=df_base,
-                filtros={"Provincia": provincia}
+                obtener_cantones_por_provincia(provincia, fila.get("Cantón", "")),
+                fila.get("Cantón", ""),
+                key=f"edit_canton_{indice_editar}"
             )
 
-            distrito = selectbox_edicion_regional(
+            distrito = selectbox_con_valor_actual(
                 "Distrito",
-                "Distrito",
-                fila,
-                key=f"edit_distrito_{indice_editar}",
-                df_base=df_base,
-                filtros={"Provincia": provincia, "Cantón": canton}
+                obtener_distritos_por_provincia_canton(provincia, canton, fila.get("Distrito", "")),
+                fila.get("Distrito", ""),
+                key=f"edit_distrito_{indice_editar}"
             )
 
             tipo_lugar_opciones = ["Centro educativo", "Otro lugar"]
@@ -2160,9 +2477,25 @@ def modulo_editar_eliminar_registros(df_filtrado):
                 key=f"edit_tipo_lugar_{indice_editar}"
             )
 
-            lugar = st.text_input("Lugar", value=str(fila.get("Lugar", "")))
-            centro_educativo = st.text_input("Centro Educativo", value=str(fila.get("Centro Educativo", "")))
-            codigo_presupuestario = st.text_input("Código Presupuestario", value=str(fila.get("Código Presupuestario", "")))
+            if tipo_lugar == "Centro educativo":
+                centro_opciones = obtener_centros_por_provincia(provincia, fila.get("Centro Educativo", ""))
+                centro_mostrar = selectbox_con_valor_actual(
+                    "Centro educativo según base MEP 2025",
+                    centro_opciones,
+                    fila.get("Centro Educativo", ""),
+                    key=f"edit_centro_mep_{indice_editar}"
+                )
+                centro_educativo, codigo_presupuestario_auto = obtener_datos_centro_educativo(centro_mostrar)
+                codigo_actual = str(fila.get("Código Presupuestario", "")).strip()
+                codigo_presupuestario = codigo_presupuestario_auto if codigo_presupuestario_auto else codigo_actual
+                lugar = centro_educativo
+                st.info(f"Centro educativo seleccionado: {centro_educativo}")
+                st.info(f"Código presupuestario: {codigo_presupuestario if codigo_presupuestario else 'No disponible'}")
+            else:
+                lugar = st.text_input("Lugar", value=str(fila.get("Lugar", "")))
+                centro_educativo = ""
+                codigo_presupuestario = ""
+
             latitud = st.text_input("Latitud", value=str(fila.get("Latitud", "")))
             longitud = st.text_input("Longitud", value=str(fila.get("Longitud", "")))
 
