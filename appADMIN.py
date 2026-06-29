@@ -107,6 +107,13 @@ ENCABEZADOS_PUMI = [
 # Estos campos se agregan para validación.
 # ======================================================
 
+ENCABEZADOS_VERIFICACION_REGIONAL = [
+    "Estado Verificación Regional",
+    "Observaciones Verificación Regional",
+    "Coordinador Regional",
+    "Fecha Verificación Regional"
+]
+
 ENCABEZADOS_VALIDACION = [
     "Estado Validación",
     "Observaciones Validación",
@@ -115,7 +122,7 @@ ENCABEZADOS_VALIDACION = [
 ]
 
 
-ENCABEZADOS_COMPLETOS = ENCABEZADOS_PUMI + ENCABEZADOS_VALIDACION
+ENCABEZADOS_COMPLETOS = ENCABEZADOS_PUMI + ENCABEZADOS_VERIFICACION_REGIONAL + ENCABEZADOS_VALIDACION
 
 
 # ======================================================
@@ -609,6 +616,10 @@ def preparar_dataframe_admin(df):
         if col not in df.columns:
             df[col] = ""
 
+    for col in ENCABEZADOS_VERIFICACION_REGIONAL:
+        if col not in df.columns:
+            df[col] = ""
+
     for col in ENCABEZADOS_VALIDACION:
         if col not in df.columns:
             df[col] = ""
@@ -635,6 +646,11 @@ def preparar_dataframe_admin(df):
                 df[col],
                 errors="coerce"
             ).fillna(0).astype(int)
+
+    df["Estado Verificación Regional"] = df["Estado Verificación Regional"].replace(
+        "",
+        "Pendiente de verificación"
+    )
 
     df["Estado Validación"] = df["Estado Validación"].replace(
         "",
@@ -711,6 +727,13 @@ def convertir_excel_admin(df):
         bottom=Side(style="thin", color="BFBFBF")
     )
 
+    columnas_regional = {
+        "Estado Verificación Regional",
+        "Observaciones Verificación Regional",
+        "Coordinador Regional",
+        "Fecha Verificación Regional"
+    }
+
     columnas_validacion = {
         "Estado Validación",
         "Observaciones Validación",
@@ -721,6 +744,8 @@ def convertir_excel_admin(df):
     for cell in worksheet[1]:
         if cell.value in columnas_validacion:
             cell.fill = fill_header_admin
+        elif cell.value in columnas_regional:
+            cell.fill = PatternFill(start_color="1E4FA3", end_color="1E4FA3", fill_type="solid")
         else:
             cell.fill = fill_header
 
@@ -740,11 +765,13 @@ def convertir_excel_admin(df):
     }
 
     col_estado = None
+    col_estado_regional = None
 
     for idx, cell in enumerate(worksheet[1], start=1):
         if cell.value == "Estado Validación":
             col_estado = idx
-            break
+        if cell.value == "Estado Verificación Regional":
+            col_estado_regional = idx
 
     for row in worksheet.iter_rows(min_row=2):
         for cell in row:
@@ -753,6 +780,24 @@ def convertir_excel_admin(df):
                 wrap_text=True
             )
             cell.border = border
+
+        if col_estado_regional:
+            celda_estado_regional = row[col_estado_regional - 1]
+            estado_regional = str(celda_estado_regional.value).strip()
+            colores_regional = {
+                "Pendiente de verificación": "F2C94C",
+                "Verificada para envío": "1F8A4C",
+                "Devuelta a delegación": "B42318",
+                "Con observaciones regionales": "B88A2A"
+            }
+            if estado_regional in colores_regional:
+                celda_estado_regional.fill = PatternFill(
+                    start_color=colores_regional[estado_regional],
+                    end_color=colores_regional[estado_regional],
+                    fill_type="solid"
+                )
+                celda_estado_regional.font = Font(color="FFFFFF", bold=True)
+                celda_estado_regional.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
         if col_estado:
             celda_estado = row[col_estado - 1]
@@ -895,8 +940,19 @@ def aplicar_filtros_admin(df):
         )
 
     with col3:
+        filtro_estado_regional = st.multiselect(
+            "Estado de verificación regional",
+            [
+                "Pendiente de verificación",
+                "Verificada para envío",
+                "Devuelta a delegación",
+                "Con observaciones regionales"
+            ],
+            default=["Verificada para envío"]
+        )
+
         filtro_estado = st.multiselect(
-            "Estado de validación",
+            "Estado de validación nacional",
             [
                 "Pendiente",
                 "Aprobada",
@@ -953,6 +1009,11 @@ def aplicar_filtros_admin(df):
             df_filtrado["Actividad"].isin(filtro_actividad)
         ]
 
+    if filtro_estado_regional:
+        df_filtrado = df_filtrado[
+            df_filtrado["Estado Verificación Regional"].isin(filtro_estado_regional)
+        ]
+
     if filtro_estado:
         df_filtrado = df_filtrado[
             df_filtrado["Estado Validación"].isin(filtro_estado)
@@ -989,7 +1050,8 @@ def aplicar_filtros_admin(df):
         "Delegación": filtro_delegacion,
         "Programa": filtro_programa,
         "Actividad": filtro_actividad,
-        "Estado Validación": filtro_estado,
+        "Estado Verificación Regional": filtro_estado_regional,
+        "Estado Validación Nacional": filtro_estado,
         "Provincia": filtro_provincia,
         "Fecha Inicio": str(fecha_inicio) if fecha_inicio else "",
         "Fecha Final": str(fecha_fin) if fecha_fin else ""
@@ -1116,7 +1178,8 @@ def crear_mapa_admin(df, tipo_mapa="OpenStreetMap"):
         popup_html = f"""
         <div style="font-family:Arial; width:300px;">
             <h4 style="color:#002B7F;">Registro PUMI #{row.get("ID", "")}</h4>
-            <b>Estado:</b> {estado}<br>
+            <b>Estado nacional:</b> {estado}<br>
+            <b>Estado regional:</b> {row.get("Estado Verificación Regional", "")}<br>
             <b>Dirección Regional:</b> {row.get("Dirección Regional", "")}<br>
             <b>Delegación:</b> {row.get("Delegación", "")}<br>
             <b>Programa:</b> {row.get("Programa", "")}<br>
@@ -1666,6 +1729,15 @@ def mostrar_tarjeta_registro_validacion(fila):
     with colr4:
         st.metric("Edad 46+", fila.get("Edad 46 en adelante", 0))
 
+    st.markdown("#### Verificación regional previa")
+    colvr1, colvr2 = st.columns(2)
+    with colvr1:
+        st.write(f"**Estado regional:** {fila.get('Estado Verificación Regional', '')}")
+        st.write(f"**Coordinador regional:** {fila.get('Coordinador Regional', '')}")
+    with colvr2:
+        st.write(f"**Fecha verificación regional:** {fila.get('Fecha Verificación Regional', '')}")
+        st.write(f"**Observaciones regionales:** {fila.get('Observaciones Verificación Regional', '')}")
+
     st.markdown("#### Observaciones del registro original")
 
     observacion_original = str(fila.get("Observaciones", "")).strip()
@@ -1705,9 +1777,10 @@ def modulo_validacion_actividades(df_filtrado):
         """
         <div class="card-validacion">
             <div class="texto-admin">
-                En este apartado puede revisar cada actividad registrada en PUMI
-                y asignar su estado administrativo: aprobada, rechazada, pendiente
-                o con observaciones.
+                En este apartado se revisan únicamente las actividades que ya fueron
+                verificadas por la Dirección Regional como "Verificada para envío".
+                Posteriormente se asigna la validación nacional: aprobada, rechazada,
+                pendiente o con observaciones.
             </div>
         </div>
         """,
@@ -1715,6 +1788,12 @@ def modulo_validacion_actividades(df_filtrado):
     )
 
     st.markdown("### Selección del registro")
+
+    df_filtrado = df_filtrado[df_filtrado["Estado Verificación Regional"].astype(str) == "Verificada para envío"].copy()
+
+    if df_filtrado.empty:
+        st.warning("No hay actividades verificadas por la Dirección Regional para validación nacional con los filtros aplicados.")
+        return
 
     ids_filtrados = df_filtrado["ID"].astype(str).tolist()
 
@@ -1861,6 +1940,10 @@ def mostrar_tabla_resumen_validacion(df):
         "Programa",
         "Actividad",
         "Cantidad Participantes",
+        "Estado Verificación Regional",
+        "Observaciones Verificación Regional",
+        "Coordinador Regional",
+        "Fecha Verificación Regional",
         "Estado Validación",
         "Observaciones Validación",
         "Funcionario Validador",
@@ -2475,6 +2558,10 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
         "Programa",
         "Actividad",
         "Cantidad Participantes",
+        "Estado Verificación Regional",
+        "Observaciones Verificación Regional",
+        "Coordinador Regional",
+        "Fecha Verificación Regional",
         "Estado Validación",
         "Observaciones Validación"
     ]
@@ -2546,14 +2633,15 @@ def generar_pdf_validacion(
     elementos.append(parrafo_pdf("3. Resumen analítico", estilos["SubtituloPDF"]))
 
     elementos.append(parrafo_pdf(
-        "En este apartado se presenta la distribución de los registros según estado de validación, programa, Dirección Regional y delegación.",
+        "En este apartado se presenta la distribución de los registros según verificación regional, estado de validación nacional, programa, Dirección Regional y delegación.",
         estilos["TextoPDF"]
     ))
 
     elementos.append(Spacer(1, 0.3 * cm))
 
-    construir_tabla_agrupada_pdf(elementos, df, "Estado Validación", "3.1 Distribución por estado de validación", estilos)
-    construir_tabla_agrupada_pdf(elementos, df, "Programa", "3.2 Distribución por programa", estilos)
+    construir_tabla_agrupada_pdf(elementos, df, "Estado Verificación Regional", "3.1 Distribución por verificación regional", estilos)
+    construir_tabla_agrupada_pdf(elementos, df, "Estado Validación", "3.2 Distribución por validación nacional", estilos)
+    construir_tabla_agrupada_pdf(elementos, df, "Programa", "3.3 Distribución por programa", estilos)
     construir_tabla_agrupada_pdf(elementos, df, "Dirección Regional", "3.3 Distribución por Dirección Regional", estilos)
     construir_tabla_agrupada_pdf(elementos, df, "Delegación", "3.4 Distribución por delegación", estilos)
 
@@ -2691,8 +2779,8 @@ st.sidebar.markdown(
         margin-bottom:15px;
         font-size:14px;
     ">
-    Cargue el Excel generado por la app PUMI para validar,
-    analizar y generar informes administrativos.
+    Cargue el Excel verificado por la Dirección Regional para validar,
+    analizar y generar informes administrativos nacionales.
     </div>
     """,
     unsafe_allow_html=True
@@ -2764,8 +2852,8 @@ if menu_admin == "Inicio":
                 Bienvenido al Panel Administrativo PUMI 2026
             </div>
             <div class="texto-admin">
-                Esta aplicación permite cargar el Excel generado desde la app PUMI,
-                revisar los registros, aplicar validaciones administrativas de forma
+                Esta aplicación permite cargar el Excel verificado por la Dirección Regional,
+                revisar los registros previamente verificados, aplicar validaciones administrativas de forma
                 individual, consultar datos mediante filtros, visualizar gráficos y mapas,
                 descargar un Excel validado con colores por estado y generar un informe
                 PDF formal con gráficos institucionales e imagen del mapa.
@@ -2779,6 +2867,10 @@ if menu_admin == "Inicio":
         st.info("Suba un archivo Excel desde el panel lateral para iniciar.")
     else:
         mostrar_metricas_admin(df_admin)
+
+        total_verificadas = len(df_admin[df_admin["Estado Verificación Regional"].astype(str) == "Verificada para envío"])
+        total_no_verificadas = len(df_admin) - total_verificadas
+        st.info(f"Actividades listas para validación nacional: {total_verificadas}. Actividades no habilitadas por verificación regional: {total_no_verificadas}.")
 
         st.markdown("### Vista rápida de registros cargados")
 
@@ -2954,4 +3046,3 @@ else:
         st.session_state.grafico_imagen_referencia = None
         st.sidebar.success("Datos limpiados correctamente.")
         st.rerun()
-
