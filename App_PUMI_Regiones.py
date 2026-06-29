@@ -607,15 +607,17 @@ def mostrar_titulo_admin():
 def preparar_dataframe_admin(df):
     df = df.copy()
 
-    for col in ENCABEZADOS_PUMI:
+    # Limpia nombres de columnas por si vienen con espacios al inicio/final
+    df.columns = [str(col).strip() for col in df.columns]
+
+    # Evita error cuando el Excel viene de la app original, regional o admin.
+    # Agrega cualquier columna oficial que falte, incluyendo "Archivo Origen".
+    for col in ENCABEZADOS_COMPLETOS:
         if col not in df.columns:
             df[col] = ""
 
-    for col in ENCABEZADOS_VALIDACION:
-        if col not in df.columns:
-            df[col] = ""
-
-    df = df[ENCABEZADOS_COMPLETOS]
+    # Orden oficial de columnas para la app regional
+    df = df.reindex(columns=ENCABEZADOS_COMPLETOS, fill_value="")
 
     for col in ENCABEZADOS_COMPLETOS:
         df[col] = df[col].fillna("").astype(str)
