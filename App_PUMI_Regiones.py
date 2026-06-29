@@ -23,23 +23,6 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, Protection
 from openpyxl.drawing.image import Image as XLImage
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, landscape
-from reportlab.lib.units import cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-    PageBreak,
-    Image,
-    KeepTogether
-)
-
-
 # ======================================================
 # CONFIGURACIÓN GENERAL STREAMLIT
 # ======================================================
@@ -263,12 +246,18 @@ def obtener_color_programa(programa):
     return COLORES_PROGRAMA.get(str(programa), "gray")
 
 
-def generar_nombre_reporte(df, tipo="PDF"):
+def generar_nombre_reporte(df, tipo="XLSX"):
+    """
+    Genera el nombre de descarga para la app regional.
+    En esta etapa el archivo representa una Dirección Regional completa,
+    por eso NO se incluye la delegación en el nombre.
+    """
+    extension = tipo.lower()
+
     if df is None or df.empty:
-        return f"INFORME_VERIFICACION_REGIONAL_PUMI_2026.{tipo.lower()}"
+        return f"VERIFICACION_REGIONAL_PUMI_2026.{extension}"
 
     region = "VARIAS_REGIONES"
-    delegacion = "VARIAS_DELEGACIONES"
 
     if "Dirección Regional" in df.columns:
         regiones = (
@@ -276,30 +265,19 @@ def generar_nombre_reporte(df, tipo="PDF"):
             .replace("", pd.NA)
             .dropna()
             .astype(str)
+            .str.strip()
             .unique()
             .tolist()
         )
+
+        regiones = [r for r in regiones if r != ""]
 
         if len(regiones) == 1:
             region = regiones[0]
 
-    if "Delegación" in df.columns:
-        delegaciones = (
-            df["Delegación"]
-            .replace("", pd.NA)
-            .dropna()
-            .astype(str)
-            .unique()
-            .tolist()
-        )
-
-        if len(delegaciones) == 1:
-            delegacion = delegaciones[0]
-
     region_limpia = limpiar_nombre_archivo(region)
-    delegacion_limpia = limpiar_nombre_archivo(delegacion)
 
-    return f"INFORME_VERIFICACION_REGIONAL_PUMI_2026_{region_limpia}_{delegacion_limpia}.{tipo.lower()}"
+    return f"VERIFICACION_REGIONAL_PUMI_2026_{region_limpia}.{extension}"
 
 
 # ======================================================
@@ -809,7 +787,7 @@ def convertir_excel_admin(df):
             pass
 
     # ==================================================
-    # MARCA DE AGUA PARA IMPRESIÓN / PDF
+    # MARCA DE AGUA PARA IMPRESIÓN
     # ==================================================
 
     worksheet.oddHeader.center.text = "Dirección de Programas Preventivos Policiales"
@@ -1972,780 +1950,19 @@ def mostrar_tabla_detallada_admin(df):
     )
 # ======================================================
 # appREGIONAL.py
-# PARTE 4 DE 5 CORREGIDA
-# INFORME PDF CON FECHA MANUAL, SIN HORA AUTOMÁTICA,
-# GRÁFICOS INSTITUCIONALES E IMAGEN DEL MAPA
+# PARTE 4 DE 5
+# MÓDULO DE INFORME ELIMINADO
+# La app regional solo genera Excel unificado, protegido
+# y con marca de agua.
 # ======================================================
 
 
-def obtener_estilos_pdf():
-    estilos = getSampleStyleSheet()
-
-    estilos.add(ParagraphStyle(
-        name="TituloPrincipalPDF",
-        parent=estilos["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=22,
-        leading=26,
-        alignment=TA_CENTER,
-        textColor=colors.HexColor(COLOR_AZUL),
-        spaceAfter=14
-    ))
-
-    estilos.add(ParagraphStyle(
-        name="SubtituloPDF",
-        parent=estilos["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=15,
-        leading=18,
-        alignment=TA_LEFT,
-        textColor=colors.HexColor(COLOR_AZUL),
-        spaceBefore=10,
-        spaceAfter=8
-    ))
-
-    estilos.add(ParagraphStyle(
-        name="TextoPDF",
-        parent=estilos["BodyText"],
-        fontName="Helvetica",
-        fontSize=9,
-        leading=12,
-        alignment=TA_JUSTIFY,
-        textColor=colors.HexColor("#222222")
-    ))
-
-    estilos.add(ParagraphStyle(
-        name="TextoTablaPDF",
-        parent=estilos["BodyText"],
-        fontName="Helvetica",
-        fontSize=7,
-        leading=9,
-        alignment=TA_LEFT,
-        textColor=colors.HexColor("#222222")
-    ))
-
-    estilos.add(ParagraphStyle(
-        name="TextoTablaCentroPDF",
-        parent=estilos["BodyText"],
-        fontName="Helvetica",
-        fontSize=7,
-        leading=9,
-        alignment=TA_CENTER,
-        textColor=colors.HexColor("#222222")
-    ))
-
-    return estilos
-
-
-def parrafo_pdf(texto, estilo):
-    texto = "" if texto is None else str(texto)
-    texto = texto.replace("&", "&amp;")
-    texto = texto.replace("<", "&lt;")
-    texto = texto.replace(">", "&gt;")
-    texto = texto.replace("\n", "<br/>")
-    return Paragraph(texto, estilo)
-
-
-def dibujar_encabezado_pie_pdf(canvas, doc):
-    canvas.saveState()
-    ancho, alto = landscape(letter)
-
-    canvas.setFillColor(colors.HexColor(COLOR_AZUL))
-    canvas.rect(0, alto - 1.05 * cm, ancho, 1.05 * cm, fill=1, stroke=0)
-
-    canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 8)
-    canvas.drawString(
-        1.2 * cm,
-        alto - 0.65 * cm,
-        "P.U.M.I. 2026 - Informe de Verificación Regional"
-    )
-
-    canvas.setFillColor(colors.HexColor(COLOR_DORADO))
-    canvas.rect(0, 0.95 * cm, ancho, 0.08 * cm, fill=1, stroke=0)
-
-    canvas.setFillColor(colors.HexColor("#444444"))
-    canvas.setFont("Helvetica", 8)
-
-    canvas.drawRightString(
-        ancho - 1.2 * cm,
-        0.55 * cm,
-        f"Página {doc.page}"
-    )
-
-    canvas.restoreState()
-
-
-def obtener_logo_pdf(ruta, ancho=4.0 * cm, alto=2.0 * cm):
-    if not os.path.exists(ruta):
-        return ""
-
-    try:
-        img = Image(ruta, width=ancho, height=alto)
-        img.hAlign = "CENTER"
-        return img
-    except Exception:
-        return ""
-
-
-def convertir_figura_plotly_a_imagen(fig):
-    try:
-        imagen_bytes = fig.to_image(
-            format="png",
-            width=1200,
-            height=650,
-            scale=2
-        )
-        return BytesIO(imagen_bytes)
-    except Exception:
-        return None
-
-
-def crear_figuras_pdf_admin(df):
-    figuras = []
-    df_metricas = limpiar_dataframe_metricas_admin(df)
-
-    if df_metricas.empty:
-        return figuras
-
-    if "Estado Verificación Regional" in df_metricas.columns:
-        conteo_estado = (
-            df_metricas
-            .groupby("Estado Verificación Regional")
-            .size()
-            .reset_index(name="Cantidad")
-            .sort_values("Cantidad", ascending=False)
-        )
-
-        if not conteo_estado.empty:
-            fig_estado = px.pie(
-                conteo_estado,
-                names="Estado Verificación Regional",
-                values="Cantidad",
-                title="Distribución por estado de verificación",
-                hole=0.35,
-                color="Estado Verificación Regional",
-                color_discrete_map={
-                    "Pendiente de verificación": COLOR_AMARILLO,
-                    "Verificada para envío": COLOR_VERDE,
-                    "Devuelta a delegación": COLOR_ROJO,
-                    "Con observaciones regionales": COLOR_DORADO
-                }
-            )
-
-            fig_estado.update_traces(
-                textinfo="percent+label+value",
-                marker=dict(line=dict(color="white", width=2))
-            )
-
-            fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
-
-            figuras.append({
-                "titulo": "Gráfico 1. Distribución por estado de verificación",
-                "descripcion": "Muestra la proporción de actividades según su estado regional de verificación.",
-                "figura": fig_estado
-            })
-
-    if "Programa" in df_metricas.columns:
-        conteo_programa = (
-            df_metricas
-            .groupby("Programa")
-            .size()
-            .reset_index(name="Cantidad")
-            .sort_values("Cantidad", ascending=False)
-        )
-
-        if not conteo_programa.empty:
-            fig_programa = px.bar(
-                conteo_programa,
-                x="Programa",
-                y="Cantidad",
-                title="Cantidad de registros por programa",
-                text="Cantidad",
-                color_discrete_sequence=[COLOR_DORADO]
-            )
-
-            fig_programa.update_traces(
-                marker_line_color=COLOR_AZUL,
-                marker_line_width=1.5,
-                textposition="outside",
-                textfont=dict(color=COLOR_AZUL, size=14)
-            )
-
-            fig_programa.update_yaxes(rangemode="tozero", dtick=1)
-            fig_programa = aplicar_estilo_grafico_institucional(fig_programa)
-
-            figuras.append({
-                "titulo": "Gráfico 2. Cantidad de registros por programa",
-                "descripcion": "Permite identificar cuáles programas concentran mayor cantidad de actividades.",
-                "figura": fig_programa
-            })
-
-    if "Dirección Regional" in df_metricas.columns:
-        conteo_region = (
-            df_metricas
-            .groupby("Dirección Regional")
-            .size()
-            .reset_index(name="Cantidad")
-            .sort_values("Cantidad", ascending=False)
-        )
-
-        if not conteo_region.empty:
-            fig_region = px.bar(
-                conteo_region,
-                x="Dirección Regional",
-                y="Cantidad",
-                title="Cantidad de registros por Dirección Regional",
-                text="Cantidad",
-                color_discrete_sequence=[COLOR_AZUL]
-            )
-
-            fig_region.update_traces(
-                marker_line_color=COLOR_DORADO,
-                marker_line_width=1.5,
-                textposition="outside",
-                textfont=dict(color=COLOR_AZUL, size=14)
-            )
-
-            fig_region.update_yaxes(rangemode="tozero", dtick=1)
-            fig_region.update_xaxes(tickangle=-30)
-            fig_region = aplicar_estilo_grafico_institucional(fig_region)
-
-            figuras.append({
-                "titulo": "Gráfico 3. Cantidad de registros por Dirección Regional",
-                "descripcion": "Muestra la distribución de registros según Dirección Regional.",
-                "figura": fig_region
-            })
-
-    if "Delegación" in df_metricas.columns:
-        conteo_delegacion = (
-            df_metricas
-            .groupby("Delegación")
-            .size()
-            .reset_index(name="Cantidad")
-            .sort_values("Cantidad", ascending=False)
-            .head(15)
-        )
-
-        if not conteo_delegacion.empty:
-            fig_delegacion = px.bar(
-                conteo_delegacion,
-                x="Delegación",
-                y="Cantidad",
-                title="Top delegaciones por cantidad de registros",
-                text="Cantidad",
-                color_discrete_sequence=[COLOR_DORADO]
-            )
-
-            fig_delegacion.update_traces(
-                marker_line_color=COLOR_AZUL,
-                marker_line_width=1.5,
-                textposition="outside",
-                textfont=dict(color=COLOR_AZUL, size=14)
-            )
-
-            fig_delegacion.update_yaxes(rangemode="tozero", dtick=1)
-            fig_delegacion.update_xaxes(tickangle=-30)
-            fig_delegacion = aplicar_estilo_grafico_institucional(fig_delegacion)
-
-            figuras.append({
-                "titulo": "Gráfico 4. Top delegaciones por cantidad de registros",
-                "descripcion": "Resume las delegaciones con mayor cantidad de registros.",
-                "figura": fig_delegacion
-            })
-
-    return figuras
-
-
-def agregar_graficos_automaticos_pdf(elementos, df, estilos):
-    figuras = crear_figuras_pdf_admin(df)
-
-    if not figuras:
-        return
-
-    elementos.append(PageBreak())
-    elementos.append(parrafo_pdf("4. Gráficos automáticos del dashboard", estilos["SubtituloPDF"]))
-
-    elementos.append(parrafo_pdf(
-        "Los siguientes gráficos fueron generados automáticamente desde los datos filtrados en la app regional.",
-        estilos["TextoPDF"]
-    ))
-
-    elementos.append(Spacer(1, 0.3 * cm))
-
-    for item in figuras:
-        imagen = convertir_figura_plotly_a_imagen(item["figura"])
-
-        if imagen is None:
-            continue
-
-        bloque = [
-            parrafo_pdf(item["titulo"], estilos["SubtituloPDF"]),
-            parrafo_pdf(item["descripcion"], estilos["TextoPDF"]),
-            Spacer(1, 0.2 * cm)
-        ]
-
-        img = Image(imagen, width=22 * cm, height=11 * cm)
-        img.hAlign = "CENTER"
-        bloque.append(img)
-        bloque.append(Spacer(1, 0.4 * cm))
-
-        elementos.append(KeepTogether(bloque))
-
-
-def agregar_imagen_mapa_pdf(elementos, archivo_mapa, descripcion_mapa, estilos):
-    if archivo_mapa is None:
-        return
-
-    try:
-        elementos.append(PageBreak())
-        elementos.append(parrafo_pdf("5. Imagen del mapa de referencia", estilos["SubtituloPDF"]))
-
-        texto = (
-            descripcion_mapa
-            if descripcion_mapa and str(descripcion_mapa).strip()
-            else "La siguiente imagen muestra la distribución territorial de las actividades filtradas en la app regional."
-        )
-
-        elementos.append(parrafo_pdf(texto, estilos["TextoPDF"]))
-        elementos.append(Spacer(1, 0.3 * cm))
-
-        imagen_bytes = BytesIO(archivo_mapa.read())
-        img = Image(imagen_bytes, width=22 * cm, height=11.5 * cm)
-        img.hAlign = "CENTER"
-
-        elementos.append(img)
-        elementos.append(Spacer(1, 0.4 * cm))
-
-    except Exception:
-        elementos.append(parrafo_pdf("No se pudo agregar la imagen del mapa.", estilos["TextoPDF"]))
-
-
-def construir_portada_pdf(elementos, df, estilos, fecha_informe=""):
-    logo_min = obtener_logo_pdf(LOGO_MINISTERIO, 5.0 * cm, 1.7 * cm)
-    logo_pumi = obtener_logo_pdf(LOGO_PUMI, 4.0 * cm, 2.0 * cm)
-    logo_fp = obtener_logo_pdf(LOGO_FUERZA_PUBLICA, 5.0 * cm, 2.0 * cm)
-
-    tabla_logos = Table(
-        [[logo_min, logo_pumi, logo_fp]],
-        colWidths=[8 * cm, 8 * cm, 8 * cm]
-    )
-
-    tabla_logos.setStyle(TableStyle([
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(COLOR_DORADO)),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
-
-    elementos.append(tabla_logos)
-    elementos.append(Spacer(1, 0.7 * cm))
-
-    elementos.append(parrafo_pdf(
-        "INFORME ADMINISTRATIVO DE VALIDACIÓN DE ACTIVIDADES",
-        estilos["TituloPrincipalPDF"]
-    ))
-
-    elementos.append(parrafo_pdf(
-        "Sistema P.U.M.I. 2026",
-        estilos["TituloPrincipalPDF"]
-    ))
-
-    total = len(df)
-
-    participantes = int(
-        pd.to_numeric(
-            df["Cantidad Participantes"],
-            errors="coerce"
-        ).fillna(0).sum()
-    ) if not df.empty and "Cantidad Participantes" in df.columns else 0
-
-    regiones = ", ".join(
-        df["Dirección Regional"]
-        .replace("", pd.NA)
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist()
-    ) if "Dirección Regional" in df.columns and not df.empty else "Sin datos"
-
-    delegaciones = ", ".join(
-        df["Delegación"]
-        .replace("", pd.NA)
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist()
-    ) if "Delegación" in df.columns and not df.empty else "Sin datos"
-
-    elementos.append(parrafo_pdf(
-        "El presente informe consolida la información de actividades registradas en el sistema PUMI 2026, incorporando su estado regional de verificación, observaciones, métricas principales y elementos de análisis.",
-        estilos["TextoPDF"]
-    ))
-
-    elementos.append(Spacer(1, 0.5 * cm))
-
-    datos_portada = [
-        ["Total de registros analizados", str(total)],
-        ["Total de participantes", str(participantes)],
-        ["Dirección Regional", regiones if regiones else "Varias"],
-        ["Delegación", delegaciones if delegaciones else "Varias"],
-        ["Fecha del informe", fecha_informe if fecha_informe else "No indicada"]
-    ]
-
-    tabla = Table(datos_portada, colWidths=[7 * cm, 17 * cm])
-
-    tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor(COLOR_AZUL)),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ROWBACKGROUNDS", (1, 0), (1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-        ("TOPPADDING", (0, 0), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-    ]))
-
-    elementos.append(tabla)
-    elementos.append(PageBreak())
-
-
-def construir_resumen_pdf(elementos, df, estilos):
-    elementos.append(parrafo_pdf("1. Resumen ejecutivo", estilos["SubtituloPDF"]))
-
-    elementos.append(parrafo_pdf(
-        "Esta sección presenta una síntesis de los registros incluidos en el informe, considerando el total de actividades, participantes y estado de verificación regional.",
-        estilos["TextoPDF"]
-    ))
-
-    elementos.append(Spacer(1, 0.3 * cm))
-
-    total = len(df)
-
-    participantes = int(
-        pd.to_numeric(
-            df["Cantidad Participantes"],
-            errors="coerce"
-        ).fillna(0).sum()
-    ) if "Cantidad Participantes" in df.columns and not df.empty else 0
-
-    aprobadas = len(df[df["Estado Verificación Regional"] == "Verificada para envío"]) if not df.empty else 0
-    pendientes = len(df[df["Estado Verificación Regional"] == "Pendiente de verificación"]) if not df.empty else 0
-    rechazadas = len(df[df["Estado Verificación Regional"] == "Devuelta a delegación"]) if not df.empty else 0
-    observadas = len(df[df["Estado Verificación Regional"] == "Con observaciones regionales"]) if not df.empty else 0
-
-    datos = [
-        ["Indicador", "Resultado"],
-        ["Total de actividades", total],
-        ["Total de participantes", participantes],
-        ["Actividades aprobadas", aprobadas],
-        ["Actividades pendientes", pendientes],
-        ["Actividades rechazadas", rechazadas],
-        ["Actividades con observaciones", observadas]
-    ]
-
-    tabla = Table(datos, colWidths=[10 * cm, 5 * cm])
-
-    tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ALIGN", (1, 1), (1, -1), "CENTER"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-        ("TOPPADDING", (0, 0), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-    ]))
-
-    elementos.append(tabla)
-    elementos.append(Spacer(1, 0.4 * cm))
-
-
-def construir_filtros_pdf(elementos, estilos):
-    filtros = st.session_state.get("filtros_admin_aplicados", {})
-
-    elementos.append(parrafo_pdf("2. Filtros aplicados", estilos["SubtituloPDF"]))
-
-    if not filtros:
-        elementos.append(parrafo_pdf("No se registraron filtros específicos.", estilos["TextoPDF"]))
-        return
-
-    datos = [["Filtro", "Valor aplicado"]]
-
-    for clave, valor in filtros.items():
-        if isinstance(valor, list):
-            valor = ", ".join(valor) if valor else "Todos"
-        elif not valor:
-            valor = "Todos"
-
-        datos.append([clave, valor])
-
-    tabla = Table(datos, colWidths=[6 * cm, 18 * cm])
-
-    tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-    ]))
-
-    elementos.append(tabla)
-    elementos.append(Spacer(1, 0.4 * cm))
-
-
-def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
-    if df.empty or columna not in df.columns:
-        return
-
-    elementos.append(parrafo_pdf(titulo, estilos["SubtituloPDF"]))
-
-    resumen = (
-        df.groupby(columna)
-        .size()
-        .reset_index(name="Cantidad")
-        .sort_values("Cantidad", ascending=False)
-    )
-
-    datos = [["Categoría", "Cantidad"]]
-
-    for _, row in resumen.iterrows():
-        datos.append([
-            parrafo_pdf(row[columna], estilos["TextoTablaPDF"]),
-            parrafo_pdf(row["Cantidad"], estilos["TextoTablaCentroPDF"])
-        ])
-
-    tabla = Table(datos, colWidths=[18 * cm, 4 * cm], repeatRows=1)
-
-    tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#BFBFBF")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 1), (1, -1), "CENTER"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-
-    elementos.append(tabla)
-    elementos.append(Spacer(1, 0.35 * cm))
-
-
-def construir_tabla_detalle_pdf(elementos, df, estilos):
-    elementos.append(PageBreak())
-    elementos.append(parrafo_pdf("6. Detalle de actividades verificadas", estilos["SubtituloPDF"]))
-
-    columnas = [
-        "ID",
-        "Fecha Actividad",
-        "Dirección Regional",
-        "Delegación",
-        "Programa",
-        "Actividad",
-        "Cantidad Participantes",
-        "Estado Verificación Regional",
-        "Observaciones Verificación Regional"
-    ]
-
-    columnas = [c for c in columnas if c in df.columns]
-    datos = [[parrafo_pdf(c, estilos["TextoTablaCentroPDF"]) for c in columnas]]
-
-    for _, row in df.iterrows():
-        datos.append([
-            parrafo_pdf(row.get(col, ""), estilos["TextoTablaPDF"])
-            for col in columnas
-        ])
-
-    anchos = [
-        1.2 * cm,
-        2.1 * cm,
-        3.5 * cm,
-        3.5 * cm,
-        2.2 * cm,
-        5.8 * cm,
-        2.0 * cm,
-        2.6 * cm,
-        4.8 * cm
-    ][:len(columnas)]
-
-    tabla = Table(datos, colWidths=anchos, repeatRows=1)
-
-    tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#BFBFBF")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
-
-    elementos.append(tabla)
-
-
-def generar_pdf_validacion(
-    df,
-    fecha_informe="",
-    incluir_tabla_detalle=True,
-    incluir_graficos=True,
-    imagen_mapa=None,
-    descripcion_mapa=""
-):
-    buffer = BytesIO()
-
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=landscape(letter),
-        rightMargin=1.1 * cm,
-        leftMargin=1.1 * cm,
-        topMargin=1.5 * cm,
-        bottomMargin=1.3 * cm
-    )
-
-    estilos = obtener_estilos_pdf()
-    elementos = []
-
-    construir_portada_pdf(elementos, df, estilos, fecha_informe)
-    construir_resumen_pdf(elementos, df, estilos)
-    construir_filtros_pdf(elementos, estilos)
-
-    elementos.append(PageBreak())
-    elementos.append(parrafo_pdf("3. Resumen analítico", estilos["SubtituloPDF"]))
-
-    elementos.append(parrafo_pdf(
-        "En este apartado se presenta la distribución de los registros según estado de verificación, programa, Dirección Regional y delegación.",
-        estilos["TextoPDF"]
-    ))
-
-    elementos.append(Spacer(1, 0.3 * cm))
-
-    construir_tabla_agrupada_pdf(elementos, df, "Estado Verificación Regional", "3.1 Distribución por estado de verificación", estilos)
-    construir_tabla_agrupada_pdf(elementos, df, "Programa", "3.2 Distribución por programa", estilos)
-    construir_tabla_agrupada_pdf(elementos, df, "Dirección Regional", "3.3 Distribución por Dirección Regional", estilos)
-    construir_tabla_agrupada_pdf(elementos, df, "Delegación", "3.4 Distribución por delegación", estilos)
-
-    if incluir_graficos:
-        agregar_graficos_automaticos_pdf(elementos, df, estilos)
-
-    if imagen_mapa is not None:
-        agregar_imagen_mapa_pdf(
-            elementos,
-            imagen_mapa,
-            descripcion_mapa,
-            estilos
-        )
-
-    if incluir_tabla_detalle:
-        construir_tabla_detalle_pdf(elementos, df, estilos)
-
-    doc.build(
-        elementos,
-        onFirstPage=dibujar_encabezado_pie_pdf,
-        onLaterPages=dibujar_encabezado_pie_pdf
-    )
-
-    buffer.seek(0)
-    return buffer.getvalue()
-
-
-def modulo_informe_pdf(df_filtrado):
-    st.markdown("## Generar informe PDF de verificación")
-
-    if df_filtrado.empty:
-        st.info("No hay datos filtrados para generar informe.")
-        return
-
-    st.markdown(
-        """
-        <div class="card-admin">
-            <div class="texto-admin">
-                Este módulo genera un informe PDF regional con portada,
-                resumen ejecutivo, filtros aplicados, cuadros analíticos,
-                gráficos institucionales, imagen del mapa y detalle de actividades.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### Datos del informe")
-
-    fecha_informe = st.text_input(
-        "Fecha del informe",
-        value=date.today().strftime("%d/%m/%Y")
-    )
-
-    st.markdown("### Opciones del informe")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        incluir_detalle = st.checkbox(
-            "Incluir tabla detallada de actividades",
-            value=True
-        )
-
-    with col2:
-        incluir_graficos = st.checkbox(
-            "Incluir gráficos automáticos",
-            value=True
-        )
-
-    st.markdown("### Imagen del mapa")
-
-    imagen_mapa = st.file_uploader(
-        "Cargar imagen del mapa filtrado para incluirla en el informe",
-        type=["png", "jpg", "jpeg"],
-        key="upload_mapa_pdf"
-    )
-
-    descripcion_mapa = st.text_area(
-        "Descripción de la imagen del mapa",
-        value=(
-            "La imagen muestra la distribución territorial de las actividades "
-            "filtradas en el panel regional, según los criterios seleccionados "
-            "para la generación del informe."
-        )
-    )
-
-    if st.button("📄 Generar informe PDF"):
-        pdf_bytes = generar_pdf_validacion(
-            df=df_filtrado,
-            fecha_informe=fecha_informe,
-            incluir_tabla_detalle=incluir_detalle,
-            incluir_graficos=incluir_graficos,
-            imagen_mapa=imagen_mapa,
-            descripcion_mapa=descripcion_mapa
-        )
-
-        nombre_pdf = generar_nombre_reporte(df_filtrado, tipo="PDF")
-
-        st.success("Informe PDF generado correctamente.")
-
-        st.download_button(
-            "⬇️ Descargar informe PDF",
-            data=pdf_bytes,
-            file_name=nombre_pdf,
-            mime="application/pdf",
-            key="descargar_pdf_validacion"
-        )
 # ======================================================
 # appREGIONAL.py
 # PARTE 5 DE 5 CORREGIDA
-# FLUJO PRINCIPAL DE LA APP ADMIN:
-# SIDEBAR, CARGA DE EXCEL, MENÚ, DASHBOARD,
-# VALIDACIÓN INDIVIDUAL, INFORME PDF CON FECHA MANUAL,
-# IMAGEN DEL MAPA Y DESCARGA GLOBAL
+# FLUJO PRINCIPAL DE LA APP REGIONAL:
+# SIDEBAR, CARGA MÚLTIPLE DE EXCEL, MENÚ, DASHBOARD,
+# VERIFICACIÓN INDIVIDUAL Y DESCARGA GLOBAL
 # ======================================================
 
 
@@ -2834,8 +2051,7 @@ menu_admin = st.sidebar.radio(
         "Inicio",
         "Consulta y filtros",
         "Verificación de actividades",
-        "Dashboard",
-        "Informe PDF"
+        "Dashboard"
     ]
 )
 
@@ -2869,10 +2085,10 @@ if menu_admin == "Inicio":
             </div>
             <div class="texto-admin">
                 Esta aplicación permite cargar el Excel generado desde la app PUMI,
-                revisar los registros, aplicar verificaciones regionals de forma
+                revisar los registros, aplicar verificaciones regionales de forma
                 individual, consultar datos mediante filtros, visualizar gráficos y mapas,
-                descargar un Excel verificado con colores por estado y generar un informe
-                PDF formal con gráficos institucionales e imagen del mapa.
+                y descargar un Excel unificado verificado con colores por estado,
+                bloqueo de hoja/libro y marca de agua institucional.
             </div>
         </div>
         """,
@@ -2989,42 +2205,6 @@ elif menu_admin == "Dashboard":
             df_filtrado,
             key="descarga_dashboard_filtrado"
         )
-
-
-# ======================================================
-# INFORME PDF
-# ======================================================
-
-elif menu_admin == "Informe PDF":
-
-    st.markdown("## Informe PDF regional")
-
-    if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
-    else:
-        df_filtrado = aplicar_filtros_admin(df_admin)
-
-        st.markdown("---")
-
-        mostrar_metricas_admin(df_filtrado)
-
-        st.markdown("---")
-
-        st.markdown("### Vista de apoyo para el informe")
-
-        with st.expander("Ver gráficos y mapa antes de generar el PDF", expanded=False):
-            mostrar_graficos_admin(df_filtrado)
-
-            st.markdown("---")
-
-            mostrar_mapa_admin(
-                df_filtrado,
-                key="mapa_previo_informe_pdf"
-            )
-
-        st.markdown("---")
-
-        modulo_informe_pdf(df_filtrado)
 
 
 # ======================================================
