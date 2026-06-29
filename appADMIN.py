@@ -172,7 +172,7 @@ COLORES_PROGRAMA = {
 
 # ======================================================
 # ACCESOS POR PROGRAMA PARA VALIDACIÓN NACIONAL
-# Claves solicitadas: NOMBREPROGRAMA + 2310
+# Control interno de acceso por programa
 # ======================================================
 
 PROGRAMAS_ACCESO_ADMIN = {
@@ -424,11 +424,6 @@ def mostrar_acceso_por_programa_admin():
         "Contraseña del programa",
         type="password",
         key="clave_acceso_admin"
-    )
-
-    st.sidebar.caption(
-        "Formato de clave: nombre del programa + 2310. "
-        "Ejemplo: DARE2310"
     )
 
     if st.sidebar.button("Ingresar al programa"):
