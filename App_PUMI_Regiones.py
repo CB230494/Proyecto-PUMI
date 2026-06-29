@@ -20,7 +20,8 @@ from datetime import datetime, date
 from streamlit_folium import st_folium
 
 from openpyxl import load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, Protection
+from openpyxl.drawing.image import Image as XLImage
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, landscape
@@ -59,6 +60,7 @@ st.set_page_config(
 LOGO_MINISTERIO = "Logo2.jpeg"
 LOGO_PUMI = "logo_pumi.jpeg"
 LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
+MARCA_AGUA_EXCEL = "marca_agua.png"
 
 NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
 
@@ -115,7 +117,7 @@ ENCABEZADOS_VALIDACION = [
 ]
 
 
-ENCABEZADOS_COMPLETOS = ENCABEZADOS_PUMI + ENCABEZADOS_VALIDACION
+ENCABEZADOS_COMPLETOS = ENCABEZADOS_PUMI + ["Archivo Origen"] + ENCABEZADOS_VALIDACION
 
 
 # ======================================================
@@ -788,6 +790,79 @@ def convertir_excel_admin(df):
         )
 
     worksheet.freeze_panes = "A2"
+
+    # ==================================================
+    # MARCA DE AGUA VISIBLE EN LA HOJA
+    # Requiere el archivo marca_agua.png al mismo nivel
+    # que appREGIONAL.py
+    # ==================================================
+
+    if os.path.exists(MARCA_AGUA_EXCEL):
+        try:
+            marca_agua = XLImage(MARCA_AGUA_EXCEL)
+            marca_agua.width = 900
+            marca_agua.height = 520
+            worksheet.add_image(marca_agua, "A3")
+        except Exception:
+            pass
+
+    # ==================================================
+    # MARCA DE AGUA PARA IMPRESIÓN / PDF
+    # ==================================================
+
+    worksheet.oddHeader.center.text = "Dirección de Programas Preventivos Policiales"
+    worksheet.oddHeader.center.size = 24
+    worksheet.oddHeader.center.font = "Arial,Bold"
+    worksheet.oddHeader.center.color = "D9D9D9"
+
+    worksheet.evenHeader.center.text = "Dirección de Programas Preventivos Policiales"
+    worksheet.evenHeader.center.size = 24
+    worksheet.evenHeader.center.font = "Arial,Bold"
+    worksheet.evenHeader.center.color = "D9D9D9"
+
+    # ==================================================
+    # CONFIGURACIÓN DE IMPRESIÓN
+    # ==================================================
+
+    worksheet.page_setup.orientation = "landscape"
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 0
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+
+    worksheet.page_margins.left = 0.25
+    worksheet.page_margins.right = 0.25
+    worksheet.page_margins.top = 0.75
+    worksheet.page_margins.bottom = 0.75
+
+    # ==================================================
+    # BLOQUEAR TODAS LAS CELDAS Y PROTEGER HOJA/LIBRO
+    # Contraseña: DPPP23
+    # ==================================================
+
+    for fila in worksheet.iter_rows():
+        for celda in fila:
+            celda.protection = Protection(locked=True)
+
+    worksheet.protection.sheet = True
+    worksheet.protection.password = "DPPP23"
+    worksheet.protection.objects = True
+    worksheet.protection.scenarios = True
+    worksheet.protection.formatCells = False
+    worksheet.protection.formatColumns = False
+    worksheet.protection.formatRows = False
+    worksheet.protection.insertColumns = False
+    worksheet.protection.insertRows = False
+    worksheet.protection.insertHyperlinks = False
+    worksheet.protection.deleteColumns = False
+    worksheet.protection.deleteRows = False
+    worksheet.protection.sort = False
+    worksheet.protection.autoFilter = False
+    worksheet.protection.pivotTables = False
+    worksheet.protection.selectLockedCells = True
+    worksheet.protection.selectUnlockedCells = False
+
+    workbook.security.lockStructure = True
+    workbook.security.workbookPassword = "DPPP23"
 
     final_output = BytesIO()
     workbook.save(final_output)
@@ -2703,21 +2778,48 @@ st.sidebar.markdown(
 # CARGA DEL EXCEL PUMI
 # ======================================================
 
-archivo_admin = st.sidebar.file_uploader(
-    "Subir Excel generado por PUMI",
-    type=["xlsx"]
+archivos_admin = st.sidebar.file_uploader(
+    "Subir uno o varios Excel generados por las delegaciones",
+    type=["xlsx"],
+    accept_multiple_files=True
 )
 
-if archivo_admin is not None:
-    if st.session_state.archivo_admin_nombre != archivo_admin.name:
-        df_cargado = cargar_excel_pumi_admin(archivo_admin)
+if archivos_admin:
+    nombres_archivos = " | ".join([archivo.name for archivo in archivos_admin])
 
-        if not df_cargado.empty:
-            st.session_state.df_admin = df_cargado
-            st.session_state.archivo_admin_nombre = archivo_admin.name
-            st.sidebar.success("Excel cargado correctamente.")
+    if st.session_state.archivo_admin_nombre != nombres_archivos:
+        dataframes_cargados = []
+        archivos_con_error = []
+
+        for archivo_excel in archivos_admin:
+            df_cargado = cargar_excel_pumi_admin(archivo_excel)
+
+            if not df_cargado.empty:
+                df_cargado["Archivo Origen"] = archivo_excel.name
+                dataframes_cargados.append(df_cargado)
+            else:
+                archivos_con_error.append(archivo_excel.name)
+
+        if dataframes_cargados:
+            df_unificado = pd.concat(
+                dataframes_cargados,
+                ignore_index=True
+            )
+
+            df_unificado = preparar_dataframe_admin(df_unificado)
+
+            st.session_state.df_admin = df_unificado
+            st.session_state.archivo_admin_nombre = nombres_archivos
+            st.sidebar.success(
+                f"{len(dataframes_cargados)} Excel cargado(s) y unificado(s) correctamente."
+            )
+
+            if archivos_con_error:
+                st.sidebar.warning(
+                    "No se pudieron cargar estos archivos: " + ", ".join(archivos_con_error)
+                )
         else:
-            st.sidebar.warning("El Excel no contiene registros válidos.")
+            st.sidebar.warning("Ningún Excel contiene registros válidos.")
 
 
 # ======================================================
