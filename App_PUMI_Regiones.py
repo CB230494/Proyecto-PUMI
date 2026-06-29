@@ -2390,13 +2390,6 @@ def modulo_editar_eliminar_registros(df_filtrado):
         mostrar_tarjeta_registro_validacion(fila)
 
     st.markdown("### Editar registro")
-    st.info(
-        "Este formulario usa la misma lógica condicional de la app de delegaciones: "
-        "la delegación depende de la Dirección Regional; programa y actividad dependen de "
-        "Responde a; cantón depende de provincia; distrito depende de provincia y cantón; "
-        "y centros educativos dependen de provincia."
-    )
-
     # IMPORTANTE:
     # No se usa st.form en esta sección porque dentro de un formulario Streamlit
     # no actualiza los selectbox dependientes hasta presionar guardar.
