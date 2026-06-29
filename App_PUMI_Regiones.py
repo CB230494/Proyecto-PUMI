@@ -263,7 +263,7 @@ def obtener_color_programa(programa):
 
 def generar_nombre_reporte(df, tipo="PDF"):
     if df is None or df.empty:
-        return f"INFORME_VALIDACION_PUMI_2026.{tipo.lower()}"
+        return f"INFORME_VERIFICACION_REGIONAL_PUMI_2026.{tipo.lower()}"
 
     region = "VARIAS_REGIONES"
     delegacion = "VARIAS_DELEGACIONES"
@@ -297,7 +297,7 @@ def generar_nombre_reporte(df, tipo="PDF"):
     region_limpia = limpiar_nombre_archivo(region)
     delegacion_limpia = limpiar_nombre_archivo(delegacion)
 
-    return f"INFORME_VALIDACION_PUMI_2026_{region_limpia}_{delegacion_limpia}.{tipo.lower()}"
+    return f"INFORME_VERIFICACION_REGIONAL_PUMI_2026_{region_limpia}_{delegacion_limpia}.{tipo.lower()}"
 
 
 # ======================================================
@@ -584,7 +584,7 @@ def mostrar_titulo_admin():
         """
         <div class="titulo-principal">
             <h1>🔎 P.U.M.I. 2026 - Panel de Verificación Regional</h1>
-            <h3>Verificación regional, revisión, dashboard e informe PDF de actividades</h3>
+            <h3>Verificación regional previa al envío para validación nacional</h3>
         </div>
         """,
         unsafe_allow_html=True
@@ -2691,7 +2691,7 @@ st.sidebar.markdown(
         margin-bottom:15px;
         font-size:14px;
     ">
-    Cargue el Excel generado por la app PUMI para verificar,
+    Cargue el Excel generado por la delegación para verificar,
     analizar y generar informes regionals.
     </div>
     """,
@@ -2954,4 +2954,3 @@ else:
         st.session_state.grafico_imagen_referencia = None
         st.sidebar.success("Datos limpiados correctamente.")
         st.rerun()
-
