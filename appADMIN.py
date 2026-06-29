@@ -1,4 +1,4 @@
-# ======================================================
+ ======================================================
 # appADMIN.py
 # PARTE 1 DE 5
 # CONFIGURACIÓN GENERAL, LIBRERÍAS, CONSTANTES,
@@ -165,6 +165,28 @@ COLORES_PROGRAMA = {
 }
 
 
+# ======================================================
+# ACCESOS POR PROGRAMA PARA VALIDACIÓN NACIONAL
+# Claves solicitadas: NOMBREPROGRAMA + 2310
+# ======================================================
+
+PROGRAMAS_ACCESO_ADMIN = {
+    "DARE": "DARE2310",
+    "GREAT": "GREAT2310",
+    "MPAS": "MPAS2310",
+    "PSCC": "PSCC2310",
+    "VIF": "VIF2310"
+}
+
+PROGRAMAS_EQUIVALENTES_ADMIN = {
+    "DARE": ["DARE"],
+    "GREAT": ["GREAT", "GREAT CAMP"],
+    "MPAS": ["MPAS"],
+    "PSCC": ["PSCC"],
+    "VIF": ["VIF"]
+}
+
+
 CENTROS_PROVINCIA = {
     "San José": [9.9281, -84.0907],
     "Alajuela": [10.0162, -84.2116],
@@ -195,6 +217,12 @@ def inicializar_session_state_admin():
 
     if "grafico_imagen_referencia" not in st.session_state:
         st.session_state.grafico_imagen_referencia = None
+
+    if "admin_programa_autenticado" not in st.session_state:
+        st.session_state.admin_programa_autenticado = ""
+
+    if "admin_acceso_programa" not in st.session_state:
+        st.session_state.admin_acceso_programa = False
 
 
 inicializar_session_state_admin()
@@ -305,6 +333,77 @@ def generar_nombre_reporte(df, tipo="PDF"):
     delegacion_limpia = limpiar_nombre_archivo(delegacion)
 
     return f"INFORME_VALIDACION_PUMI_2026_{region_limpia}_{delegacion_limpia}.{tipo.lower()}"
+
+
+
+def filtrar_dataframe_por_programa_admin(df, programa_autorizado):
+    if df is None or df.empty:
+        return df
+
+    if not programa_autorizado or "Programa" not in df.columns:
+        return pd.DataFrame(columns=df.columns)
+
+    programas_permitidos = PROGRAMAS_EQUIVALENTES_ADMIN.get(
+        programa_autorizado,
+        [programa_autorizado]
+    )
+
+    programas_permitidos_norm = [
+        normalizar_texto(programa)
+        for programa in programas_permitidos
+    ]
+
+    df_filtrado = df[
+        df["Programa"].apply(normalizar_texto).isin(programas_permitidos_norm)
+    ].copy()
+
+    return df_filtrado.reset_index(drop=True)
+
+
+def mostrar_acceso_por_programa_admin():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Acceso por programa")
+
+    if st.session_state.get("admin_acceso_programa"):
+        programa_actual = st.session_state.get("admin_programa_autenticado", "")
+        st.sidebar.success(f"Acceso activo: {programa_actual}")
+
+        if st.sidebar.button("🔒 Cerrar acceso de programa"):
+            st.session_state.admin_acceso_programa = False
+            st.session_state.admin_programa_autenticado = ""
+            st.rerun()
+
+        return True
+
+    programa = st.sidebar.selectbox(
+        "Programa a validar",
+        list(PROGRAMAS_ACCESO_ADMIN.keys()),
+        key="programa_acceso_admin"
+    )
+
+    clave = st.sidebar.text_input(
+        "Contraseña del programa",
+        type="password",
+        key="clave_acceso_admin"
+    )
+
+    st.sidebar.caption(
+        "Formato de clave: nombre del programa + 2310. "
+        "Ejemplo: DARE2310"
+    )
+
+    if st.sidebar.button("Ingresar al programa"):
+        clave_esperada = PROGRAMAS_ACCESO_ADMIN.get(programa, "")
+
+        if clave.strip() == clave_esperada:
+            st.session_state.admin_acceso_programa = True
+            st.session_state.admin_programa_autenticado = programa
+            st.sidebar.success("Acceso autorizado.")
+            st.rerun()
+        else:
+            st.sidebar.error("Contraseña incorrecta para el programa seleccionado.")
+
+    return False
 
 
 # ======================================================
@@ -2803,10 +2902,48 @@ if archivo_admin is not None:
         if not df_cargado.empty:
             st.session_state.df_admin = df_cargado
             st.session_state.archivo_admin_nombre = archivo_admin.name
+            st.session_state.admin_acceso_programa = False
+            st.session_state.admin_programa_autenticado = ""
             st.sidebar.success("Excel cargado correctamente.")
         else:
             st.sidebar.warning("El Excel no contiene registros válidos.")
 
+
+# ======================================================
+# ENCABEZADO GENERAL
+# ======================================================
+
+mostrar_encabezado_institucional()
+mostrar_titulo_admin()
+
+
+# ======================================================
+# DATAFRAME BASE Y CONTROL DE ACCESO POR PROGRAMA
+# ======================================================
+
+df_admin_completo = st.session_state.df_admin.copy()
+
+if df_admin_completo.empty:
+    df_admin = df_admin_completo
+else:
+    acceso_autorizado = mostrar_acceso_por_programa_admin()
+
+    if not acceso_autorizado:
+        st.warning(
+            "Para continuar debe seleccionar el programa e ingresar la contraseña correspondiente. "
+            "Cada programa solo podrá ver y validar sus propios registros."
+        )
+        st.stop()
+
+    programa_autorizado = st.session_state.get("admin_programa_autenticado", "")
+    df_admin = filtrar_dataframe_por_programa_admin(
+        df_admin_completo,
+        programa_autorizado
+    )
+
+    st.sidebar.info(
+        f"Registros visibles para {programa_autorizado}: {len(df_admin)}"
+    )
 
 # ======================================================
 # MENÚ PRINCIPAL
@@ -2822,21 +2959,6 @@ menu_admin = st.sidebar.radio(
         "Informe PDF"
     ]
 )
-
-
-# ======================================================
-# ENCABEZADO GENERAL
-# ======================================================
-
-mostrar_encabezado_institucional()
-mostrar_titulo_admin()
-
-
-# ======================================================
-# DATAFRAME BASE
-# ======================================================
-
-df_admin = st.session_state.df_admin.copy()
 
 
 # ======================================================
@@ -2932,8 +3054,13 @@ elif menu_admin == "Validación de actividades":
         st.markdown("---")
         st.markdown("### Descargar Excel con validaciones")
 
-        boton_descargar_excel_admin(
+        df_admin_actualizado_programa = filtrar_dataframe_por_programa_admin(
             st.session_state.df_admin,
+            st.session_state.get("admin_programa_autenticado", "")
+        )
+
+        boton_descargar_excel_admin(
+            df_admin_actualizado_programa,
             key="descarga_validacion_admin"
         )
 
@@ -3026,13 +3153,13 @@ if df_admin.empty:
     st.sidebar.info("No hay datos cargados.")
 else:
     nombre_excel_admin = generar_nombre_reporte(
-        st.session_state.df_admin,
+        df_admin,
         tipo="XLSX"
     )
 
     st.sidebar.download_button(
-        "⬇️ Descargar Excel validado",
-        data=convertir_excel_admin(st.session_state.df_admin),
+        "⬇️ Descargar Excel validado del programa",
+        data=convertir_excel_admin(df_admin),
         file_name=nombre_excel_admin,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="descarga_sidebar_admin"
@@ -3044,5 +3171,7 @@ else:
         st.session_state.filtros_admin_aplicados = {}
         st.session_state.mapa_imagen_referencia = None
         st.session_state.grafico_imagen_referencia = None
+        st.session_state.admin_acceso_programa = False
+        st.session_state.admin_programa_autenticado = ""
         st.sidebar.success("Datos limpiados correctamente.")
         st.rerun()
