@@ -60,6 +60,9 @@ LOGO_MINISTERIO = "Logo2.jpeg"
 LOGO_PUMI = "logo_pumi.jpeg"
 LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
 
+ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
+ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
+
 NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
 
 
@@ -122,7 +125,9 @@ ENCABEZADOS_VALIDACION = [
 ]
 
 
-ENCABEZADOS_COMPLETOS = ENCABEZADOS_PUMI + ENCABEZADOS_VERIFICACION_REGIONAL + ENCABEZADOS_VALIDACION
+ENCABEZADOS_EXTRA_CONTROL = ["Archivo Origen"]
+
+ENCABEZADOS_COMPLETOS = ENCABEZADOS_EXTRA_CONTROL + ENCABEZADOS_PUMI + ENCABEZADOS_VERIFICACION_REGIONAL + ENCABEZADOS_VALIDACION
 
 
 # ======================================================
@@ -185,6 +190,40 @@ PROGRAMAS_EQUIVALENTES_ADMIN = {
     "PSCC": ["PSCC"],
     "VIF": ["VIF"]
 }
+
+PROGRAMAS_BASE = [
+    "DARE",
+    "GREAT",
+    "MPAS",
+    "PSCC",
+    "VIF",
+    "Política Pública"
+]
+
+REGIONES_BASE = [
+    "R1 San José Central",
+    "R2 San José Norte",
+    "R3 San José Sur",
+    "R4 Alajuela",
+    "R5 Cartago",
+    "R6 Heredia",
+    "R7 Chorotega",
+    "R8 Puntarenas",
+    "R9 Limón",
+    "R10 Brunca",
+    "R11 Chorotega Norte",
+    "R12"
+]
+
+PROVINCIAS_BASE = [
+    "San José",
+    "Alajuela",
+    "Cartago",
+    "Heredia",
+    "Guanacaste",
+    "Puntarenas",
+    "Limón"
+]
 
 
 CENTROS_PROVINCIA = {
@@ -357,7 +396,7 @@ def filtrar_dataframe_por_programa_admin(df, programa_autorizado):
         df["Programa"].apply(normalizar_texto).isin(programas_permitidos_norm)
     ].copy()
 
-    return df_filtrado.reset_index(drop=True)
+    return df_filtrado
 
 
 def mostrar_acceso_por_programa_admin():
@@ -711,6 +750,10 @@ def mostrar_titulo_admin():
 def preparar_dataframe_admin(df):
     df = df.copy()
 
+    for col in ENCABEZADOS_EXTRA_CONTROL:
+        if col not in df.columns:
+            df[col] = ""
+
     for col in ENCABEZADOS_PUMI:
         if col not in df.columns:
             df[col] = ""
@@ -769,9 +812,17 @@ def cargar_excel_pumi_admin(archivo_excel):
             archivo_excel,
             sheet_name=NOMBRE_HOJA_EXCEL
         )
+        if "Archivo Origen" not in df.columns:
+            df["Archivo Origen"] = getattr(archivo_excel, "name", "")
+        else:
+            df["Archivo Origen"] = df["Archivo Origen"].replace("", getattr(archivo_excel, "name", ""))
     except Exception:
         try:
             df = pd.read_excel(archivo_excel)
+            if "Archivo Origen" not in df.columns:
+                df["Archivo Origen"] = getattr(archivo_excel, "name", "")
+            else:
+                df["Archivo Origen"] = df["Archivo Origen"].replace("", getattr(archivo_excel, "name", ""))
         except Exception as e:
             st.error("No se pudo leer el Excel cargado.")
             st.exception(e)
@@ -1680,26 +1731,48 @@ def mostrar_graficos_admin(df):
 # ======================================================
 
 def actualizar_validacion_registro(
-    id_registro,
+    indice_registro,
     estado_validacion,
     observaciones_validacion,
     funcionario_validador
 ):
     df = st.session_state.df_admin.copy()
 
-    mascara = df["ID"].astype(str) == str(id_registro)
-
-    if not mascara.any():
+    try:
+        indice_registro = int(indice_registro)
+    except Exception:
         return False
 
-    df.loc[mascara, "Estado Validación"] = estado_validacion
-    df.loc[mascara, "Observaciones Validación"] = observaciones_validacion
-    df.loc[mascara, "Funcionario Validador"] = funcionario_validador
-    df.loc[mascara, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y")
+    if indice_registro not in df.index:
+        return False
 
-    st.session_state.df_admin = df.reset_index(drop=True)
+    df.loc[indice_registro, "Estado Validación"] = estado_validacion
+    df.loc[indice_registro, "Observaciones Validación"] = observaciones_validacion
+    df.loc[indice_registro, "Funcionario Validador"] = funcionario_validador
+    df.loc[indice_registro, "Fecha Validación"] = datetime.now().strftime("%d/%m/%Y")
+
+    st.session_state.df_admin = preparar_dataframe_admin(df.reset_index(drop=True))
 
     return True
+
+
+def etiqueta_registro_admin(df, indice):
+    try:
+        fila = df.loc[indice]
+    except Exception:
+        return str(indice)
+
+    delegacion = str(fila.get("Delegación", "")).strip() or "Delegación sin dato"
+    id_registro = str(fila.get("ID", "")).strip() or "Sin ID"
+    archivo = str(fila.get("Archivo Origen", "")).strip()
+    actividad = str(fila.get("Actividad", "")).strip()
+
+    etiqueta = f"{delegacion} | ID {id_registro}"
+    if archivo:
+        etiqueta += f" | Archivo: {archivo}"
+    if actividad:
+        etiqueta += f" | {actividad}"
+    return etiqueta
 
 
 # ======================================================
@@ -1872,20 +1945,6 @@ def modulo_validacion_actividades(df_filtrado):
 
     mostrar_resumen_validacion(df_filtrado)
 
-    st.markdown(
-        """
-        <div class="card-validacion">
-            <div class="texto-admin">
-                En este apartado se revisan únicamente las actividades que ya fueron
-                verificadas por la Dirección Regional como "Verificada para envío".
-                Posteriormente se asigna la validación nacional: aprobada, rechazada,
-                pendiente o con observaciones.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
     st.markdown("### Selección del registro")
 
     df_filtrado = df_filtrado[df_filtrado["Estado Verificación Regional"].astype(str) == "Verificada para envío"].copy()
@@ -1894,23 +1953,20 @@ def modulo_validacion_actividades(df_filtrado):
         st.warning("No hay actividades verificadas por la Dirección Regional para validación nacional con los filtros aplicados.")
         return
 
-    ids_filtrados = df_filtrado["ID"].astype(str).tolist()
+    indices_filtrados = df_filtrado.index.tolist()
 
-    id_validar = st.selectbox(
-        "Seleccione el ID del registro a validar",
-        ids_filtrados,
-        key="id_validar_individual"
+    indice_validar = st.selectbox(
+        "Seleccione el registro a validar",
+        indices_filtrados,
+        format_func=lambda idx: etiqueta_registro_admin(df_filtrado, idx),
+        key="indice_validar_individual_admin"
     )
 
-    fila_validar = df_filtrado[
-        df_filtrado["ID"].astype(str) == str(id_validar)
-    ]
-
-    if fila_validar.empty:
+    if indice_validar not in df_filtrado.index:
         st.warning("No se encontró el registro seleccionado.")
         return
 
-    fila = fila_validar.iloc[0].to_dict()
+    fila = df_filtrado.loc[indice_validar].to_dict()
 
     estado_actual = fila.get("Estado Validación", "Pendiente")
 
@@ -1924,12 +1980,10 @@ def modulo_validacion_actividades(df_filtrado):
 
         if lat and lon:
             st.markdown("#### Ubicación del registro")
-
             df_unico = pd.DataFrame([fila])
-
             mostrar_mapa_admin(
                 df_unico,
-                key=f"mapa_validacion_{id_validar}"
+                key=f"mapa_validacion_{indice_validar}"
             )
         else:
             st.info("Este registro no tiene coordenadas disponibles.")
@@ -1944,10 +1998,7 @@ def modulo_validacion_actividades(df_filtrado):
         "Con observaciones"
     ]
 
-    indice_estado = 0
-
-    if estado_actual in estados:
-        indice_estado = estados.index(estado_actual)
+    indice_estado = estados.index(estado_actual) if estado_actual in estados else 0
 
     colv1, colv2 = st.columns(2)
 
@@ -1972,24 +2023,17 @@ def modulo_validacion_actividades(df_filtrado):
         key="observaciones_validacion_individual"
     )
 
-    if nuevo_estado in ["Rechazada", "Con observaciones"]:
-        if observaciones_validacion.strip() == "":
-            st.warning(
-                "Para registros rechazados o con observaciones, se recomienda "
-                "indicar claramente el motivo en el campo de observaciones."
-            )
+    if nuevo_estado in ["Rechazada", "Con observaciones"] and observaciones_validacion.strip() == "":
+        st.warning("Para registros rechazados o con observaciones, se recomienda indicar claramente el motivo.")
 
     if st.button("💾 Guardar validación del registro"):
         if funcionario_validador.strip() == "":
             st.warning("Debe indicar el funcionario validador.")
         elif nuevo_estado in ["Rechazada", "Con observaciones"] and observaciones_validacion.strip() == "":
-            st.warning(
-                "Debe agregar una observación cuando el estado sea Rechazada "
-                "o Con observaciones."
-            )
+            st.warning("Debe agregar una observación cuando el estado sea Rechazada o Con observaciones.")
         else:
             actualizado = actualizar_validacion_registro(
-                id_registro=id_validar,
+                indice_registro=indice_validar,
                 estado_validacion=nuevo_estado,
                 observaciones_validacion=observaciones_validacion,
                 funcionario_validador=funcionario_validador
@@ -2000,6 +2044,858 @@ def modulo_validacion_actividades(df_filtrado):
                 st.rerun()
             else:
                 st.error("No se pudo guardar la validación.")
+
+
+# ======================================================
+# CATÁLOGOS BASE PARA EDICIÓN ADMIN
+# Estas funciones usan las mismas bases de la app donde
+# las delegaciones registran: Datos Importantes.xlsx y
+# BASE DE DATOS MEP 2025.xlsx.
+# ======================================================
+
+def obtener_columna_por_nombre(df, posibles_nombres):
+    columnas = list(df.columns)
+    for posible in posibles_nombres:
+        posible_norm = normalizar_texto(posible)
+        for col in columnas:
+            if normalizar_texto(col) == posible_norm:
+                return col
+    return None
+
+
+def ordenar_regiones_numericamente(lista_regiones):
+    def extraer_numero_region(region):
+        texto = str(region)
+        numero = ""
+        for caracter in texto:
+            if caracter.isdigit():
+                numero += caracter
+            elif numero:
+                break
+        return int(numero) if numero else 999
+    return sorted(lista_regiones, key=extraer_numero_region)
+
+
+def separar_responde_a(valor):
+    if pd.isna(valor):
+        return []
+    texto = str(valor).strip()
+    if texto == "" or texto.lower() == "nan":
+        return []
+    return [parte.strip() for parte in texto.split("/") if parte.strip()]
+
+
+@st.cache_data
+def cargar_datos_importantes():
+    columnas_base = [
+        "Provincia", "Cantón", "Distrito", "Dirección Regional",
+        "Delegación", "Responde a", "Actividad Realizada", "Programa"
+    ]
+
+    if not os.path.exists(ARCHIVO_DATOS_IMPORTANTES):
+        return pd.DataFrame(columns=columnas_base)
+
+    try:
+        df_original = pd.read_excel(ARCHIVO_DATOS_IMPORTANTES)
+
+        col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
+        col_canton = obtener_columna_por_nombre(df_original, ["Cantón", "Canton"])
+        col_distrito = obtener_columna_por_nombre(df_original, ["Distrito", "Distritos"])
+        col_region = obtener_columna_por_nombre(df_original, ["Dirección Regional", "Direccion Admin"])
+        col_delegacion = obtener_columna_por_nombre(df_original, ["Delegación", "Delegacion"])
+        col_responde_a = obtener_columna_por_nombre(df_original, ["Responde a", "Responde a:", "Responde", "Responda a", "Responda a:"])
+        col_actividad = obtener_columna_por_nombre(df_original, ["Actividad Realizada", "Actividad"])
+        col_programa = obtener_columna_por_nombre(df_original, ["Programa"])
+
+        columnas_requeridas = [
+            col_provincia, col_canton, col_distrito, col_region,
+            col_delegacion, col_responde_a, col_actividad, col_programa
+        ]
+
+        if not all(columnas_requeridas):
+            st.warning(
+                "El archivo Datos Importantes.xlsx no tiene todas las columnas requeridas. "
+                "Debe incluir: Provincia, Cantón, Distrito, Dirección Regional, Delegación, "
+                "Responde a, Actividad Realizada y Programa."
+            )
+            return pd.DataFrame(columns=columnas_base)
+
+        df = df_original[[
+            col_provincia, col_canton, col_distrito, col_region,
+            col_delegacion, col_responde_a, col_actividad, col_programa
+        ]].copy()
+        df.columns = columnas_base
+
+        for col in columnas_base:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+        df = df.replace("nan", "")
+        df = df.drop_duplicates()
+
+        df["Provincia_Normalizada"] = df["Provincia"].apply(normalizar_texto)
+        df["Cantón_Normalizado"] = df["Cantón"].apply(normalizar_texto)
+        df["Distrito_Normalizado"] = df["Distrito"].apply(normalizar_texto)
+        df["Región_Normalizada"] = df["Dirección Regional"].apply(normalizar_texto)
+        df["Delegación_Normalizada"] = df["Delegación"].apply(normalizar_texto)
+        df["Responde_a_Normalizado"] = df["Responde a"].apply(normalizar_texto)
+        df["Actividad_Normalizada"] = df["Actividad Realizada"].apply(normalizar_texto)
+        df["Programa_Normalizado"] = df["Programa"].apply(normalizar_texto)
+
+        filas_expandidas = []
+        for _, fila in df.iterrows():
+            opciones_responde = separar_responde_a(fila["Responde a"])
+            if not opciones_responde:
+                opciones_responde = [fila["Responde a"]]
+            for opcion in opciones_responde:
+                nueva_fila = fila.copy()
+                nueva_fila["Responde a"] = opcion
+                nueva_fila["Responde_a_Normalizado"] = normalizar_texto(opcion)
+                filas_expandidas.append(nueva_fila)
+
+        if filas_expandidas:
+            df = pd.DataFrame(filas_expandidas).drop_duplicates()
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error leyendo {ARCHIVO_DATOS_IMPORTANTES}")
+        st.exception(e)
+        return pd.DataFrame(columns=columnas_base)
+
+
+def agregar_valor_actual(opciones, valor_actual):
+    opciones = [str(x).strip() for x in opciones if str(x).strip() and str(x).strip().lower() != "nan"]
+    opciones = list(dict.fromkeys(opciones))
+    valor_actual = str(valor_actual).strip()
+    if valor_actual and valor_actual.lower() != "nan" and valor_actual not in opciones:
+        opciones.insert(0, valor_actual)
+    if not opciones:
+        opciones = [valor_actual] if valor_actual else [""]
+    return opciones
+
+
+def obtener_regiones_datos(valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty:
+        return agregar_valor_actual(ordenar_regiones_numericamente(REGIONES_BASE), valor_actual)
+    regiones = df["Dirección Regional"].dropna().unique().tolist()
+    regiones = [x for x in regiones if str(x).strip()]
+    return agregar_valor_actual(ordenar_regiones_numericamente(regiones), valor_actual)
+
+
+def obtener_delegaciones_por_region(region, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not region:
+        return agregar_valor_actual([], valor_actual)
+    region_norm = normalizar_texto(region)
+    delegaciones = df[df["Región_Normalizada"] == region_norm]["Delegación"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(delegaciones), valor_actual)
+
+
+def obtener_responde_a_datos(valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or "Responde a" not in df.columns:
+        return agregar_valor_actual([], valor_actual)
+    responde_a = df["Responde a"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(responde_a), valor_actual)
+
+
+def obtener_programas_por_responde_a(responde_a, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not responde_a:
+        return agregar_valor_actual(PROGRAMAS_BASE, valor_actual)
+    responde_norm = normalizar_texto(responde_a)
+    programas = df[df["Responde_a_Normalizado"] == responde_norm]["Programa"].dropna().unique().tolist()
+
+    programas_limpios = []
+    for programa in programas:
+        if normalizar_texto(programa) == "GREAT CAMP":
+            if "GREAT" not in programas_limpios:
+                programas_limpios.append("GREAT")
+        elif programa not in programas_limpios:
+            programas_limpios.append(programa)
+
+    orden_oficial = [p for p in PROGRAMAS_BASE if p in programas_limpios]
+    extras = sorted([p for p in programas_limpios if p not in orden_oficial])
+    return agregar_valor_actual(orden_oficial + extras, valor_actual)
+
+
+def obtener_actividades_por_responde_a_programa(responde_a, programa, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not responde_a or not programa:
+        return agregar_valor_actual([], valor_actual)
+
+    responde_norm = normalizar_texto(responde_a)
+    programa_norm = normalizar_texto(programa)
+
+    if programa_norm == "GREAT":
+        actividades = df[
+            (df["Responde_a_Normalizado"] == responde_norm) &
+            (df["Programa_Normalizado"].isin(["GREAT", "GREAT CAMP"]))
+        ]["Actividad Realizada"].dropna().unique().tolist()
+    else:
+        actividades = df[
+            (df["Responde_a_Normalizado"] == responde_norm) &
+            (df["Programa_Normalizado"] == programa_norm)
+        ]["Actividad Realizada"].dropna().unique().tolist()
+
+    return agregar_valor_actual(sorted(actividades), valor_actual)
+
+
+def obtener_provincias_datos(valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty:
+        return agregar_valor_actual(PROVINCIAS_BASE, valor_actual)
+    provincias = df["Provincia"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(provincias), valor_actual)
+
+
+def obtener_cantones_por_provincia(provincia, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not provincia:
+        return agregar_valor_actual([], valor_actual)
+    provincia_norm = normalizar_texto(provincia)
+    cantones = df[df["Provincia_Normalizada"] == provincia_norm]["Cantón"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(cantones), valor_actual)
+
+
+def obtener_distritos_por_provincia_canton(provincia, canton, valor_actual=""):
+    df = cargar_datos_importantes()
+    if df.empty or not provincia or not canton:
+        return agregar_valor_actual([], valor_actual)
+    provincia_norm = normalizar_texto(provincia)
+    canton_norm = normalizar_texto(canton)
+    distritos = df[
+        (df["Provincia_Normalizada"] == provincia_norm) &
+        (df["Cantón_Normalizado"] == canton_norm)
+    ]["Distrito"].dropna().unique().tolist()
+    return agregar_valor_actual(sorted(distritos), valor_actual)
+
+
+@st.cache_data
+def cargar_base_mep():
+    columnas_base = ["PROVINCIA", "NOMBRE", "CODIGO_PRESUPUESTARIO"]
+    if not os.path.exists(ARCHIVO_MEP):
+        return pd.DataFrame(columns=columnas_base)
+    try:
+        df_original = pd.read_excel(ARCHIVO_MEP)
+        col_provincia = obtener_columna_por_nombre(df_original, ["PROVINCIA", "Provincia"])
+        col_nombre = obtener_columna_por_nombre(df_original, ["NOMBRE", "Nombre", "CENTRO EDUCATIVO", "Centro Educativo", "INSTITUCION", "Institución"])
+        col_codigo = obtener_columna_por_nombre(df_original, ["CODIGO PRESUPUESTARIO", "CÓDIGO PRESUPUESTARIO", "Codigo Presupuestario", "Código Presupuestario", "CODIGO", "CÓDIGO"])
+
+        if not col_provincia or not col_nombre:
+            return pd.DataFrame(columns=columnas_base)
+        if not col_codigo:
+            df_original["CODIGO_PRESUPUESTARIO_TMP"] = ""
+            col_codigo = "CODIGO_PRESUPUESTARIO_TMP"
+
+        df = df_original[[col_provincia, col_nombre, col_codigo]].copy()
+        df.columns = columnas_base
+        for col in columnas_base:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+        df["PROVINCIA_NORMALIZADA"] = df["PROVINCIA"].apply(normalizar_texto)
+        df["NOMBRE_NORMALIZADO"] = df["NOMBRE"].apply(normalizar_texto)
+        df["CENTRO_MOSTRAR"] = df.apply(
+            lambda row: f"{row['NOMBRE']} - Código: {row['CODIGO_PRESUPUESTARIO']}"
+            if row["CODIGO_PRESUPUESTARIO"].strip() != "" else row["NOMBRE"],
+            axis=1
+        )
+        return df.drop_duplicates(subset=["PROVINCIA_NORMALIZADA", "NOMBRE_NORMALIZADO", "CODIGO_PRESUPUESTARIO"])
+    except Exception as e:
+        st.error(f"Error leyendo {ARCHIVO_MEP}")
+        st.exception(e)
+        return pd.DataFrame(columns=columnas_base)
+
+
+def obtener_centros_por_provincia(provincia, valor_actual=""):
+    df = cargar_base_mep()
+    if df.empty or not provincia:
+        return agregar_valor_actual([], valor_actual)
+    provincia_norm = normalizar_texto(provincia)
+    centros = df[df["PROVINCIA_NORMALIZADA"] == provincia_norm]["CENTRO_MOSTRAR"].dropna().astype(str).drop_duplicates().sort_values().tolist()
+    return agregar_valor_actual(centros, valor_actual)
+
+
+def obtener_datos_centro_educativo(centro_mostrar):
+    df = cargar_base_mep()
+    if df.empty or not centro_mostrar:
+        return centro_mostrar, ""
+    fila = df[df["CENTRO_MOSTRAR"] == centro_mostrar]
+    if fila.empty:
+        return centro_mostrar, ""
+    nombre = fila.iloc[0].get("NOMBRE", "")
+    codigo = fila.iloc[0].get("CODIGO_PRESUPUESTARIO", "")
+    return nombre, codigo
+
+
+def selectbox_con_valor_actual(label, opciones, valor_actual, key):
+    opciones = agregar_valor_actual(opciones, valor_actual)
+    return st.selectbox(
+        label,
+        opciones,
+        index=indice_opcion_seguro(opciones, valor_actual),
+        key=key
+    )
+
+# ======================================================
+# EDITAR Y ELIMINAR REGISTROS ADMINISTRATIVOS
+# ======================================================
+
+def eliminar_registro_admin(indice_registro):
+    df = st.session_state.df_admin.copy()
+
+    try:
+        indice_registro = int(indice_registro)
+    except Exception:
+        return False
+
+    if indice_registro not in df.index:
+        return False
+
+    df = df.drop(index=indice_registro).reset_index(drop=True)
+    st.session_state.df_admin = preparar_dataframe_admin(df)
+    return True
+
+
+def actualizar_registro_admin_completo(indice_registro, nuevos_datos):
+    df = st.session_state.df_admin.copy()
+
+    try:
+        indice_registro = int(indice_registro)
+    except Exception:
+        return False
+
+    if indice_registro not in df.index:
+        return False
+
+    for col, valor in nuevos_datos.items():
+        if col in df.columns:
+            df.loc[indice_registro, col] = valor
+
+    st.session_state.df_admin = preparar_dataframe_admin(df.reset_index(drop=True))
+    return True
+
+
+def convertir_entero_seguro(valor):
+    try:
+        return int(pd.to_numeric(valor, errors="coerce"))
+    except Exception:
+        return 0
+
+
+
+def obtener_opciones_columna_admin(columna, df_base=None, filtros=None, valor_actual=""):
+    """Devuelve opciones limpias para selectbox usando los datos cargados."""
+    if df_base is None:
+        df_base = st.session_state.df_admin.copy()
+    else:
+        df_base = df_base.copy()
+
+    if filtros:
+        for col_filtro, valor_filtro in filtros.items():
+            if col_filtro in df_base.columns and str(valor_filtro).strip() != "":
+                df_base = df_base[
+                    df_base[col_filtro].astype(str).apply(normalizar_texto)
+                    == normalizar_texto(valor_filtro)
+                ]
+
+    opciones = []
+    if columna in df_base.columns:
+        opciones = (
+            df_base[columna]
+            .replace("", pd.NA)
+            .dropna()
+            .astype(str)
+            .map(lambda x: x.strip())
+            .drop_duplicates()
+            .tolist()
+        )
+
+    opciones = [x for x in opciones if x and x.lower() != "nan"]
+    opciones = sorted(opciones)
+
+    valor_actual = str(valor_actual).strip()
+    if valor_actual and valor_actual.lower() != "nan" and valor_actual not in opciones:
+        opciones.insert(0, valor_actual)
+
+    if not opciones:
+        opciones = [valor_actual] if valor_actual else [""]
+
+    return opciones
+
+
+def indice_opcion_seguro(opciones, valor_actual):
+    valor_actual = str(valor_actual).strip()
+    try:
+        return opciones.index(valor_actual)
+    except Exception:
+        return 0
+
+
+def selectbox_edicion_admin(label, columna, fila, key, df_base=None, filtros=None):
+    valor_actual = str(fila.get(columna, "")).strip()
+    opciones = obtener_opciones_columna_admin(
+        columna=columna,
+        df_base=df_base,
+        filtros=filtros,
+        valor_actual=valor_actual
+    )
+    return st.selectbox(
+        label,
+        opciones,
+        index=indice_opcion_seguro(opciones, valor_actual),
+        key=key
+    )
+
+def modulo_editar_eliminar_registros(df_filtrado):
+    st.markdown("## Editar o eliminar registros")
+
+    if df_filtrado.empty:
+        st.info("No hay registros disponibles con los filtros aplicados.")
+        return
+
+    st.markdown(
+        """
+        <div class="card-validacion">
+            <div class="texto-admin">
+                Revise, edite o elimine registros antes de descargar el Excel validado.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    indices_filtrados = df_filtrado.index.tolist()
+
+    indice_editar = st.selectbox(
+        "Seleccione el registro a editar o eliminar",
+        indices_filtrados,
+        format_func=lambda idx: etiqueta_registro_admin(df_filtrado, idx),
+        key="indice_editar_eliminar_admin"
+    )
+
+    if indice_editar not in df_filtrado.index:
+        st.warning("No se encontró el registro seleccionado.")
+        return
+
+    fila = df_filtrado.loc[indice_editar].to_dict()
+
+    mostrar_badge_estado(fila.get("Estado Validación", "Pendiente"))
+
+    with st.expander("Ver detalle actual del registro", expanded=False):
+        mostrar_tarjeta_registro_validacion(fila)
+
+    st.markdown("### Editar registro")
+    # IMPORTANTE:
+    # No se usa st.form en esta sección porque dentro de un formulario Streamlit
+    # no actualiza los selectbox dependientes hasta presionar guardar.
+    # Al dejar los widgets fuera del form, cada cambio refresca la pantalla y
+    # los catálogos se actualizan inmediatamente, igual que en la app de delegaciones.
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        fecha_actividad = st.text_input(
+            "Fecha Actividad",
+            value=str(fila.get("Fecha Actividad", "")),
+            key=f"edit_fecha_{indice_editar}"
+        )
+
+        hora_actividad = st.text_input(
+            "Hora Actividad",
+            value=str(fila.get("Hora Actividad", "")),
+            key=f"edit_hora_{indice_editar}"
+        )
+
+        direccion_admin = selectbox_con_valor_actual(
+            "Dirección Regional",
+            obtener_regiones_datos(fila.get("Dirección Regional", "")),
+            fila.get("Dirección Regional", ""),
+            key=f"edit_region_{indice_editar}"
+        )
+
+        valor_delegacion_actual = (
+            fila.get("Delegación", "")
+            if normalizar_texto(direccion_admin) == normalizar_texto(fila.get("Dirección Regional", ""))
+            else ""
+        )
+
+        delegacion = selectbox_con_valor_actual(
+            "Delegación",
+            obtener_delegaciones_por_region(direccion_admin, valor_delegacion_actual),
+            valor_delegacion_actual,
+            key=f"edit_delegacion_{indice_editar}"
+        )
+
+        responde_a = selectbox_con_valor_actual(
+            "Responde a",
+            obtener_responde_a_datos(fila.get("Responde a", "")),
+            fila.get("Responde a", ""),
+            key=f"edit_responde_{indice_editar}"
+        )
+
+        valor_programa_actual = (
+            fila.get("Programa", "")
+            if normalizar_texto(responde_a) == normalizar_texto(fila.get("Responde a", ""))
+            else ""
+        )
+
+        programa = selectbox_con_valor_actual(
+            "Programa",
+            obtener_programas_por_responde_a(responde_a, valor_programa_actual),
+            valor_programa_actual,
+            key=f"edit_programa_{indice_editar}"
+        )
+
+        valor_actividad_actual = (
+            fila.get("Actividad", "")
+            if (
+                normalizar_texto(responde_a) == normalizar_texto(fila.get("Responde a", "")) and
+                normalizar_texto(programa) == normalizar_texto(fila.get("Programa", ""))
+            )
+            else ""
+        )
+
+        actividad = selectbox_con_valor_actual(
+            "Actividad",
+            obtener_actividades_por_responde_a_programa(responde_a, programa, valor_actividad_actual),
+            valor_actividad_actual,
+            key=f"edit_actividad_{indice_editar}"
+        )
+
+        provincia = selectbox_con_valor_actual(
+            "Provincia",
+            obtener_provincias_datos(fila.get("Provincia", "")),
+            fila.get("Provincia", ""),
+            key=f"edit_provincia_{indice_editar}"
+        )
+
+        valor_canton_actual = (
+            fila.get("Cantón", "")
+            if normalizar_texto(provincia) == normalizar_texto(fila.get("Provincia", ""))
+            else ""
+        )
+
+        canton = selectbox_con_valor_actual(
+            "Cantón",
+            obtener_cantones_por_provincia(provincia, valor_canton_actual),
+            valor_canton_actual,
+            key=f"edit_canton_{indice_editar}"
+        )
+
+        valor_distrito_actual = (
+            fila.get("Distrito", "")
+            if (
+                normalizar_texto(provincia) == normalizar_texto(fila.get("Provincia", "")) and
+                normalizar_texto(canton) == normalizar_texto(fila.get("Cantón", ""))
+            )
+            else ""
+        )
+
+        distrito = selectbox_con_valor_actual(
+            "Distrito",
+            obtener_distritos_por_provincia_canton(provincia, canton, valor_distrito_actual),
+            valor_distrito_actual,
+            key=f"edit_distrito_{indice_editar}"
+        )
+
+        tipo_lugar_opciones = ["Centro educativo", "Otro lugar"]
+        tipo_lugar_actual = str(fila.get("Tipo Lugar", "")).strip()
+        if tipo_lugar_actual and tipo_lugar_actual not in tipo_lugar_opciones:
+            tipo_lugar_opciones.insert(0, tipo_lugar_actual)
+
+        tipo_lugar = st.selectbox(
+            "Tipo Lugar",
+            tipo_lugar_opciones,
+            index=indice_opcion_seguro(tipo_lugar_opciones, tipo_lugar_actual),
+            key=f"edit_tipo_lugar_{indice_editar}"
+        )
+
+        if tipo_lugar == "Centro educativo":
+            valor_centro_actual = (
+                fila.get("Centro Educativo", "")
+                if normalizar_texto(provincia) == normalizar_texto(fila.get("Provincia", ""))
+                else ""
+            )
+
+            centro_opciones = obtener_centros_por_provincia(provincia, valor_centro_actual)
+
+            centro_mostrar = selectbox_con_valor_actual(
+                "Centro educativo según base MEP 2025",
+                centro_opciones,
+                valor_centro_actual,
+                key=f"edit_centro_mep_{indice_editar}"
+            )
+
+            centro_educativo, codigo_presupuestario_auto = obtener_datos_centro_educativo(centro_mostrar)
+            codigo_actual = str(fila.get("Código Presupuestario", "")).strip()
+
+            codigo_presupuestario = (
+                codigo_presupuestario_auto
+                if codigo_presupuestario_auto
+                else codigo_actual
+            )
+
+            lugar = centro_educativo
+
+            st.info(f"Centro educativo seleccionado: {centro_educativo}")
+            st.info(f"Código presupuestario: {codigo_presupuestario if codigo_presupuestario else 'No disponible'}")
+        else:
+            lugar = st.text_input(
+                "Lugar",
+                value=str(fila.get("Lugar", "")),
+                key=f"edit_lugar_{indice_editar}"
+            )
+            centro_educativo = ""
+            codigo_presupuestario = ""
+
+        latitud = st.text_input(
+            "Latitud",
+            value=str(fila.get("Latitud", "")),
+            key=f"edit_latitud_{indice_editar}"
+        )
+
+        longitud = st.text_input(
+            "Longitud",
+            value=str(fila.get("Longitud", "")),
+            key=f"edit_longitud_{indice_editar}"
+        )
+
+    with col2:
+        responsable = st.text_input(
+            "Responsable",
+            value=str(fila.get("Responsable", "")),
+            key=f"edit_responsable_{indice_editar}"
+        )
+
+        cantidad_participantes = st.number_input(
+            "Cantidad Participantes",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Cantidad Participantes", 0)),
+            key=f"edit_cantidad_{indice_editar}"
+        )
+
+        cantidad_hombres = st.number_input(
+            "Cantidad Hombres",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Cantidad Hombres", 0)),
+            key=f"edit_hombres_{indice_editar}"
+        )
+
+        cantidad_mujeres = st.number_input(
+            "Cantidad Mujeres",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Cantidad Mujeres", 0)),
+            key=f"edit_mujeres_{indice_editar}"
+        )
+
+        edad_10_18 = st.number_input(
+            "Edad 10 a 18",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 10 a 18", 0)),
+            key=f"edit_edad_10_18_{indice_editar}"
+        )
+
+        edad_19_30 = st.number_input(
+            "Edad 19 a 30",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 19 a 30", 0)),
+            key=f"edit_edad_19_30_{indice_editar}"
+        )
+
+        edad_31_45 = st.number_input(
+            "Edad 31 a 45",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 31 a 45", 0)),
+            key=f"edit_edad_31_45_{indice_editar}"
+        )
+
+        edad_46_mas = st.number_input(
+            "Edad 46 en adelante",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 46 en adelante", 0)),
+            key=f"edit_edad_46_{indice_editar}"
+        )
+
+        instituciones = st.text_area(
+            "Instituciones Participantes",
+            value=str(fila.get("Instituciones Participantes", "")),
+            height=80,
+            key=f"edit_instituciones_{indice_editar}"
+        )
+
+        numero_referencia = st.text_input(
+            "Número de Referencia",
+            value=str(fila.get("Número de Referencia", "")),
+            key=f"edit_referencia_{indice_editar}"
+        )
+
+        numero_expediente = st.text_input(
+            "Número de Expediente Referencia",
+            value=str(fila.get("Número de Expediente Referencia", "")),
+            key=f"edit_expediente_{indice_editar}"
+        )
+
+        observaciones = st.text_area(
+            "Observaciones del registro",
+            value=str(fila.get("Observaciones", "")),
+            height=90,
+            key=f"edit_observaciones_{indice_editar}"
+        )
+
+        usuario_registra = st.text_input(
+            "Usuario Registra",
+            value=str(fila.get("Usuario Registra", "")),
+            key=f"edit_usuario_{indice_editar}"
+        )
+
+        archivo_origen = st.text_input(
+            "Archivo Origen",
+            value=str(fila.get("Archivo Origen", "")),
+            disabled=True,
+            key=f"edit_archivo_origen_{indice_editar}"
+        )
+
+    suma_sexo = cantidad_hombres + cantidad_mujeres
+    suma_edades = edad_10_18 + edad_19_30 + edad_31_45 + edad_46_mas
+
+    if cantidad_participantes > 0:
+        if suma_sexo != cantidad_participantes:
+            st.warning(
+                f"La suma de hombres y mujeres ({suma_sexo}) no coincide con el total de participantes ({cantidad_participantes})."
+            )
+        if suma_edades != cantidad_participantes:
+            st.warning(
+                f"La suma de rangos de edad ({suma_edades}) no coincide con el total de participantes ({cantidad_participantes})."
+            )
+
+    st.markdown("#### Validación nacional")
+
+    estados = [
+        "Pendiente",
+        "Aprobada",
+        "Rechazada",
+        "Con observaciones"
+    ]
+
+    estado_actual = str(fila.get("Estado Validación", "Pendiente"))
+    indice_estado = estados.index(estado_actual) if estado_actual in estados else 0
+
+    colv1, colv2 = st.columns(2)
+
+    with colv1:
+        estado_validacion = st.selectbox(
+            "Estado Validación",
+            estados,
+            index=indice_estado,
+            key=f"edit_estado_validacion_{indice_editar}"
+        )
+
+        funcionario_validador = st.text_input(
+            "Funcionario Validador",
+            value=str(fila.get("Funcionario Validador", "")),
+            key=f"edit_funcionario_validador_{indice_editar}"
+        )
+
+    with colv2:
+        fecha_validacion = st.text_input(
+            "Fecha Validación",
+            value=str(fila.get("Fecha Validación", "")),
+            key=f"edit_fecha_validacion_{indice_editar}"
+        )
+
+        observaciones_validacion = st.text_area(
+            "Observaciones Validación",
+            value=str(fila.get("Observaciones Validación", "")),
+            height=95,
+            key=f"edit_obs_validacion_{indice_editar}"
+        )
+
+    if st.button("💾 Guardar cambios del registro", key=f"btn_guardar_edicion_{indice_editar}"):
+        if cantidad_participantes > 0 and suma_sexo != cantidad_participantes:
+            st.error("No se puede guardar: hombres + mujeres no coincide con el total de participantes.")
+            return
+
+        if cantidad_participantes > 0 and suma_edades != cantidad_participantes:
+            st.error("No se puede guardar: los rangos de edad no coinciden con el total de participantes.")
+            return
+
+        nuevos_datos = {
+            "Fecha Actividad": fecha_actividad,
+            "Hora Actividad": hora_actividad,
+            "Dirección Regional": direccion_admin,
+            "Delegación": delegacion,
+            "Responde a": responde_a,
+            "Programa": programa,
+            "Actividad": actividad,
+            "Provincia": provincia,
+            "Cantón": canton,
+            "Distrito": distrito,
+            "Tipo Lugar": tipo_lugar,
+            "Lugar": lugar,
+            "Centro Educativo": centro_educativo,
+            "Código Presupuestario": codigo_presupuestario,
+            "Dirección Mapa": "",
+            "Latitud": latitud,
+            "Longitud": longitud,
+            "Responsable": responsable,
+            "Cantidad Participantes": cantidad_participantes,
+            "Cantidad Hombres": cantidad_hombres,
+            "Cantidad Mujeres": cantidad_mujeres,
+            "Edad 10 a 18": edad_10_18,
+            "Edad 19 a 30": edad_19_30,
+            "Edad 31 a 45": edad_31_45,
+            "Edad 46 en adelante": edad_46_mas,
+            "Instituciones Participantes": instituciones,
+            "Número de Referencia": numero_referencia,
+            "Número de Expediente Referencia": numero_expediente,
+            "Observaciones": observaciones,
+            "Usuario Registra": usuario_registra,
+            "Estado Validación": estado_validacion,
+            "Observaciones Validación": observaciones_validacion,
+            "Funcionario Validador": funcionario_validador,
+            "Fecha Validación": fecha_validacion,
+        }
+
+        actualizado = actualizar_registro_admin_completo(indice_editar, nuevos_datos)
+
+        if actualizado:
+            st.success("Registro actualizado correctamente.")
+            st.rerun()
+        else:
+            st.error("No se pudo actualizar el registro.")
+
+    st.markdown("---")
+    st.markdown("### Eliminar registro")
+
+    st.warning(
+        "Esta acción elimina el registro de la sesión actual. "
+        "El cambio se reflejará en el Excel que descargue después."
+    )
+
+    confirmar_eliminacion = st.checkbox(
+        "Confirmo que deseo eliminar este registro",
+        key=f"confirmar_eliminacion_admin_{indice_editar}"
+    )
+
+    if st.button("🗑️ Eliminar registro seleccionado", key=f"btn_eliminar_admin_{indice_editar}"):
+        if not confirmar_eliminacion:
+            st.warning("Debe marcar la confirmación antes de eliminar.")
+        else:
+            eliminado = eliminar_registro_admin(indice_editar)
+            if eliminado:
+                st.success("Registro eliminado correctamente.")
+                st.rerun()
+            else:
+                st.error("No se pudo eliminar el registro.")
 
 
 # ======================================================
@@ -2032,6 +2928,7 @@ def mostrar_tabla_resumen_validacion(df):
         return
 
     columnas_resumen = [
+        "Archivo Origen",
         "ID",
         "Fecha Actividad",
         "Dirección Regional",
@@ -2955,6 +3852,7 @@ menu_admin = st.sidebar.radio(
         "Inicio",
         "Consulta y filtros",
         "Validación de actividades",
+        "Editar o eliminar registros",
         "Dashboard",
         "Informe PDF"
     ]
@@ -3062,6 +3960,37 @@ elif menu_admin == "Validación de actividades":
         boton_descargar_excel_admin(
             df_admin_actualizado_programa,
             key="descarga_validacion_admin"
+        )
+
+
+# ======================================================
+# EDITAR O ELIMINAR REGISTROS
+# ======================================================
+
+elif menu_admin == "Editar o eliminar registros":
+
+    st.markdown("## Editar o eliminar registros")
+
+    if df_admin.empty:
+        st.info("Debe cargar primero el Excel generado por PUMI.")
+    else:
+        df_filtrado = aplicar_filtros_admin(df_admin)
+
+        st.markdown("---")
+
+        modulo_editar_eliminar_registros(df_filtrado)
+
+        st.markdown("---")
+        st.markdown("### Descargar Excel actualizado")
+
+        df_admin_actualizado_programa = filtrar_dataframe_por_programa_admin(
+            st.session_state.df_admin,
+            st.session_state.get("admin_programa_autenticado", "")
+        )
+
+        boton_descargar_excel_admin(
+            df_admin_actualizado_programa,
+            key="descarga_edicion_admin"
         )
 
 
