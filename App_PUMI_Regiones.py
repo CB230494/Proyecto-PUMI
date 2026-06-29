@@ -2369,7 +2369,6 @@ def modulo_editar_eliminar_registros(df_filtrado):
         unsafe_allow_html=True
     )
 
-    df_base = st.session_state.df_admin.copy()
     indices_filtrados = df_filtrado.index.tolist()
 
     indice_editar = st.selectbox(
@@ -2392,201 +2391,288 @@ def modulo_editar_eliminar_registros(df_filtrado):
 
     st.markdown("### Editar registro")
     st.info(
-        "Los campos que originalmente eran de selección en la delegación ahora también se pueden volver a seleccionar aquí, "
-        "usando las opciones oficiales de las bases de datos del sistema: Datos Importantes.xlsx y BASE DE DATOS MEP 2025.xlsx."
+        "Este formulario usa la misma lógica condicional de la app de delegaciones: "
+        "la delegación depende de la Dirección Regional; programa y actividad dependen de "
+        "Responde a; cantón depende de provincia; distrito depende de provincia y cantón; "
+        "y centros educativos dependen de provincia."
     )
 
-    with st.form("form_editar_registro_regional"):
-        col1, col2 = st.columns(2)
+    # IMPORTANTE:
+    # No se usa st.form en esta sección porque dentro de un formulario Streamlit
+    # no actualiza los selectbox dependientes hasta presionar guardar.
+    # Al dejar los widgets fuera del form, cada cambio refresca la pantalla y
+    # los catálogos se actualizan inmediatamente, igual que en la app de delegaciones.
 
-        with col1:
-            fecha_actividad = st.text_input(
-                "Fecha Actividad",
-                value=str(fila.get("Fecha Actividad", ""))
-            )
+    col1, col2 = st.columns(2)
 
-            hora_actividad = st.text_input(
-                "Hora Actividad",
-                value=str(fila.get("Hora Actividad", ""))
-            )
+    with col1:
+        fecha_actividad = st.text_input(
+            "Fecha Actividad",
+            value=str(fila.get("Fecha Actividad", "")),
+            key=f"edit_fecha_{indice_editar}"
+        )
 
-            direccion_regional = selectbox_con_valor_actual(
-                "Dirección Regional",
-                obtener_regiones_datos(fila.get("Dirección Regional", "")),
-                fila.get("Dirección Regional", ""),
-                key=f"edit_region_{indice_editar}"
-            )
+        hora_actividad = st.text_input(
+            "Hora Actividad",
+            value=str(fila.get("Hora Actividad", "")),
+            key=f"edit_hora_{indice_editar}"
+        )
 
-            delegacion = selectbox_con_valor_actual(
-                "Delegación",
-                obtener_delegaciones_por_region(direccion_regional, fila.get("Delegación", "")),
-                fila.get("Delegación", ""),
-                key=f"edit_delegacion_{indice_editar}"
-            )
+        direccion_regional = selectbox_con_valor_actual(
+            "Dirección Regional",
+            obtener_regiones_datos(fila.get("Dirección Regional", "")),
+            fila.get("Dirección Regional", ""),
+            key=f"edit_region_{indice_editar}"
+        )
 
-            responde_a = selectbox_con_valor_actual(
-                "Responde a",
-                obtener_responde_a_datos(fila.get("Responde a", "")),
-                fila.get("Responde a", ""),
-                key=f"edit_responde_{indice_editar}"
-            )
+        valor_delegacion_actual = (
+            fila.get("Delegación", "")
+            if normalizar_texto(direccion_regional) == normalizar_texto(fila.get("Dirección Regional", ""))
+            else ""
+        )
 
-            programa = selectbox_con_valor_actual(
-                "Programa",
-                obtener_programas_por_responde_a(responde_a, fila.get("Programa", "")),
-                fila.get("Programa", ""),
-                key=f"edit_programa_{indice_editar}"
-            )
+        delegacion = selectbox_con_valor_actual(
+            "Delegación",
+            obtener_delegaciones_por_region(direccion_regional, valor_delegacion_actual),
+            valor_delegacion_actual,
+            key=f"edit_delegacion_{indice_editar}"
+        )
 
-            actividad = selectbox_con_valor_actual(
-                "Actividad",
-                obtener_actividades_por_responde_a_programa(responde_a, programa, fila.get("Actividad", "")),
-                fila.get("Actividad", ""),
-                key=f"edit_actividad_{indice_editar}"
-            )
+        responde_a = selectbox_con_valor_actual(
+            "Responde a",
+            obtener_responde_a_datos(fila.get("Responde a", "")),
+            fila.get("Responde a", ""),
+            key=f"edit_responde_{indice_editar}"
+        )
 
-            provincia = selectbox_con_valor_actual(
-                "Provincia",
-                obtener_provincias_datos(fila.get("Provincia", "")),
-                fila.get("Provincia", ""),
-                key=f"edit_provincia_{indice_editar}"
-            )
+        valor_programa_actual = (
+            fila.get("Programa", "")
+            if normalizar_texto(responde_a) == normalizar_texto(fila.get("Responde a", ""))
+            else ""
+        )
 
-            canton = selectbox_con_valor_actual(
-                "Cantón",
-                obtener_cantones_por_provincia(provincia, fila.get("Cantón", "")),
-                fila.get("Cantón", ""),
-                key=f"edit_canton_{indice_editar}"
-            )
+        programa = selectbox_con_valor_actual(
+            "Programa",
+            obtener_programas_por_responde_a(responde_a, valor_programa_actual),
+            valor_programa_actual,
+            key=f"edit_programa_{indice_editar}"
+        )
 
-            distrito = selectbox_con_valor_actual(
-                "Distrito",
-                obtener_distritos_por_provincia_canton(provincia, canton, fila.get("Distrito", "")),
-                fila.get("Distrito", ""),
-                key=f"edit_distrito_{indice_editar}"
+        valor_actividad_actual = (
+            fila.get("Actividad", "")
+            if (
+                normalizar_texto(responde_a) == normalizar_texto(fila.get("Responde a", "")) and
+                normalizar_texto(programa) == normalizar_texto(fila.get("Programa", ""))
             )
+            else ""
+        )
 
-            tipo_lugar_opciones = ["Centro educativo", "Otro lugar"]
-            tipo_lugar_actual = str(fila.get("Tipo Lugar", "")).strip()
-            if tipo_lugar_actual and tipo_lugar_actual not in tipo_lugar_opciones:
-                tipo_lugar_opciones.insert(0, tipo_lugar_actual)
-            tipo_lugar = st.selectbox(
-                "Tipo Lugar",
-                tipo_lugar_opciones,
-                index=indice_opcion_seguro(tipo_lugar_opciones, tipo_lugar_actual),
-                key=f"edit_tipo_lugar_{indice_editar}"
-            )
+        actividad = selectbox_con_valor_actual(
+            "Actividad",
+            obtener_actividades_por_responde_a_programa(responde_a, programa, valor_actividad_actual),
+            valor_actividad_actual,
+            key=f"edit_actividad_{indice_editar}"
+        )
 
-            if tipo_lugar == "Centro educativo":
-                centro_opciones = obtener_centros_por_provincia(provincia, fila.get("Centro Educativo", ""))
-                centro_mostrar = selectbox_con_valor_actual(
-                    "Centro educativo según base MEP 2025",
-                    centro_opciones,
-                    fila.get("Centro Educativo", ""),
-                    key=f"edit_centro_mep_{indice_editar}"
-                )
-                centro_educativo, codigo_presupuestario_auto = obtener_datos_centro_educativo(centro_mostrar)
-                codigo_actual = str(fila.get("Código Presupuestario", "")).strip()
-                codigo_presupuestario = codigo_presupuestario_auto if codigo_presupuestario_auto else codigo_actual
-                lugar = centro_educativo
-                st.info(f"Centro educativo seleccionado: {centro_educativo}")
-                st.info(f"Código presupuestario: {codigo_presupuestario if codigo_presupuestario else 'No disponible'}")
-            else:
-                lugar = st.text_input("Lugar", value=str(fila.get("Lugar", "")))
-                centro_educativo = ""
-                codigo_presupuestario = ""
+        provincia = selectbox_con_valor_actual(
+            "Provincia",
+            obtener_provincias_datos(fila.get("Provincia", "")),
+            fila.get("Provincia", ""),
+            key=f"edit_provincia_{indice_editar}"
+        )
 
-            latitud = st.text_input("Latitud", value=str(fila.get("Latitud", "")))
-            longitud = st.text_input("Longitud", value=str(fila.get("Longitud", "")))
+        valor_canton_actual = (
+            fila.get("Cantón", "")
+            if normalizar_texto(provincia) == normalizar_texto(fila.get("Provincia", ""))
+            else ""
+        )
 
-        with col2:
-            responsable = st.text_input("Responsable", value=str(fila.get("Responsable", "")))
-            cantidad_participantes = st.number_input(
-                "Cantidad Participantes",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Cantidad Participantes", 0))
-            )
-            cantidad_hombres = st.number_input(
-                "Cantidad Hombres",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Cantidad Hombres", 0))
-            )
-            cantidad_mujeres = st.number_input(
-                "Cantidad Mujeres",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Cantidad Mujeres", 0))
-            )
-            edad_10_18 = st.number_input(
-                "Edad 10 a 18",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Edad 10 a 18", 0))
-            )
-            edad_19_30 = st.number_input(
-                "Edad 19 a 30",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Edad 19 a 30", 0))
-            )
-            edad_31_45 = st.number_input(
-                "Edad 31 a 45",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Edad 31 a 45", 0))
-            )
-            edad_46_mas = st.number_input(
-                "Edad 46 en adelante",
-                min_value=0,
-                step=1,
-                value=convertir_entero_seguro(fila.get("Edad 46 en adelante", 0))
-            )
-            instituciones = st.text_area("Instituciones Participantes", value=str(fila.get("Instituciones Participantes", "")), height=80)
-            numero_referencia = st.text_input("Número de Referencia", value=str(fila.get("Número de Referencia", "")))
-            numero_expediente = st.text_input("Número de Expediente Referencia", value=str(fila.get("Número de Expediente Referencia", "")))
-            observaciones = st.text_area("Observaciones del registro", value=str(fila.get("Observaciones", "")), height=90)
-            usuario_registra = st.text_input("Usuario Registra", value=str(fila.get("Usuario Registra", "")))
-            archivo_origen = st.text_input("Archivo Origen", value=str(fila.get("Archivo Origen", "")), disabled=True)
+        canton = selectbox_con_valor_actual(
+            "Cantón",
+            obtener_cantones_por_provincia(provincia, valor_canton_actual),
+            valor_canton_actual,
+            key=f"edit_canton_{indice_editar}"
+        )
 
-        st.markdown("#### Verificación regional")
-
-        estados = [
-            "Pendiente de verificación",
-            "Verificada para envío",
-            "Devuelta a delegación",
-            "Con observaciones regionales"
-        ]
-
-        estado_actual = str(fila.get("Estado Verificación Regional", "Pendiente de verificación"))
-        indice_estado = estados.index(estado_actual) if estado_actual in estados else 0
-
-        colv1, colv2 = st.columns(2)
-
-        with colv1:
-            estado_verificacion = st.selectbox(
-                "Estado Verificación Regional",
-                estados,
-                index=indice_estado
+        valor_distrito_actual = (
+            fila.get("Distrito", "")
+            if (
+                normalizar_texto(provincia) == normalizar_texto(fila.get("Provincia", "")) and
+                normalizar_texto(canton) == normalizar_texto(fila.get("Cantón", ""))
             )
-            coordinador_regional = st.text_input(
-                "Coordinador Regional",
-                value=str(fila.get("Coordinador Regional", ""))
+            else ""
+        )
+
+        distrito = selectbox_con_valor_actual(
+            "Distrito",
+            obtener_distritos_por_provincia_canton(provincia, canton, valor_distrito_actual),
+            valor_distrito_actual,
+            key=f"edit_distrito_{indice_editar}"
+        )
+
+        tipo_lugar_opciones = ["Centro educativo", "Otro lugar"]
+        tipo_lugar_actual = str(fila.get("Tipo Lugar", "")).strip()
+        if tipo_lugar_actual and tipo_lugar_actual not in tipo_lugar_opciones:
+            tipo_lugar_opciones.insert(0, tipo_lugar_actual)
+
+        tipo_lugar = st.selectbox(
+            "Tipo Lugar",
+            tipo_lugar_opciones,
+            index=indice_opcion_seguro(tipo_lugar_opciones, tipo_lugar_actual),
+            key=f"edit_tipo_lugar_{indice_editar}"
+        )
+
+        if tipo_lugar == "Centro educativo":
+            valor_centro_actual = (
+                fila.get("Centro Educativo", "")
+                if normalizar_texto(provincia) == normalizar_texto(fila.get("Provincia", ""))
+                else ""
             )
 
-        with colv2:
-            fecha_verificacion = st.text_input(
-                "Fecha Verificación Regional",
-                value=str(fila.get("Fecha Verificación Regional", ""))
-            )
-            observaciones_verificacion = st.text_area(
-                "Observaciones Verificación Regional",
-                value=str(fila.get("Observaciones Verificación Regional", "")),
-                height=95
+            centro_opciones = obtener_centros_por_provincia(provincia, valor_centro_actual)
+
+            centro_mostrar = selectbox_con_valor_actual(
+                "Centro educativo según base MEP 2025",
+                centro_opciones,
+                valor_centro_actual,
+                key=f"edit_centro_mep_{indice_editar}"
             )
 
-        guardar_cambios = st.form_submit_button("💾 Guardar cambios del registro")
+            centro_educativo, codigo_presupuestario_auto = obtener_datos_centro_educativo(centro_mostrar)
+            codigo_actual = str(fila.get("Código Presupuestario", "")).strip()
+
+            codigo_presupuestario = (
+                codigo_presupuestario_auto
+                if codigo_presupuestario_auto
+                else codigo_actual
+            )
+
+            lugar = centro_educativo
+
+            st.info(f"Centro educativo seleccionado: {centro_educativo}")
+            st.info(f"Código presupuestario: {codigo_presupuestario if codigo_presupuestario else 'No disponible'}")
+        else:
+            lugar = st.text_input(
+                "Lugar",
+                value=str(fila.get("Lugar", "")),
+                key=f"edit_lugar_{indice_editar}"
+            )
+            centro_educativo = ""
+            codigo_presupuestario = ""
+
+        latitud = st.text_input(
+            "Latitud",
+            value=str(fila.get("Latitud", "")),
+            key=f"edit_latitud_{indice_editar}"
+        )
+
+        longitud = st.text_input(
+            "Longitud",
+            value=str(fila.get("Longitud", "")),
+            key=f"edit_longitud_{indice_editar}"
+        )
+
+    with col2:
+        responsable = st.text_input(
+            "Responsable",
+            value=str(fila.get("Responsable", "")),
+            key=f"edit_responsable_{indice_editar}"
+        )
+
+        cantidad_participantes = st.number_input(
+            "Cantidad Participantes",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Cantidad Participantes", 0)),
+            key=f"edit_cantidad_{indice_editar}"
+        )
+
+        cantidad_hombres = st.number_input(
+            "Cantidad Hombres",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Cantidad Hombres", 0)),
+            key=f"edit_hombres_{indice_editar}"
+        )
+
+        cantidad_mujeres = st.number_input(
+            "Cantidad Mujeres",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Cantidad Mujeres", 0)),
+            key=f"edit_mujeres_{indice_editar}"
+        )
+
+        edad_10_18 = st.number_input(
+            "Edad 10 a 18",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 10 a 18", 0)),
+            key=f"edit_edad_10_18_{indice_editar}"
+        )
+
+        edad_19_30 = st.number_input(
+            "Edad 19 a 30",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 19 a 30", 0)),
+            key=f"edit_edad_19_30_{indice_editar}"
+        )
+
+        edad_31_45 = st.number_input(
+            "Edad 31 a 45",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 31 a 45", 0)),
+            key=f"edit_edad_31_45_{indice_editar}"
+        )
+
+        edad_46_mas = st.number_input(
+            "Edad 46 en adelante",
+            min_value=0,
+            step=1,
+            value=convertir_entero_seguro(fila.get("Edad 46 en adelante", 0)),
+            key=f"edit_edad_46_{indice_editar}"
+        )
+
+        instituciones = st.text_area(
+            "Instituciones Participantes",
+            value=str(fila.get("Instituciones Participantes", "")),
+            height=80,
+            key=f"edit_instituciones_{indice_editar}"
+        )
+
+        numero_referencia = st.text_input(
+            "Número de Referencia",
+            value=str(fila.get("Número de Referencia", "")),
+            key=f"edit_referencia_{indice_editar}"
+        )
+
+        numero_expediente = st.text_input(
+            "Número de Expediente Referencia",
+            value=str(fila.get("Número de Expediente Referencia", "")),
+            key=f"edit_expediente_{indice_editar}"
+        )
+
+        observaciones = st.text_area(
+            "Observaciones del registro",
+            value=str(fila.get("Observaciones", "")),
+            height=90,
+            key=f"edit_observaciones_{indice_editar}"
+        )
+
+        usuario_registra = st.text_input(
+            "Usuario Registra",
+            value=str(fila.get("Usuario Registra", "")),
+            key=f"edit_usuario_{indice_editar}"
+        )
+
+        archivo_origen = st.text_input(
+            "Archivo Origen",
+            value=str(fila.get("Archivo Origen", "")),
+            disabled=True,
+            key=f"edit_archivo_origen_{indice_editar}"
+        )
 
     suma_sexo = cantidad_hombres + cantidad_mujeres
     suma_edades = edad_10_18 + edad_19_30 + edad_31_45 + edad_46_mas
@@ -2601,7 +2687,49 @@ def modulo_editar_eliminar_registros(df_filtrado):
                 f"La suma de rangos de edad ({suma_edades}) no coincide con el total de participantes ({cantidad_participantes})."
             )
 
-    if guardar_cambios:
+    st.markdown("#### Verificación regional")
+
+    estados = [
+        "Pendiente de verificación",
+        "Verificada para envío",
+        "Devuelta a delegación",
+        "Con observaciones regionales"
+    ]
+
+    estado_actual = str(fila.get("Estado Verificación Regional", "Pendiente de verificación"))
+    indice_estado = estados.index(estado_actual) if estado_actual in estados else 0
+
+    colv1, colv2 = st.columns(2)
+
+    with colv1:
+        estado_verificacion = st.selectbox(
+            "Estado Verificación Regional",
+            estados,
+            index=indice_estado,
+            key=f"edit_estado_verificacion_{indice_editar}"
+        )
+
+        coordinador_regional = st.text_input(
+            "Coordinador Regional",
+            value=str(fila.get("Coordinador Regional", "")),
+            key=f"edit_coordinador_{indice_editar}"
+        )
+
+    with colv2:
+        fecha_verificacion = st.text_input(
+            "Fecha Verificación Regional",
+            value=str(fila.get("Fecha Verificación Regional", "")),
+            key=f"edit_fecha_verificacion_{indice_editar}"
+        )
+
+        observaciones_verificacion = st.text_area(
+            "Observaciones Verificación Regional",
+            value=str(fila.get("Observaciones Verificación Regional", "")),
+            height=95,
+            key=f"edit_obs_verificacion_{indice_editar}"
+        )
+
+    if st.button("💾 Guardar cambios del registro", key=f"btn_guardar_edicion_{indice_editar}"):
         if cantidad_participantes > 0 and suma_sexo != cantidad_participantes:
             st.error("No se puede guardar: hombres + mujeres no coincide con el total de participantes.")
             return
@@ -2665,10 +2793,10 @@ def modulo_editar_eliminar_registros(df_filtrado):
 
     confirmar_eliminacion = st.checkbox(
         "Confirmo que deseo eliminar este registro",
-        key="confirmar_eliminacion_regional"
+        key=f"confirmar_eliminacion_regional_{indice_editar}"
     )
 
-    if st.button("🗑️ Eliminar registro seleccionado"):
+    if st.button("🗑️ Eliminar registro seleccionado", key=f"btn_eliminar_regional_{indice_editar}"):
         if not confirmar_eliminacion:
             st.warning("Debe marcar la confirmación antes de eliminar.")
         else:
@@ -2678,7 +2806,6 @@ def modulo_editar_eliminar_registros(df_filtrado):
                 st.rerun()
             else:
                 st.error("No se pudo eliminar el registro.")
-
 
 # ======================================================
 # DESCARGA DE EXCEL ADMIN VALIDADO
