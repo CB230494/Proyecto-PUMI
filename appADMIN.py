@@ -3319,6 +3319,70 @@ def obtener_region_desde_archivo_meta(nombre_archivo):
     return "Región no identificada"
 
 
+
+def extraer_numero_region(valor):
+    texto = normalizar_texto(valor)
+    m = re.search(r"REGIONAL\s+(\d+)", texto)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"\bDR\s*(\d+)", texto)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"\bR\s*(\d+)", texto)
+    if m:
+        return int(m.group(1))
+    return 999
+
+
+def orden_subregion_uno(valor):
+    texto = normalizar_texto(valor)
+    if "CENTRAL" in texto or re.search(r"\bDR1\s*C\b", texto):
+        return 0
+    if "NORTE" in texto or re.search(r"\bDR1\s*N\b", texto):
+        return 1
+    if "SUR" in texto or re.search(r"\bDR1\s*S\b", texto):
+        return 2
+    return 9
+
+
+def clave_orden_region(valor):
+    numero = extraer_numero_region(valor)
+    sub = orden_subregion_uno(valor) if numero == 1 else 0
+    return (numero, sub, normalizar_texto(valor))
+
+
+def clave_orden_delegacion(valor):
+    texto = normalizar_texto(valor)
+    m = re.search(r"\bD\s*(\d+)", texto)
+    numero = int(m.group(1)) if m else 9999
+    return (numero, texto)
+
+
+def ordenar_dataframe_metas(df):
+    if df is None or df.empty:
+        return df
+    df = df.copy()
+    df["_orden_region"] = df["Dirección Regional"].apply(clave_orden_region)
+    df["_orden_delegacion"] = df["Delegación"].apply(clave_orden_delegacion)
+    df["_orden_programa"] = df["Programa"].apply(normalizar_texto)
+    df["_orden_actividad"] = df["Actividad"].apply(normalizar_texto)
+    df = df.sort_values(
+        ["_orden_region", "_orden_delegacion", "_orden_programa", "_orden_actividad"],
+        kind="mergesort"
+    ).drop(columns=["_orden_region", "_orden_delegacion", "_orden_programa", "_orden_actividad"])
+    return df.reset_index(drop=True)
+
+
+def opciones_ordenadas_region(series):
+    valores = series.replace("", pd.NA).dropna().astype(str).unique().tolist()
+    return sorted(valores, key=clave_orden_region)
+
+
+def opciones_ordenadas_delegacion(series):
+    valores = series.replace("", pd.NA).dropna().astype(str).unique().tolist()
+    return sorted(valores, key=clave_orden_delegacion)
+
+
 def clasificar_estado_meta(meta, avance):
     meta = limpiar_numero_meta(meta)
     avance = limpiar_numero_meta(avance)
@@ -3326,7 +3390,7 @@ def clasificar_estado_meta(meta, avance):
         return "Completa"
     if avance > 0:
         return "En avance"
-    return "Pendiente"
+    return "Incompleta"
 
 
 @st.cache_data(show_spinner=False)
@@ -3348,12 +3412,11 @@ def cargar_metas_regionales_nacionales():
     for patron in patrones:
         archivos.extend(glob.glob(patron))
 
-    # Respaldo para pruebas locales dentro del sandbox.
     if not archivos:
         for patron in patrones:
             archivos.extend(glob.glob(os.path.join("/mnt/data", patron)))
 
-    archivos = sorted(list(dict.fromkeys(archivos)))
+    archivos = sorted(list(dict.fromkeys(archivos)), key=lambda r: clave_orden_region(os.path.basename(r)))
     registros = []
 
     for ruta in archivos:
@@ -3365,7 +3428,9 @@ def cargar_metas_regionales_nacionales():
         except Exception:
             continue
 
-        for hoja in xl.sheet_names:
+        hojas_ordenadas = sorted(xl.sheet_names, key=clave_orden_delegacion)
+
+        for hoja in hojas_ordenadas:
             nombre_hoja = str(hoja).strip()
             if not nombre_hoja or nombre_hoja.upper().startswith("TOTAL"):
                 continue
@@ -3424,7 +3489,7 @@ def cargar_metas_regionales_nacionales():
 
                 meta = limpiar_numero_meta(row.get(col_meta, 0))
                 avance = limpiar_numero_meta(row.get(col_avance, 0))
-                pendiente = max(meta - avance, 0)
+                incompleto = max(meta - avance, 0)
                 porcentaje = avance / meta if meta else 0
 
                 item = {
@@ -3435,7 +3500,8 @@ def cargar_metas_regionales_nacionales():
                     "Actividad": actividad,
                     "Meta oficial": meta,
                     "Avance base": avance,
-                    "Pendiente base": pendiente,
+                    "Incompleto": incompleto,
+                    "Pendiente base": incompleto,
                     "% avance base": porcentaje,
                     "Estado": clasificar_estado_meta(meta, avance),
                 }
@@ -3446,13 +3512,15 @@ def cargar_metas_regionales_nacionales():
 
                 registros.append(item)
 
-    if not registros:
-        return pd.DataFrame(columns=[
-            "Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad",
-            "Meta oficial", "Avance base", "Pendiente base", "% avance base", "Estado"
-        ])
+    columnas_base = [
+        "Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad",
+        "Meta oficial", "Avance base", "Incompleto", "Pendiente base", "% avance base", "Estado"
+    ]
 
-    return pd.DataFrame(registros)
+    if not registros:
+        return pd.DataFrame(columns=columnas_base)
+
+    return ordenar_dataframe_metas(pd.DataFrame(registros))
 
 
 def filtrar_metas_por_programa_autorizado(df_metas, programa_autorizado):
@@ -3464,28 +3532,74 @@ def filtrar_metas_por_programa_autorizado(df_metas, programa_autorizado):
     return df_metas[mascara].copy()
 
 
+
+def titulo_dashboard(texto):
+    st.markdown(
+        f"""
+        <h3 style="text-align:center; color:{COLOR_AZUL}; font-weight:900; margin-top:22px; margin-bottom:18px;">
+            {texto}
+        </h3>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def tarjeta_resumen_metas(items):
+    tarjetas = ""
+    for titulo, valor in items:
+        tarjetas += f"""
+        <div style="
+            background:#FFFFFF;
+            border-radius:20px;
+            padding:20px 18px;
+            min-height:125px;
+            box-shadow:0 8px 22px rgba(0,0,0,0.12);
+            border-bottom:7px solid {COLOR_AZUL};
+            display:flex;
+            flex-direction:column;
+            justify-content:center;
+        ">
+            <div style="font-size:16px; color:#4B5563; font-weight:700; margin-bottom:10px; line-height:1.2;">
+                {titulo}
+            </div>
+            <div style="font-size:34px; color:#111827; font-weight:900; line-height:1.05; word-break:break-word;">
+                {valor}
+            </div>
+        </div>
+        """
+
+    st.markdown(
+        f"""
+        <div style="display:grid; grid-template-columns:repeat(6, minmax(145px, 1fr)); gap:18px; margin:16px 0 18px 0;">
+            {tarjetas}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 def aplicar_filtros_dashboard_metas(df_metas):
     if df_metas is None or df_metas.empty:
         return df_metas
 
-    st.markdown("### Filtros del dashboard")
+    titulo_dashboard("Filtros del dashboard")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        regiones = sorted(df_metas["Dirección Regional"].replace("", pd.NA).dropna().astype(str).unique().tolist())
+        regiones = opciones_ordenadas_region(df_metas["Dirección Regional"])
         filtro_region = st.multiselect("Dirección Regional", regiones, key="filtro_meta_region")
 
     with col2:
         base_delegaciones = df_metas.copy()
         if filtro_region:
             base_delegaciones = base_delegaciones[base_delegaciones["Dirección Regional"].isin(filtro_region)]
-        delegaciones = sorted(base_delegaciones["Delegación"].replace("", pd.NA).dropna().astype(str).unique().tolist())
+        delegaciones = opciones_ordenadas_delegacion(base_delegaciones["Delegación"])
         filtro_delegacion = st.multiselect("Delegación", delegaciones, key="filtro_meta_delegacion")
 
     with col3:
-        programas = sorted(df_metas["Programa"].replace("", pd.NA).dropna().astype(str).unique().tolist())
+        programas = sorted(df_metas["Programa"].replace("", pd.NA).dropna().astype(str).unique().tolist(), key=normalizar_texto)
         filtro_programa = st.multiselect("Programa", programas, key="filtro_meta_programa")
-        filtro_estado = st.multiselect("Estado", ["Completa", "En avance", "Pendiente"], key="filtro_meta_estado")
+        filtro_estado = st.multiselect("Estado", ["En avance", "Completa", "Incompleta"], key="filtro_meta_estado")
 
     df_filtrado = df_metas.copy()
     if filtro_region:
@@ -3505,7 +3619,7 @@ def aplicar_filtros_dashboard_metas(df_metas):
         "Fuente": "Metas regionales locales"
     }
 
-    return df_filtrado
+    return ordenar_dataframe_metas(df_filtrado)
 
 
 def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
@@ -3516,6 +3630,7 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         st.info("Verifique que estén cargados archivos como DR2 AVANCE JUNIO.xlsx, DR3 AVANCE JUNIO.xlsx, etc.")
         return
 
+    df_metas = ordenar_dataframe_metas(df_metas)
     df_filtrado = aplicar_filtros_dashboard_metas(df_metas)
 
     if df_filtrado.empty:
@@ -3524,30 +3639,43 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
 
     meta_total = float(df_filtrado["Meta oficial"].sum())
     avance_base = float(df_filtrado["Avance base"].sum())
-    pendiente = max(meta_total - avance_base, 0)
+    incompleto = max(meta_total - avance_base, 0)
     porcentaje = avance_base / meta_total if meta_total else 0
     regiones = df_filtrado["Dirección Regional"].nunique()
     delegaciones = df_filtrado["Delegación"].nunique()
 
-    st.markdown("### Resumen nacional según metas oficiales")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Programa", programa_actual if programa_actual else "Sin acceso")
-    c2.metric("Meta oficial", f"{meta_total:,.0f}")
-    c3.metric("Avance base", f"{avance_base:,.0f}")
-    c4.metric("Pendiente", f"{pendiente:,.0f}")
-    c5.metric("% avance", f"{porcentaje:.1%}")
-    c6.metric("Delegaciones", f"{delegaciones:,}")
+    titulo_dashboard("Resumen nacional según metas oficiales")
+    tarjeta_resumen_metas([
+        ("Programa", programa_actual if programa_actual else "Sin acceso"),
+        ("Meta oficial", f"{meta_total:,.0f}"),
+        ("Avance base", f"{avance_base:,.0f}"),
+        ("Incompleto", f"{incompleto:,.0f}"),
+        ("% avance", f"{porcentaje:.1%}"),
+        ("Delegaciones", f"{delegaciones:,}"),
+    ])
 
-    st.caption(f"Regiones con metas visibles: {regiones}")
+    st.markdown(
+        f"<div style='text-align:center; color:#4B5563; font-size:17px; margin-bottom:16px;'>Regiones con metas visibles: <b>{regiones}</b></div>",
+        unsafe_allow_html=True
+    )
 
     st.markdown("---")
     col_g1, col_g2 = st.columns(2)
+
+    colores_estado_meta = {
+        "Completa": COLOR_AZUL,
+        "En avance": "#FFFFFF",
+        "Incompleta": COLOR_ROJO,
+    }
 
     with col_g1:
         estado = (
             df_filtrado.groupby("Estado", as_index=False)
             .agg(Actividades=("Actividad", "count"), Meta=("Meta oficial", "sum"), Avance=("Avance base", "sum"))
         )
+        orden_estado = {"En avance": 0, "Completa": 1, "Incompleta": 2}
+        estado["_orden"] = estado["Estado"].map(orden_estado).fillna(9)
+        estado = estado.sort_values("_orden").drop(columns="_orden")
         if not estado.empty:
             fig_estado = px.pie(
                 estado,
@@ -3556,31 +3684,39 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
                 title="Actividades por estado de avance",
                 hole=0.38,
                 color="Estado",
-                color_discrete_map={"Completa": COLOR_VERDE, "En avance": COLOR_DORADO, "Pendiente": COLOR_AMARILLO},
+                color_discrete_map=colores_estado_meta,
             )
-            fig_estado.update_traces(textinfo="percent+label+value")
+            fig_estado.update_traces(
+                textinfo="percent+label+value",
+                marker=dict(line=dict(color=COLOR_AZUL, width=2))
+            )
             fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+            fig_estado.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
             st.plotly_chart(fig_estado, use_container_width=True)
 
     with col_g2:
-        avance_pend = pd.DataFrame({
-            "Categoría": ["Avance base", "Pendiente"],
-            "Cantidad": [avance_base, pendiente]
+        avance_incomp = pd.DataFrame({
+            "Categoría": ["Avance base", "Incompleto"],
+            "Cantidad": [avance_base, incompleto]
         })
         fig_cumplimiento = px.pie(
-            avance_pend,
+            avance_incomp,
             names="Categoría",
             values="Cantidad",
-            title="Avance base vs pendiente",
+            title="Avance base vs incompleto",
             hole=0.38,
             color="Categoría",
-            color_discrete_map={"Avance base": COLOR_AZUL, "Pendiente": COLOR_AMARILLO},
+            color_discrete_map={"Avance base": COLOR_AZUL, "Incompleto": COLOR_ROJO},
         )
-        fig_cumplimiento.update_traces(textinfo="percent+label+value")
+        fig_cumplimiento.update_traces(
+            textinfo="percent+label+value",
+            marker=dict(line=dict(color="white", width=2))
+        )
         fig_cumplimiento = aplicar_estilo_grafico_institucional(fig_cumplimiento)
+        fig_cumplimiento.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
         st.plotly_chart(fig_cumplimiento, use_container_width=True)
 
-    st.markdown("### Avance por Dirección Regional")
+    titulo_dashboard("Avance por Dirección Regional")
     resumen_region = (
         df_filtrado.groupby("Dirección Regional", as_index=False)
         .agg(
@@ -3588,15 +3724,15 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
             Delegaciones=("Delegación", "nunique"),
             Meta=("Meta oficial", "sum"),
             Avance=("Avance base", "sum"),
-            Pendiente=("Pendiente base", "sum"),
+            Incompleto=("Incompleto", "sum"),
         )
     )
     resumen_region["% avance"] = resumen_region.apply(lambda x: x["Avance"] / x["Meta"] if x["Meta"] else 0, axis=1)
-    resumen_region = resumen_region.sort_values("Meta", ascending=False)
+    resumen_region = resumen_region.sort_values("Dirección Regional", key=lambda s: s.map(clave_orden_region))
 
     vista_region = resumen_region.copy()
     vista_region["% avance"] = vista_region["% avance"].map(lambda x: f"{x:.1%}")
-    for col in ["Meta", "Avance", "Pendiente"]:
+    for col in ["Meta", "Avance", "Incompleto"]:
         vista_region[col] = vista_region[col].map(lambda x: f"{x:,.0f}")
     st.dataframe(vista_region, use_container_width=True, hide_index=True)
 
@@ -3604,43 +3740,48 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         fig_region = px.bar(
             resumen_region,
             x="Dirección Regional",
-            y=["Meta", "Avance", "Pendiente"],
+            y=["Meta", "Avance", "Incompleto"],
             barmode="group",
-            title="Meta, avance base y pendiente por Dirección Regional",
+            title="Meta, avance base e incompleto por Dirección Regional",
+            color_discrete_map={"Meta": "#FFFFFF", "Avance": COLOR_AZUL, "Incompleto": COLOR_ROJO},
         )
-        fig_region.update_xaxes(tickangle=-25)
+        fig_region.update_traces(marker_line_color=COLOR_AZUL, marker_line_width=1.3)
+        fig_region.update_xaxes(tickangle=-25, categoryorder="array", categoryarray=resumen_region["Dirección Regional"].tolist())
         fig_region = aplicar_estilo_grafico_institucional(fig_region)
+        fig_region.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
         st.plotly_chart(fig_region, use_container_width=True)
 
-    st.markdown("### Avance por Delegación")
+    titulo_dashboard("Avance por Delegación")
     resumen_delegacion = (
         df_filtrado.groupby(["Dirección Regional", "Delegación"], as_index=False)
         .agg(
             Actividades=("Actividad", "count"),
             Meta=("Meta oficial", "sum"),
             Avance=("Avance base", "sum"),
-            Pendiente=("Pendiente base", "sum"),
+            Incompleto=("Incompleto", "sum"),
         )
     )
     resumen_delegacion["% avance"] = resumen_delegacion.apply(lambda x: x["Avance"] / x["Meta"] if x["Meta"] else 0, axis=1)
-    resumen_delegacion = resumen_delegacion.sort_values(["Dirección Regional", "Delegación"])
+    resumen_delegacion["_orden_region"] = resumen_delegacion["Dirección Regional"].apply(clave_orden_region)
+    resumen_delegacion["_orden_delegacion"] = resumen_delegacion["Delegación"].apply(clave_orden_delegacion)
+    resumen_delegacion = resumen_delegacion.sort_values(["_orden_region", "_orden_delegacion"]).drop(columns=["_orden_region", "_orden_delegacion"])
 
     vista_delegacion = resumen_delegacion.copy()
     vista_delegacion["% avance"] = vista_delegacion["% avance"].map(lambda x: f"{x:.1%}")
-    for col in ["Meta", "Avance", "Pendiente"]:
+    for col in ["Meta", "Avance", "Incompleto"]:
         vista_delegacion[col] = vista_delegacion[col].map(lambda x: f"{x:,.0f}")
     st.dataframe(vista_delegacion, use_container_width=True, hide_index=True)
 
-    st.markdown("### Detalle de metas visibles")
-    detalle = df_filtrado.copy()
+    titulo_dashboard("Detalle de metas visibles")
+    detalle = ordenar_dataframe_metas(df_filtrado.copy())
     detalle["% avance base"] = detalle["% avance base"].map(lambda x: f"{x:.1%}")
-    for col in ["Meta oficial", "Avance base", "Pendiente base"]:
+    for col in ["Meta oficial", "Avance base", "Incompleto"]:
         detalle[col] = detalle[col].map(lambda x: f"{x:,.0f}")
     columnas = [
         "Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad",
-        "Meta oficial", "Avance base", "Pendiente base", "% avance base", "Estado"
+        "Meta oficial", "Avance base", "Incompleto", "% avance base", "Estado"
     ]
-    st.dataframe(detalle[columnas], use_container_width=True, hide_index=True)
+    st.dataframe(detalle[columnas], use_container_width=True, hide_index=True, height=520)
 
     excel_bytes = BytesIO()
     with pd.ExcelWriter(excel_bytes, engine="openpyxl") as writer:
@@ -3656,6 +3797,7 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="descarga_dashboard_metas_nacionales"
     )
+
 
 # ======================================================
 # appADMIN.py
