@@ -3469,19 +3469,28 @@ if archivo_excel_cargado is not None:
 # MENÚ PRINCIPAL
 # ======================================================
 
-if "menu_principal" not in st.session_state:
-    st.session_state.menu_principal = "Inicio"
+if "menu_actual" not in st.session_state:
+    st.session_state.menu_actual = "Inicio"
 
-menu = st.sidebar.radio(
+opciones_menu = [
+    "Inicio",
+    "Registrar actividad",
+    "Editar y eliminar",
+    "Dashboard"
+]
+
+indice_menu = opciones_menu.index(st.session_state.menu_actual) if st.session_state.menu_actual in opciones_menu else 0
+
+menu_radio = st.sidebar.radio(
     "Menú principal",
-    [
-        "Inicio",
-        "Registrar actividad",
-        "Editar y eliminar",
-        "Dashboard"
-    ],
-    key="menu_principal"
+    opciones_menu,
+    index=indice_menu
 )
+
+if menu_radio != st.session_state.menu_actual:
+    st.session_state.menu_actual = menu_radio
+
+menu = st.session_state.menu_actual
 
 
 # ======================================================
@@ -3532,17 +3541,17 @@ if menu == "Inicio":
 
     with c1:
         if st.button("📝 Registrar actividad", use_container_width=True):
-            st.session_state.menu_principal = "Registrar actividad"
+            st.session_state.menu_actual = "Registrar actividad"
             st.rerun()
 
     with c2:
         if st.button("✏️ Editar y eliminar", use_container_width=True):
-            st.session_state.menu_principal = "Editar y eliminar"
+            st.session_state.menu_actual = "Editar y eliminar"
             st.rerun()
 
     with c3:
         if st.button("📊 Dashboard", use_container_width=True):
-            st.session_state.menu_principal = "Dashboard"
+            st.session_state.menu_actual = "Dashboard"
             st.rerun()
 
     df_actual = st.session_state.registros_pumi
