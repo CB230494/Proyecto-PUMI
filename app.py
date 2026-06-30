@@ -3326,7 +3326,7 @@ menu = st.sidebar.radio(
     [
         "Inicio",
         "Registrar actividad",
-        "Registros cargados",
+        "Editar y eliminar",
         "Dashboard"
     ]
 )
@@ -3934,7 +3934,7 @@ elif menu == "Registrar actividad":
 # ======================================================
 
 
-elif menu == "Registros cargados":
+elif menu == "Editar y eliminar":
 
     st.markdown("## Editar / eliminar registros PUMI")
 
@@ -4009,57 +4009,168 @@ elif menu == "Registros cargados":
 
             with st.expander("Abrir formulario de edición", expanded=False):
 
+                def indice_opcion(lista, valor):
+                    valor_norm = normalizar_texto(valor)
+                    for i, opcion in enumerate(lista):
+                        if normalizar_texto(opcion) == valor_norm:
+                            return i
+                    return 0
+
+                def preparar_opciones(lista, valor_actual):
+                    opciones = [str(x) for x in lista if str(x).strip() != ""]
+                    if valor_actual and str(valor_actual).strip() != "" and normalizar_texto(valor_actual) not in [normalizar_texto(x) for x in opciones]:
+                        opciones.insert(0, str(valor_actual))
+                    if not opciones:
+                        opciones = ["Sin datos disponibles"]
+                    return opciones
+
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    fecha_actividad_edit = st.text_input(
+                    fecha_actual_edit = pd.to_datetime(
+                        fila.get("Fecha Actividad", date.today()),
+                        errors="coerce",
+                        dayfirst=True
+                    )
+                    if pd.isna(fecha_actual_edit):
+                        fecha_actual_edit = pd.Timestamp(date.today())
+
+                    fecha_actividad_edit_dt = st.date_input(
                         "Fecha Actividad",
-                        value=str(fila.get("Fecha Actividad", ""))
+                        value=fecha_actual_edit.date(),
+                        format="DD/MM/YYYY"
                     )
+                    fecha_actividad_edit = fecha_actividad_edit_dt.strftime("%d/%m/%Y")
 
-                    hora_actividad_edit = st.text_input(
+                    hora_actual_texto = str(fila.get("Hora Actividad", "08:00"))
+                    try:
+                        hora_actual_edit = datetime.strptime(hora_actual_texto[:5], "%H:%M").time()
+                    except Exception:
+                        hora_actual_edit = time(8, 0)
+
+                    hora_actividad_edit_dt = st.time_input(
                         "Hora Actividad",
-                        value=str(fila.get("Hora Actividad", ""))
+                        value=hora_actual_edit
+                    )
+                    hora_actividad_edit = hora_actividad_edit_dt.strftime("%H:%M")
+
+                    regiones_edit_lista = preparar_opciones(
+                        obtener_regiones_datos(),
+                        fila.get("Dirección Regional", "")
                     )
 
-                    direccion_regional_edit = st.text_input(
-                        "Dirección Regional",
-                        value=str(fila.get("Dirección Regional", ""))
+                    if es_admin:
+                        direccion_regional_edit = st.selectbox(
+                            "Dirección Regional",
+                            regiones_edit_lista,
+                            index=indice_opcion(regiones_edit_lista, fila.get("Dirección Regional", "")),
+                            key="edit_direccion_regional"
+                        )
+                    else:
+                        direccion_regional_edit = st.selectbox(
+                            "Dirección Regional",
+                            [usuario_actual.get("region", fila.get("Dirección Regional", ""))],
+                            disabled=True,
+                            key="edit_direccion_regional"
+                        )
+
+                    delegaciones_edit_lista = preparar_opciones(
+                        obtener_delegaciones_por_region(direccion_regional_edit),
+                        fila.get("Delegación", "")
                     )
 
-                    delegacion_edit = st.text_input(
-                        "Delegación",
-                        value=str(fila.get("Delegación", ""))
+                    if es_admin:
+                        delegacion_edit = st.selectbox(
+                            "Delegación",
+                            delegaciones_edit_lista,
+                            index=indice_opcion(delegaciones_edit_lista, fila.get("Delegación", "")),
+                            key="edit_delegacion"
+                        )
+                    else:
+                        delegacion_edit = st.selectbox(
+                            "Delegación",
+                            [usuario_actual.get("delegacion", fila.get("Delegación", ""))],
+                            disabled=True,
+                            key="edit_delegacion"
+                        )
+
+                    programas_edit_lista = obtener_programas_metas_por_delegacion(delegacion_edit)
+                    if not programas_edit_lista:
+                        programas_edit_lista = obtener_programas_datos()
+
+                    programas_edit_lista = preparar_opciones(
+                        programas_edit_lista,
+                        fila.get("Programa", "")
                     )
 
-                    programa_edit = st.text_input(
+                    programa_edit = st.selectbox(
                         "Programa",
-                        value=str(fila.get("Programa", ""))
+                        programas_edit_lista,
+                        index=indice_opcion(programas_edit_lista, fila.get("Programa", "")),
+                        key="edit_programa"
                     )
 
-                    actividad_edit = st.text_area(
+                    actividades_edit_lista = obtener_actividades_metas_por_delegacion_programa(
+                        delegacion_edit,
+                        programa_edit
+                    )
+                    if not actividades_edit_lista:
+                        actividades_edit_lista = obtener_actividades_por_programa(programa_edit)
+
+                    actividades_edit_lista = preparar_opciones(
+                        actividades_edit_lista,
+                        fila.get("Actividad", "")
+                    )
+
+                    actividad_edit = st.selectbox(
                         "Actividad",
-                        value=str(fila.get("Actividad", ""))
+                        actividades_edit_lista,
+                        index=indice_opcion(actividades_edit_lista, fila.get("Actividad", "")),
+                        key="edit_actividad"
                     )
 
-                    provincia_edit = st.text_input(
+                    provincias_edit_lista = preparar_opciones(
+                        obtener_provincias_datos(),
+                        fila.get("Provincia", "")
+                    )
+                    provincia_edit = st.selectbox(
                         "Provincia",
-                        value=str(fila.get("Provincia", ""))
+                        provincias_edit_lista,
+                        index=indice_opcion(provincias_edit_lista, fila.get("Provincia", "")),
+                        key="edit_provincia"
                     )
 
-                    canton_edit = st.text_input(
+                    cantones_edit_lista = preparar_opciones(
+                        obtener_cantones_por_provincia(provincia_edit),
+                        fila.get("Cantón", "")
+                    )
+                    canton_edit = st.selectbox(
                         "Cantón",
-                        value=str(fila.get("Cantón", ""))
+                        cantones_edit_lista,
+                        index=indice_opcion(cantones_edit_lista, fila.get("Cantón", "")),
+                        key="edit_canton"
                     )
 
-                    distrito_edit = st.text_input(
+                    distritos_edit_lista = preparar_opciones(
+                        obtener_distritos_por_provincia_canton(provincia_edit, canton_edit),
+                        fila.get("Distrito", "")
+                    )
+                    distrito_edit = st.selectbox(
                         "Distrito",
-                        value=str(fila.get("Distrito", ""))
+                        distritos_edit_lista,
+                        index=indice_opcion(distritos_edit_lista, fila.get("Distrito", "")),
+                        key="edit_distrito"
                     )
 
-                    tipo_lugar_edit = st.text_input(
+                    tipo_lugar_opciones = preparar_opciones(
+                        ["Centro educativo", "Otro lugar"],
+                        fila.get("Tipo Lugar", "")
+                    )
+                    tipo_lugar_edit = st.selectbox(
                         "Tipo Lugar",
-                        value=str(fila.get("Tipo Lugar", ""))
+                        tipo_lugar_opciones,
+                        index=indice_opcion(tipo_lugar_opciones, fila.get("Tipo Lugar", "")),
+                        key="edit_tipo_lugar"
                     )
 
                     lugar_edit = st.text_input(
