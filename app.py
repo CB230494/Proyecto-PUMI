@@ -519,6 +519,70 @@ st.markdown(
         font-weight: 900;
     }}
 
+
+    .meta-oficial-box {{
+        background: #FFFFFF;
+        border-radius: 20px;
+        padding: 20px 22px;
+        margin: 12px 0 20px 0;
+        box-shadow: 0px 6px 18px rgba(0,0,0,0.10);
+        border-left: 8px solid #002B7F;
+        border-bottom: 5px solid #B88A2A;
+    }}
+
+    .meta-titulo {{
+        color: #002B7F;
+        font-size: 28px;
+        line-height: 1.15;
+        font-weight: 900;
+        margin-bottom: 16px;
+    }}
+
+    .meta-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, minmax(110px, 1fr));
+        gap: 14px;
+    }}
+
+    .meta-card {{
+        background: linear-gradient(145deg, #FFFFFF 0%, #F3F6FF 100%);
+        border-radius: 16px;
+        padding: 14px 16px;
+        border: 1px solid #E2E8F0;
+        min-height: 94px;
+        box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
+    }}
+
+    .meta-label {{
+        color: #4B5563;
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        white-space: nowrap;
+    }}
+
+    .meta-value {{
+        color: #111827;
+        font-size: 34px;
+        font-weight: 900;
+        line-height: 1;
+    }}
+
+    .meta-meses {{
+        background: #EAF1FF;
+        color: #002B7F;
+        padding: 12px 14px;
+        border-radius: 12px;
+        margin-top: 14px;
+        font-size: 16px;
+    }}
+
+    @media (max-width: 900px) {{
+        .meta-grid {{
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+        }}
+    }}
+
     @media (max-width: 900px) {{
         .encabezado-institucional {{
             grid-template-columns: 1fr;
@@ -1402,7 +1466,6 @@ def obtener_fila_meta_por_delegacion(delegacion, programa, actividad):
 
 def mostrar_resumen_meta_seleccionada(fila_meta):
     if not fila_meta:
-        st.warning("La actividad seleccionada no tiene una meta oficial asociada.")
         return 1, 0, 0, 0
 
     meta = float(fila_meta.get("Meta 2026", 0) or 0)
@@ -1410,22 +1473,48 @@ def mostrar_resumen_meta_seleccionada(fila_meta):
     pendiente = max(meta - avance_base, 0)
     porcentaje_meta = avance_base / meta if meta else 0
 
-    st.markdown("#### Meta oficial")
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Meta 2026", f"{meta:,.0f}")
-    c2.metric("Avance base", f"{avance_base:,.0f}")
-    c3.metric("Pendiente", f"{pendiente:,.0f}")
-    c4.metric("% base", f"{porcentaje_meta:.1%}")
-
     meses = []
     for mes in MESES_OFICIALES:
         valor = limpiar_numero_meta(fila_meta.get(mes.title(), 0))
         if valor > 0:
             meses.append(f"{mes.title()}: {valor:,.0f}")
 
+    meses_html = ""
     if meses:
-        st.caption(" | ".join(meses))
+        meses_texto = " | ".join(meses)
+        meses_html = f"""
+        <div class="meta-meses">
+            <b>Movimientos en meta base:</b> {meses_texto}
+        </div>
+        """
+
+    st.markdown(
+        f"""
+        <div class="meta-oficial-box">
+            <div class="meta-titulo">Meta oficial</div>
+            <div class="meta-grid">
+                <div class="meta-card">
+                    <div class="meta-label">Meta 2026</div>
+                    <div class="meta-value">{meta:,.0f}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Avance base</div>
+                    <div class="meta-value">{avance_base:,.0f}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Pendiente</div>
+                    <div class="meta-value">{pendiente:,.0f}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">% base</div>
+                    <div class="meta-value">{porcentaje_meta:.1%}</div>
+                </div>
+            </div>
+            {meses_html}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     valor_sugerido = 1 if pendiente >= 1 else 0
     return valor_sugerido, int(meta), int(avance_base), int(pendiente)
