@@ -3256,6 +3256,407 @@ def mostrar_dashboard_coordinador_nacional(df):
     st.markdown("### Detalle incluido en el dashboard")
     mostrar_tabla_resumen_validacion(df_metricas)
 
+
+
+# ======================================================
+# LECTURA AUTOMÁTICA DE METAS REGIONALES PARA DASHBOARD
+# Lee archivos locales tipo DR2 AVANCE JUNIO.xlsx, DR3...
+# y muestra metas/avance base según el programa autorizado.
+# ======================================================
+
+MESES_META = [
+    "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+    "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+]
+
+MAPA_REGION_ARCHIVO = {
+    "DR1 C": "Dirección Regional 1 - San José Central",
+    "DR1 N": "Dirección Regional 1 - San José Norte",
+    "DR1 S": "Dirección Regional 1 - San José Sur",
+    "DR2": "Dirección Regional 2 - Alajuela",
+    "DR3": "Dirección Regional 3 - Cartago",
+    "DR4": "Dirección Regional 4 - Heredia",
+    "DR5": "Dirección Regional 5",
+    "DR6": "Dirección Regional 6",
+    "DR7": "Dirección Regional 7",
+    "DR8": "Dirección Regional 8",
+    "DR9": "Dirección Regional 9",
+    "DR10": "Dirección Regional 10",
+    "DR11": "Dirección Regional 11",
+    "DR12": "Dirección Regional 12 - Caribe",
+}
+
+
+def limpiar_numero_meta(valor):
+    if pd.isna(valor) or valor == "":
+        return 0.0
+    if isinstance(valor, str):
+        valor = valor.replace("%", "").replace(",", ".").strip()
+    try:
+        return float(valor)
+    except Exception:
+        return 0.0
+
+
+def normalizar_columnas_meta(cols):
+    nuevas = []
+    for c in cols:
+        c = str(c).strip().upper()
+        c = re.sub(r"\s+", " ", c)
+        nuevas.append(c)
+    return nuevas
+
+
+def obtener_region_desde_archivo_meta(nombre_archivo):
+    nombre = str(nombre_archivo).upper().replace("_", " ")
+    nombre = re.sub(r"\s+", " ", nombre).strip()
+    for clave in sorted(MAPA_REGION_ARCHIVO.keys(), key=len, reverse=True):
+        if nombre.startswith(clave):
+            return MAPA_REGION_ARCHIVO[clave]
+    m = re.match(r"(DR\d+)", nombre)
+    if m:
+        return MAPA_REGION_ARCHIVO.get(m.group(1), m.group(1))
+    return "Región no identificada"
+
+
+def clasificar_estado_meta(meta, avance):
+    meta = limpiar_numero_meta(meta)
+    avance = limpiar_numero_meta(avance)
+    if meta > 0 and avance >= meta:
+        return "Completa"
+    if avance > 0:
+        return "En avance"
+    return "Pendiente"
+
+
+@st.cache_data(show_spinner=False)
+def cargar_metas_regionales_nacionales():
+    """
+    Carga automáticamente todos los Excel de metas regionales ubicados al mismo
+    nivel de la app. No requiere subirlos manualmente desde la interfaz.
+    """
+    import glob
+
+    patrones = [
+        "DR* AVANCE JUNIO.xlsx",
+        "DR*AVANCE JUNIO.xlsx",
+        "DR* AVANCE JUNIO.xlsm",
+        "DR*AVANCE JUNIO.xlsm",
+    ]
+
+    archivos = []
+    for patron in patrones:
+        archivos.extend(glob.glob(patron))
+
+    # Respaldo para pruebas locales dentro del sandbox.
+    if not archivos:
+        for patron in patrones:
+            archivos.extend(glob.glob(os.path.join("/mnt/data", patron)))
+
+    archivos = sorted(list(dict.fromkeys(archivos)))
+    registros = []
+
+    for ruta in archivos:
+        nombre_archivo = os.path.basename(ruta)
+        region = obtener_region_desde_archivo_meta(nombre_archivo)
+
+        try:
+            xl = pd.ExcelFile(ruta)
+        except Exception:
+            continue
+
+        for hoja in xl.sheet_names:
+            nombre_hoja = str(hoja).strip()
+            if not nombre_hoja or nombre_hoja.upper().startswith("TOTAL"):
+                continue
+
+            try:
+                raw = pd.read_excel(ruta, sheet_name=hoja, header=None)
+            except Exception:
+                continue
+
+            if raw.empty:
+                continue
+
+            fila_header = None
+            for i in range(min(12, len(raw))):
+                fila = " ".join(raw.iloc[i].astype(str).fillna("").str.upper().tolist())
+                if "PROGRAMA" in fila and "META" in fila:
+                    fila_header = i
+                    break
+
+            if fila_header is None:
+                continue
+
+            try:
+                df = pd.read_excel(ruta, sheet_name=hoja, header=fila_header)
+            except Exception:
+                continue
+
+            if df.empty or len(df.columns) < 4:
+                continue
+
+            df.columns = normalizar_columnas_meta(df.columns)
+            df = df.dropna(how="all")
+
+            col_programa = df.columns[0]
+            col_actividad = df.columns[1]
+            col_meta = next((c for c in df.columns if "META" in c), None)
+            col_avance = next((c for c in df.columns if "AVANCE" in c), None)
+
+            if not col_meta:
+                continue
+
+            if not col_avance:
+                df["AVANCE"] = 0
+                col_avance = "AVANCE"
+
+            df[col_programa] = df[col_programa].ffill()
+
+            for _, row in df.iterrows():
+                programa = str(row.get(col_programa, "")).strip()
+                actividad = str(row.get(col_actividad, "")).strip()
+
+                if not actividad or actividad.upper() in ["NAN", "TOTAL", "TOTALES"]:
+                    continue
+                if not programa or programa.upper() == "NAN":
+                    continue
+
+                meta = limpiar_numero_meta(row.get(col_meta, 0))
+                avance = limpiar_numero_meta(row.get(col_avance, 0))
+                pendiente = max(meta - avance, 0)
+                porcentaje = avance / meta if meta else 0
+
+                item = {
+                    "Archivo meta": nombre_archivo,
+                    "Dirección Regional": region,
+                    "Delegación": nombre_hoja,
+                    "Programa": programa,
+                    "Actividad": actividad,
+                    "Meta oficial": meta,
+                    "Avance base": avance,
+                    "Pendiente base": pendiente,
+                    "% avance base": porcentaje,
+                    "Estado": clasificar_estado_meta(meta, avance),
+                }
+
+                for mes in MESES_META:
+                    col_mes = next((c for c in df.columns if c == mes), None)
+                    item[mes.title()] = limpiar_numero_meta(row.get(col_mes, 0)) if col_mes else 0
+
+                registros.append(item)
+
+    if not registros:
+        return pd.DataFrame(columns=[
+            "Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad",
+            "Meta oficial", "Avance base", "Pendiente base", "% avance base", "Estado"
+        ])
+
+    return pd.DataFrame(registros)
+
+
+def filtrar_metas_por_programa_autorizado(df_metas, programa_autorizado):
+    if df_metas is None or df_metas.empty:
+        return df_metas
+    if not programa_autorizado or "Programa" not in df_metas.columns:
+        return pd.DataFrame(columns=df_metas.columns)
+    mascara = df_metas["Programa"].apply(lambda x: programa_permitido_por_acceso(x, programa_autorizado))
+    return df_metas[mascara].copy()
+
+
+def aplicar_filtros_dashboard_metas(df_metas):
+    if df_metas is None or df_metas.empty:
+        return df_metas
+
+    st.markdown("### Filtros del dashboard")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        regiones = sorted(df_metas["Dirección Regional"].replace("", pd.NA).dropna().astype(str).unique().tolist())
+        filtro_region = st.multiselect("Dirección Regional", regiones, key="filtro_meta_region")
+
+    with col2:
+        base_delegaciones = df_metas.copy()
+        if filtro_region:
+            base_delegaciones = base_delegaciones[base_delegaciones["Dirección Regional"].isin(filtro_region)]
+        delegaciones = sorted(base_delegaciones["Delegación"].replace("", pd.NA).dropna().astype(str).unique().tolist())
+        filtro_delegacion = st.multiselect("Delegación", delegaciones, key="filtro_meta_delegacion")
+
+    with col3:
+        programas = sorted(df_metas["Programa"].replace("", pd.NA).dropna().astype(str).unique().tolist())
+        filtro_programa = st.multiselect("Programa", programas, key="filtro_meta_programa")
+        filtro_estado = st.multiselect("Estado", ["Completa", "En avance", "Pendiente"], key="filtro_meta_estado")
+
+    df_filtrado = df_metas.copy()
+    if filtro_region:
+        df_filtrado = df_filtrado[df_filtrado["Dirección Regional"].isin(filtro_region)]
+    if filtro_delegacion:
+        df_filtrado = df_filtrado[df_filtrado["Delegación"].isin(filtro_delegacion)]
+    if filtro_programa:
+        df_filtrado = df_filtrado[df_filtrado["Programa"].isin(filtro_programa)]
+    if filtro_estado:
+        df_filtrado = df_filtrado[df_filtrado["Estado"].isin(filtro_estado)]
+
+    st.session_state.filtros_admin_aplicados = {
+        "Dirección Regional": filtro_region,
+        "Delegación": filtro_delegacion,
+        "Programa": filtro_programa,
+        "Estado": filtro_estado,
+        "Fuente": "Metas regionales locales"
+    }
+
+    return df_filtrado
+
+
+def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
+    programa_actual = st.session_state.get("admin_programa_autenticado", "")
+
+    if df_metas is None or df_metas.empty:
+        st.warning("No se encontraron archivos de metas regionales al mismo nivel de la app.")
+        st.info("Verifique que estén cargados archivos como DR2 AVANCE JUNIO.xlsx, DR3 AVANCE JUNIO.xlsx, etc.")
+        return
+
+    df_filtrado = aplicar_filtros_dashboard_metas(df_metas)
+
+    if df_filtrado.empty:
+        st.info("No hay metas para mostrar con los filtros seleccionados.")
+        return
+
+    meta_total = float(df_filtrado["Meta oficial"].sum())
+    avance_base = float(df_filtrado["Avance base"].sum())
+    pendiente = max(meta_total - avance_base, 0)
+    porcentaje = avance_base / meta_total if meta_total else 0
+    regiones = df_filtrado["Dirección Regional"].nunique()
+    delegaciones = df_filtrado["Delegación"].nunique()
+
+    st.markdown("### Resumen nacional según metas oficiales")
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Programa", programa_actual if programa_actual else "Sin acceso")
+    c2.metric("Meta oficial", f"{meta_total:,.0f}")
+    c3.metric("Avance base", f"{avance_base:,.0f}")
+    c4.metric("Pendiente", f"{pendiente:,.0f}")
+    c5.metric("% avance", f"{porcentaje:.1%}")
+    c6.metric("Delegaciones", f"{delegaciones:,}")
+
+    st.caption(f"Regiones con metas visibles: {regiones}")
+
+    st.markdown("---")
+    col_g1, col_g2 = st.columns(2)
+
+    with col_g1:
+        estado = (
+            df_filtrado.groupby("Estado", as_index=False)
+            .agg(Actividades=("Actividad", "count"), Meta=("Meta oficial", "sum"), Avance=("Avance base", "sum"))
+        )
+        if not estado.empty:
+            fig_estado = px.pie(
+                estado,
+                names="Estado",
+                values="Actividades",
+                title="Actividades por estado de avance",
+                hole=0.38,
+                color="Estado",
+                color_discrete_map={"Completa": COLOR_VERDE, "En avance": COLOR_DORADO, "Pendiente": COLOR_AMARILLO},
+            )
+            fig_estado.update_traces(textinfo="percent+label+value")
+            fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+            st.plotly_chart(fig_estado, use_container_width=True)
+
+    with col_g2:
+        avance_pend = pd.DataFrame({
+            "Categoría": ["Avance base", "Pendiente"],
+            "Cantidad": [avance_base, pendiente]
+        })
+        fig_cumplimiento = px.pie(
+            avance_pend,
+            names="Categoría",
+            values="Cantidad",
+            title="Avance base vs pendiente",
+            hole=0.38,
+            color="Categoría",
+            color_discrete_map={"Avance base": COLOR_AZUL, "Pendiente": COLOR_AMARILLO},
+        )
+        fig_cumplimiento.update_traces(textinfo="percent+label+value")
+        fig_cumplimiento = aplicar_estilo_grafico_institucional(fig_cumplimiento)
+        st.plotly_chart(fig_cumplimiento, use_container_width=True)
+
+    st.markdown("### Avance por Dirección Regional")
+    resumen_region = (
+        df_filtrado.groupby("Dirección Regional", as_index=False)
+        .agg(
+            Actividades=("Actividad", "count"),
+            Delegaciones=("Delegación", "nunique"),
+            Meta=("Meta oficial", "sum"),
+            Avance=("Avance base", "sum"),
+            Pendiente=("Pendiente base", "sum"),
+        )
+    )
+    resumen_region["% avance"] = resumen_region.apply(lambda x: x["Avance"] / x["Meta"] if x["Meta"] else 0, axis=1)
+    resumen_region = resumen_region.sort_values("Meta", ascending=False)
+
+    vista_region = resumen_region.copy()
+    vista_region["% avance"] = vista_region["% avance"].map(lambda x: f"{x:.1%}")
+    for col in ["Meta", "Avance", "Pendiente"]:
+        vista_region[col] = vista_region[col].map(lambda x: f"{x:,.0f}")
+    st.dataframe(vista_region, use_container_width=True, hide_index=True)
+
+    if not resumen_region.empty:
+        fig_region = px.bar(
+            resumen_region,
+            x="Dirección Regional",
+            y=["Meta", "Avance", "Pendiente"],
+            barmode="group",
+            title="Meta, avance base y pendiente por Dirección Regional",
+        )
+        fig_region.update_xaxes(tickangle=-25)
+        fig_region = aplicar_estilo_grafico_institucional(fig_region)
+        st.plotly_chart(fig_region, use_container_width=True)
+
+    st.markdown("### Avance por Delegación")
+    resumen_delegacion = (
+        df_filtrado.groupby(["Dirección Regional", "Delegación"], as_index=False)
+        .agg(
+            Actividades=("Actividad", "count"),
+            Meta=("Meta oficial", "sum"),
+            Avance=("Avance base", "sum"),
+            Pendiente=("Pendiente base", "sum"),
+        )
+    )
+    resumen_delegacion["% avance"] = resumen_delegacion.apply(lambda x: x["Avance"] / x["Meta"] if x["Meta"] else 0, axis=1)
+    resumen_delegacion = resumen_delegacion.sort_values(["Dirección Regional", "Delegación"])
+
+    vista_delegacion = resumen_delegacion.copy()
+    vista_delegacion["% avance"] = vista_delegacion["% avance"].map(lambda x: f"{x:.1%}")
+    for col in ["Meta", "Avance", "Pendiente"]:
+        vista_delegacion[col] = vista_delegacion[col].map(lambda x: f"{x:,.0f}")
+    st.dataframe(vista_delegacion, use_container_width=True, hide_index=True)
+
+    st.markdown("### Detalle de metas visibles")
+    detalle = df_filtrado.copy()
+    detalle["% avance base"] = detalle["% avance base"].map(lambda x: f"{x:.1%}")
+    for col in ["Meta oficial", "Avance base", "Pendiente base"]:
+        detalle[col] = detalle[col].map(lambda x: f"{x:,.0f}")
+    columnas = [
+        "Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad",
+        "Meta oficial", "Avance base", "Pendiente base", "% avance base", "Estado"
+    ]
+    st.dataframe(detalle[columnas], use_container_width=True, hide_index=True)
+
+    excel_bytes = BytesIO()
+    with pd.ExcelWriter(excel_bytes, engine="openpyxl") as writer:
+        df_filtrado.to_excel(writer, index=False, sheet_name="DASHBOARD_METAS")
+        resumen_region.to_excel(writer, index=False, sheet_name="RESUMEN_REGION")
+        resumen_delegacion.to_excel(writer, index=False, sheet_name="RESUMEN_DELEGACION")
+    excel_bytes.seek(0)
+
+    st.download_button(
+        "⬇️ Descargar dashboard de metas",
+        data=excel_bytes.getvalue(),
+        file_name=f"DASHBOARD_METAS_{limpiar_nombre_archivo(programa_actual)}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="descarga_dashboard_metas_nacionales"
+    )
+
 # ======================================================
 # appADMIN.py
 # PARTE 4 DE 5 CORREGIDA
@@ -4360,35 +4761,48 @@ elif menu_admin == "Dashboard":
 
     st.markdown("## Dashboard nacional")
 
-    if df_admin.empty:
-        programa_actual = st.session_state.get("admin_programa_autenticado", "")
-        st.info("Suba uno o varios Excel regionales verificados para visualizar el dashboard nacional del programa.")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Programa", programa_actual if programa_actual else "Sin acceso")
-        c2.metric("Registros", 0)
-        c3.metric("Regiones", 0)
-        c4.metric("Delegaciones", 0)
+    programa_actual = st.session_state.get("admin_programa_autenticado", "")
+    df_metas_todas = cargar_metas_regionales_nacionales()
+    df_metas_programa = filtrar_metas_por_programa_autorizado(
+        df_metas_todas,
+        programa_actual
+    )
+
+    if not df_metas_programa.empty:
+        st.info("Dashboard generado automáticamente desde los Excel de metas regionales cargados en el repositorio.")
+        mostrar_dashboard_metas_nacionales(df_metas_programa, df_admin)
+
+        if not df_admin.empty:
+            with st.expander("Ver mapa de registros PUMI cargados para este programa", expanded=False):
+                df_filtrado_registros = aplicar_filtros_admin(df_admin)
+                mostrar_mapa_admin(
+                    df_filtrado_registros,
+                    key="mapa_dashboard_admin"
+                )
     else:
-        df_filtrado = aplicar_filtros_admin(df_admin)
+        st.info("No se encontraron metas visibles para este programa en los Excel regionales. Si cargó un Excel verificado, se mostrará el dashboard de registros.")
 
-        st.markdown("---")
-
-        mostrar_dashboard_coordinador_nacional(df_filtrado)
-
-        st.markdown("---")
-
-        mostrar_mapa_admin(
-            df_filtrado,
-            key="mapa_dashboard_admin"
-        )
-
-        st.markdown("---")
-        st.markdown("### Descargar Excel del dashboard filtrado")
-
-        boton_descargar_excel_admin(
-            df_filtrado,
-            key="descarga_dashboard_filtrado"
-        )
+        if df_admin.empty:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Programa", programa_actual if programa_actual else "Sin acceso")
+            c2.metric("Registros", 0)
+            c3.metric("Regiones", 0)
+            c4.metric("Delegaciones", 0)
+        else:
+            df_filtrado = aplicar_filtros_admin(df_admin)
+            st.markdown("---")
+            mostrar_dashboard_coordinador_nacional(df_filtrado)
+            st.markdown("---")
+            mostrar_mapa_admin(
+                df_filtrado,
+                key="mapa_dashboard_admin"
+            )
+            st.markdown("---")
+            st.markdown("### Descargar Excel del dashboard filtrado")
+            boton_descargar_excel_admin(
+                df_filtrado,
+                key="descarga_dashboard_filtrado"
+            )
 
 
 # ======================================================
