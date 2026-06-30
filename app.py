@@ -3503,25 +3503,10 @@ elif menu == "Registrar actividad":
         st.session_state.ultima_delegacion = delegacion
 
     with col2:
-        responde_a_lista = obtener_responde_a_datos()
-
-        responde_a = st.selectbox(
-            "Responde a",
-            responde_a_lista if responde_a_lista else ["Sin datos disponibles"]
-        )
-
-        programas_por_responde = obtener_programas_por_responde_a(responde_a)
+        responde_a = ""
 
         if usar_metas:
-            programas_metas = obtener_programas_metas_por_delegacion(delegacion)
-
-            programas_lista = [
-                p for p in programas_por_responde
-                if normalizar_texto(p) in [normalizar_texto(x) for x in programas_metas]
-            ]
-
-            if not programas_lista:
-                programas_lista = programas_metas if programas_metas else programas_por_responde
+            programas_lista = obtener_programas_metas_por_delegacion(delegacion)
 
             programa = st.selectbox(
                 "Programa",
@@ -3545,17 +3530,14 @@ elif menu == "Registrar actividad":
             )
 
         else:
-            programas_lista = programas_por_responde if programas_por_responde else obtener_programas_datos()
+            programas_lista = obtener_programas_datos()
 
             programa = st.selectbox(
                 "Programa",
                 programas_lista if programas_lista else ["Sin datos disponibles"]
             )
 
-            actividades_filtradas = obtener_actividades_por_responde_a_programa(
-                responde_a,
-                programa
-            )
+            actividades_filtradas = obtener_actividades_por_programa(programa)
 
             actividad = st.selectbox(
                 "Actividad realizada",
@@ -3878,7 +3860,7 @@ elif menu == "Registrar actividad":
             "Hora Actividad": hora_actividad.strftime("%H:%M"),
             "Dirección Regional": direccion_regional,
             "Delegación": delegacion,
-            "Responde a": responde_a,
+            "Responde a": "",
             "Programa": programa,
             "Actividad": actividad,
             "Provincia": provincia,
@@ -4318,267 +4300,278 @@ elif menu == "Registros cargados":
 
 elif menu == "Dashboard":
 
-    st.markdown("## Dashboard general")
+    st.markdown("## Dashboard de avances")
 
     df_actual = st.session_state.registros_pumi.copy()
 
+    # La delegación solo ve sus registros y sus metas.
+    delegacion_login = usuario_actual.get("delegacion", "") if not es_admin else ""
+
     if not es_admin and not df_actual.empty:
         df_actual = df_actual[
-            df_actual["Delegación"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("delegacion", ""))
+            df_actual["Delegación"].apply(normalizar_texto) == normalizar_texto(delegacion_login)
         ].copy()
 
-    if df_actual.empty:
-        st.info("Aún no hay datos para mostrar en el dashboard.")
+    # Este dataframe SIEMPRE se genera, aunque no existan registros todavía,
+    # para que el usuario pueda ver la meta oficial pendiente.
+    df_avance = generar_avance_contra_metas(df_actual)
+
+    if not es_admin and not df_avance.empty:
+        df_avance = df_avance[
+            df_avance["Delegación"].apply(normalizar_texto) == normalizar_texto(delegacion_login)
+        ].copy()
+
+    if df_avance.empty:
+        st.info("No se encontraron metas oficiales para esta delegación.")
     else:
-        df_avance = generar_avance_contra_metas(df_actual)
-
-        if not es_admin and not df_avance.empty:
-            df_avance = df_avance[
-                df_avance["Delegación"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("delegacion", ""))
-            ].copy()
-
-        if not df_avance.empty:
-            meta_total_dash = df_avance["Meta 2026"].sum()
-            realizado_total_dash = df_avance["Realizado total"].sum()
-            pendiente_total_dash = df_avance["Pendiente"].sum()
-            porcentaje_total_dash = realizado_total_dash / meta_total_dash if meta_total_dash else 0
-
-            cdm1, cdm2, cdm3, cdm4 = st.columns(4)
-            cdm1.metric("Meta total", f"{meta_total_dash:,.0f}")
-            cdm2.metric("Avance total", f"{realizado_total_dash:,.0f}")
-            cdm3.metric("Pendiente", f"{pendiente_total_dash:,.0f}")
-            cdm4.metric("% avance", f"{porcentaje_total_dash:.1%}")
-
-            st.markdown("### Avance por meta oficial")
-
-            df_avance_vista = df_avance.copy()
-            df_avance_vista["% Cumplimiento"] = df_avance_vista["% Cumplimiento"].map(lambda x: f"{x:.1%}")
-            st.dataframe(df_avance_vista, use_container_width=True, hide_index=True)
-
-            avance_programa = (
-                df_avance
-                .groupby("Programa", as_index=False)[["Meta 2026", "Realizado total"]]
-                .sum()
-            )
-            if not avance_programa.empty:
-                fig_avance_programa = px.bar(
-                    avance_programa,
-                    x="Programa",
-                    y=["Meta 2026", "Realizado total"],
-                    barmode="group",
-                    title="Meta y avance por programa"
-                )
-                fig_avance_programa.update_layout(title_x=0.5, plot_bgcolor="white", paper_bgcolor="white")
-                st.plotly_chart(fig_avance_programa, use_container_width=True)
-
-            avance_delegacion = (
-                df_avance
-                .groupby("Delegación", as_index=False)[["Meta 2026", "Realizado total"]]
-                .sum()
-            )
-            if es_admin and not avance_delegacion.empty:
-                fig_avance_delegacion = px.bar(
-                    avance_delegacion,
-                    x="Delegación",
-                    y=["Meta 2026", "Realizado total"],
-                    barmode="group",
-                    title="Meta y avance por delegación"
-                )
-                fig_avance_delegacion.update_layout(title_x=0.5, plot_bgcolor="white", paper_bgcolor="white")
-                st.plotly_chart(fig_avance_delegacion, use_container_width=True)
-
-            st.markdown("---")
-
-        df_metricas = limpiar_dataframe_para_metricas(df_actual)
-
-        total_registros = len(df_metricas)
-        total_participantes = int(df_metricas["Cantidad Participantes"].sum())
-        total_hombres = int(df_metricas["Cantidad Hombres"].sum())
-        total_mujeres = int(df_metricas["Cantidad Mujeres"].sum())
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("Total registros", total_registros)
-
-        with col2:
-            st.metric("Participantes", total_participantes)
-
-        with col3:
-            st.metric("Hombres", total_hombres)
-
-        with col4:
-            st.metric("Mujeres", total_mujeres)
-
-        st.markdown("---")
+        st.markdown("### Filtros del avance")
 
         colf1, colf2, colf3 = st.columns(3)
 
         with colf1:
-            filtro_programa = st.multiselect(
-                "Filtrar por programa",
-                sorted(
-                    df_actual["Programa"]
-                    .dropna()
-                    .astype(str)
-                    .unique()
-                    .tolist()
-                )
+            programas_dash = sorted(
+                df_avance["Programa"]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+            filtro_programa_dash = st.multiselect(
+                "Programa",
+                programas_dash,
+                key="dash_filtro_programa_metas"
             )
 
         with colf2:
-            filtro_region = st.multiselect(
-                "Filtrar por Dirección Regional",
-                sorted(
-                    df_actual["Dirección Regional"]
-                    .dropna()
-                    .astype(str)
-                    .unique()
-                    .tolist()
-                )
+            estados_dash = sorted(
+                df_avance["Estado cumplimiento"]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+            filtro_estado_dash = st.multiselect(
+                "Estado",
+                estados_dash,
+                key="dash_filtro_estado_metas"
             )
 
         with colf3:
-            filtro_provincia = st.multiselect(
-                "Filtrar por provincia",
-                sorted(
-                    df_actual["Provincia"]
+            if es_admin:
+                delegaciones_dash = sorted(
+                    df_avance["Delegación"]
                     .dropna()
                     .astype(str)
                     .unique()
                     .tolist()
                 )
-            )
+                filtro_delegacion_dash = st.multiselect(
+                    "Delegación",
+                    delegaciones_dash,
+                    key="dash_filtro_delegacion_metas"
+                )
+            else:
+                st.text_input(
+                    "Delegación",
+                    value=delegacion_login,
+                    disabled=True,
+                    key="dash_delegacion_login_visible"
+                )
+                filtro_delegacion_dash = []
 
-        df_filtrado = df_actual.copy()
+        df_avance_filtrado = df_avance.copy()
 
-        if filtro_programa:
-            df_filtrado = df_filtrado[
-                df_filtrado["Programa"].isin(filtro_programa)
+        if filtro_programa_dash:
+            df_avance_filtrado = df_avance_filtrado[
+                df_avance_filtrado["Programa"].isin(filtro_programa_dash)
             ]
 
-        if filtro_region:
-            df_filtrado = df_filtrado[
-                df_filtrado["Dirección Regional"].isin(filtro_region)
+        if filtro_estado_dash:
+            df_avance_filtrado = df_avance_filtrado[
+                df_avance_filtrado["Estado cumplimiento"].isin(filtro_estado_dash)
             ]
 
-        if filtro_provincia:
-            df_filtrado = df_filtrado[
-                df_filtrado["Provincia"].isin(filtro_provincia)
+        if es_admin and filtro_delegacion_dash:
+            df_avance_filtrado = df_avance_filtrado[
+                df_avance_filtrado["Delegación"].isin(filtro_delegacion_dash)
             ]
 
-        df_filtrado_metricas = limpiar_dataframe_para_metricas(df_filtrado)
+        st.markdown("### Resumen de cumplimiento")
 
-        st.markdown("### Registros filtrados")
+        meta_total_dash = df_avance_filtrado["Meta 2026"].sum()
+        avance_base_dash = df_avance_filtrado["Avance base"].sum()
+        realizado_pumi_dash = df_avance_filtrado["Realizado PUMI"].sum()
+        realizado_total_dash = df_avance_filtrado["Realizado total"].sum()
+        pendiente_total_dash = df_avance_filtrado["Pendiente"].sum()
+        porcentaje_total_dash = realizado_total_dash / meta_total_dash if meta_total_dash else 0
+
+        cdm1, cdm2, cdm3, cdm4, cdm5 = st.columns(5)
+        cdm1.metric("Meta oficial", f"{meta_total_dash:,.0f}")
+        cdm2.metric("Avance base", f"{avance_base_dash:,.0f}")
+        cdm3.metric("Registrado PUMI", f"{realizado_pumi_dash:,.0f}")
+        cdm4.metric("Pendiente", f"{pendiente_total_dash:,.0f}")
+        cdm5.metric("% avance", f"{porcentaje_total_dash:.1%}")
+
+        st.markdown("### Avance por actividad oficial")
+
+        df_avance_vista = df_avance_filtrado.copy()
+        df_avance_vista["% Cumplimiento"] = df_avance_vista["% Cumplimiento"].map(lambda x: f"{x:.1%}")
+
+        columnas_vista_avance = [
+            "Delegación", "Programa", "Actividad", "Meta 2026", "Avance base",
+            "Realizado PUMI", "Realizado total", "Pendiente", "% Cumplimiento",
+            "Estado cumplimiento"
+        ]
+
+        columnas_vista_avance = [c for c in columnas_vista_avance if c in df_avance_vista.columns]
 
         st.dataframe(
-            df_filtrado,
+            df_avance_vista[columnas_vista_avance],
             use_container_width=True,
             hide_index=True
         )
 
-        boton_descargar_excel(
-            df_filtrado,
-            texto_boton="⬇️ Descargar Excel filtrado",
-            filtrado=True,
-            key="descarga_dashboard_filtrado"
+        st.markdown("### Gráficas de avance")
+
+        avance_programa = (
+            df_avance_filtrado
+            .groupby("Programa", as_index=False)[["Meta 2026", "Realizado total", "Pendiente"]]
+            .sum()
         )
 
+        if not avance_programa.empty:
+            fig_avance_programa = px.bar(
+                avance_programa,
+                x="Programa",
+                y=["Meta 2026", "Realizado total", "Pendiente"],
+                barmode="group",
+                title="Meta, avance y pendiente por programa",
+                text_auto=True
+            )
+            fig_avance_programa.update_layout(
+                title_x=0.5,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                legend_title_text="Indicador"
+            )
+            st.plotly_chart(fig_avance_programa, use_container_width=True)
+
+        avance_actividad = df_avance_filtrado.copy()
+        avance_actividad["Actividad corta"] = avance_actividad["Actividad"].astype(str).apply(
+            lambda x: x[:85] + "..." if len(x) > 85 else x
+        )
+
+        if not avance_actividad.empty:
+            fig_avance_actividad = px.bar(
+                avance_actividad,
+                x="Actividad corta",
+                y=["Meta 2026", "Realizado total"],
+                color="Programa",
+                barmode="group",
+                title="Meta y avance por actividad oficial",
+                hover_data=["Actividad", "Pendiente", "Estado cumplimiento"],
+                text_auto=True
+            )
+            fig_avance_actividad.update_layout(
+                title_x=0.5,
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                xaxis_title="Actividad oficial",
+                yaxis_title="Cantidad",
+                legend_title_text="Programa"
+            )
+            st.plotly_chart(fig_avance_actividad, use_container_width=True)
+
+        resumen_estado = (
+            df_avance_filtrado
+            .groupby("Estado cumplimiento", as_index=False)
+            .agg({
+                "Actividad": "count",
+                "Meta 2026": "sum",
+                "Realizado total": "sum",
+                "Pendiente": "sum"
+            })
+            .rename(columns={"Actividad": "Actividades"})
+        )
+
+        if not resumen_estado.empty:
+            fig_estado = px.pie(
+                resumen_estado,
+                names="Estado cumplimiento",
+                values="Actividades",
+                title="Distribución de actividades por estado",
+                hole=0.35
+            )
+            fig_estado.update_layout(title_x=0.5, paper_bgcolor="white")
+            st.plotly_chart(fig_estado, use_container_width=True)
+
+        if es_admin:
+            avance_delegacion = (
+                df_avance_filtrado
+                .groupby("Delegación", as_index=False)[["Meta 2026", "Realizado total", "Pendiente"]]
+                .sum()
+            )
+
+            if not avance_delegacion.empty:
+                fig_avance_delegacion = px.bar(
+                    avance_delegacion,
+                    x="Delegación",
+                    y=["Meta 2026", "Realizado total", "Pendiente"],
+                    barmode="group",
+                    title="Meta, avance y pendiente por delegación",
+                    text_auto=True
+                )
+                fig_avance_delegacion.update_layout(
+                    title_x=0.5,
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    legend_title_text="Indicador"
+                )
+                st.plotly_chart(fig_avance_delegacion, use_container_width=True)
+
         st.markdown("---")
-        st.markdown("### Visualizaciones")
+        st.markdown("### Registros PUMI cargados")
 
-        if not df_filtrado_metricas.empty:
+        # Los registros se filtran con el mismo programa seleccionado para comparar contra las metas.
+        df_registros_vista = df_actual.copy()
 
-            if "Programa" in df_filtrado_metricas.columns:
-                conteo_programa = (
-                    df_filtrado_metricas
-                    .groupby("Programa")
-                    .size()
-                    .reset_index(name="Cantidad")
-                    .sort_values("Cantidad", ascending=False)
-                )
+        if filtro_programa_dash and not df_registros_vista.empty:
+            df_registros_vista = df_registros_vista[
+                df_registros_vista["Programa"].isin(filtro_programa_dash)
+            ]
 
-                if not conteo_programa.empty:
-                    fig_programa = px.bar(
-                        conteo_programa,
-                        x="Programa",
-                        y="Cantidad",
-                        title="Cantidad de registros por programa",
-                        text="Cantidad"
-                    )
+        if df_registros_vista.empty:
+            st.info("Todavía no hay registros PUMI cargados para esta vista. Las metas se mantienen visibles como pendientes.")
+        else:
+            df_metricas = limpiar_dataframe_para_metricas(df_registros_vista)
 
-                    fig_programa.update_layout(
-                        title_x=0.5,
-                        plot_bgcolor="white",
-                        paper_bgcolor="white"
-                    )
+            total_registros = len(df_metricas)
+            total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if "Cantidad Participantes" in df_metricas.columns else 0
+            total_hombres = int(df_metricas["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_metricas.columns else 0
+            total_mujeres = int(df_metricas["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_metricas.columns else 0
 
-                    st.plotly_chart(
-                        fig_programa,
-                        use_container_width=True
-                    )
+            cr1, cr2, cr3, cr4 = st.columns(4)
+            cr1.metric("Registros", total_registros)
+            cr2.metric("Participantes", total_participantes)
+            cr3.metric("Hombres", total_hombres)
+            cr4.metric("Mujeres", total_mujeres)
 
-            if "Dirección Regional" in df_filtrado_metricas.columns:
-                conteo_region = (
-                    df_filtrado_metricas
-                    .groupby("Dirección Regional")
-                    .size()
-                    .reset_index(name="Cantidad")
-                    .sort_values("Cantidad", ascending=False)
-                )
+            st.dataframe(
+                df_registros_vista,
+                use_container_width=True,
+                hide_index=True
+            )
 
-                if not conteo_region.empty:
-                    fig_region = px.bar(
-                        conteo_region,
-                        x="Dirección Regional",
-                        y="Cantidad",
-                        title="Cantidad de registros por Dirección Regional",
-                        text="Cantidad"
-                    )
-
-                    fig_region.update_layout(
-                        title_x=0.5,
-                        plot_bgcolor="white",
-                        paper_bgcolor="white"
-                    )
-
-                    st.plotly_chart(
-                        fig_region,
-                        use_container_width=True
-                    )
-
-            if "Provincia" in df_filtrado_metricas.columns:
-                conteo_provincia = (
-                    df_filtrado_metricas
-                    .groupby("Provincia")
-                    .size()
-                    .reset_index(name="Cantidad")
-                    .sort_values("Cantidad", ascending=False)
-                )
-
-                if not conteo_provincia.empty:
-                    fig_provincia = px.pie(
-                        conteo_provincia,
-                        names="Provincia",
-                        values="Cantidad",
-                        title="Distribución de registros por provincia",
-                        hole=0.35
-                    )
-
-                    fig_provincia.update_layout(
-                        title_x=0.5,
-                        paper_bgcolor="white"
-                    )
-
-                    st.plotly_chart(
-                        fig_provincia,
-                        use_container_width=True
-                    )
+            boton_descargar_excel(
+                df_registros_vista,
+                texto_boton="⬇️ Descargar Excel filtrado",
+                filtrado=True,
+                key="descarga_dashboard_filtrado"
+            )
 
             st.markdown("### Mapa de registros")
-
             mostrar_mapa_registros(
-                df_filtrado,
+                df_registros_vista,
                 height=560,
                 key="mapa_dashboard"
             )
