@@ -1072,17 +1072,39 @@ def eliminar_registro_session(id_registro):
 def actualizar_registro_session(id_registro, nuevos_datos):
     df = st.session_state.registros_pumi.copy()
 
+    # Evita errores de pandas al actualizar columnas numéricas/texto
+    # cuando un archivo importado viene con tipos de datos estrictos.
+    df = df.astype("object")
+
     mascara = df["ID"].astype(str) == str(id_registro)
 
     if not mascara.any():
         return False
 
     for col in ENCABEZADOS:
-        df.loc[mascara, col] = nuevos_datos.get(col, "")
+        if col not in df.columns:
+            df[col] = ""
+        valor = nuevos_datos.get(col, "")
+        df.loc[mascara, col] = valor
 
     st.session_state.registros_pumi = df.reset_index(drop=True)
 
     return True
+
+
+def ocultar_columnas_internas(df):
+    if df is None or df.empty:
+        return df
+
+    columnas_ocultas = [
+        "Responde a",
+        "Dirección Mapa"
+    ]
+
+    return df.drop(
+        columns=[c for c in columnas_ocultas if c in df.columns],
+        errors="ignore"
+    )
 
 
 # ======================================================
@@ -2986,7 +3008,8 @@ def convertir_excel(df):
     columnas_a_eliminar = [
         "Fecha Registro",
         "Plan Estratégico Relacionado",
-        "Dirección Mapa"
+        "Dirección Mapa",
+        "Responde a"
     ]
 
     for col in columnas_a_eliminar:
@@ -2995,7 +3018,7 @@ def convertir_excel(df):
 
     encabezados_excel = [
         col for col in ENCABEZADOS
-        if col != "Dirección Mapa"
+        if col not in ["Dirección Mapa", "Responde a"]
     ]
 
     for col in encabezados_excel:
@@ -4070,7 +4093,7 @@ elif menu == "Registrar actividad":
         st.markdown("### Vista previa de registros cargados")
 
         st.dataframe(
-            df_actual,
+            ocultar_columnas_internas(df_actual),
             use_container_width=True,
             hide_index=True
         )
@@ -4109,7 +4132,7 @@ elif menu == "Editar y eliminar":
         )
 
         st.dataframe(
-            df_actual,
+            ocultar_columnas_internas(df_actual),
             use_container_width=True,
             hide_index=True
         )
