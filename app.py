@@ -79,7 +79,6 @@ ENCABEZADOS = [
     "Hora Actividad",
     "Dirección Regional",
     "Delegación",
-    "Responde a",
     "Programa",
     "Actividad",
     "Provincia",
@@ -93,6 +92,7 @@ ENCABEZADOS = [
     "Latitud",
     "Longitud",
     "Responsable",
+    "Avance Realizado",
     "Cantidad Participantes",
     "Cantidad Hombres",
     "Cantidad Mujeres",
@@ -879,6 +879,7 @@ def preparar_dataframe_importado(df):
 
     columnas_numericas = [
         "ID",
+        "Avance Realizado",
         "Cantidad Participantes",
         "Cantidad Hombres",
         "Cantidad Mujeres",
@@ -998,6 +999,7 @@ def limpiar_dataframe_para_metricas(df):
     df = df.copy()
 
     columnas_numericas = [
+        "Avance Realizado",
         "Cantidad Participantes",
         "Cantidad Hombres",
         "Cantidad Mujeres",
@@ -1300,14 +1302,19 @@ def generar_avance_contra_metas(df_registros):
         registros["Clave Programa"] = registros["Programa"].apply(normalizar_texto)
         registros["Clave Actividad"] = registros["Actividad"].apply(normalizar_texto)
 
-        # El cruce se hace por Delegación + Programa + Actividad.
-        # La Dirección Regional visible se conserva como el catálogo institucional,
-        # aunque el archivo de metas se llame DR2, DR3, etc.
+        if "Avance Realizado" not in registros.columns:
+            registros["Avance Realizado"] = 1
+
+        registros["Avance Realizado"] = pd.to_numeric(
+            registros["Avance Realizado"],
+            errors="coerce"
+        ).fillna(0)
+
         conteo = (
             registros
-            .groupby(["Clave Delegación", "Clave Programa", "Clave Actividad"])
-            .size()
-            .reset_index(name="Realizado PUMI")
+            .groupby(["Clave Delegación", "Clave Programa", "Clave Actividad"], as_index=False)["Avance Realizado"]
+            .sum()
+            .rename(columns={"Avance Realizado": "Realizado PUMI"})
         )
 
         metas = metas.merge(
@@ -1395,40 +1402,33 @@ def obtener_fila_meta_por_delegacion(delegacion, programa, actividad):
 
 def mostrar_resumen_meta_seleccionada(fila_meta):
     if not fila_meta:
-        st.warning("La delegación, programa y actividad seleccionada no tienen una meta oficial asociada.")
-        return
+        st.warning("La actividad seleccionada no tiene una meta oficial asociada.")
+        return 1, 0, 0, 0
 
     meta = float(fila_meta.get("Meta 2026", 0) or 0)
     avance_base = float(fila_meta.get("Avance base", 0) or 0)
     pendiente = max(meta - avance_base, 0)
     porcentaje_meta = avance_base / meta if meta else 0
 
-    st.markdown("#### Meta oficial de la actividad")
+    st.markdown("#### Meta oficial")
 
-    resumen_meta = pd.DataFrame([
-        {
-            "Meta 2026": f"{meta:,.0f}",
-            "Avance base": f"{avance_base:,.0f}",
-            "Pendiente base": f"{pendiente:,.0f}",
-            "% base": f"{porcentaje_meta:.1%}",
-        }
-    ])
-
-    st.dataframe(
-        resumen_meta,
-        use_container_width=True,
-        hide_index=True
-    )
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Meta 2026", f"{meta:,.0f}")
+    c2.metric("Avance base", f"{avance_base:,.0f}")
+    c3.metric("Pendiente", f"{pendiente:,.0f}")
+    c4.metric("% base", f"{porcentaje_meta:.1%}")
 
     meses = []
     for mes in MESES_OFICIALES:
         valor = limpiar_numero_meta(fila_meta.get(mes.title(), 0))
         if valor > 0:
-            meses.append({"Mes": mes.title(), "Cantidad": f"{valor:,.0f}"})
+            meses.append(f"{mes.title()}: {valor:,.0f}")
 
     if meses:
-        with st.expander("Ver distribución mensual registrada en la meta base", expanded=False):
-            st.dataframe(pd.DataFrame(meses), use_container_width=True, hide_index=True)
+        st.caption(" | ".join(meses))
+
+    valor_sugerido = 1 if pendiente >= 1 else 0
+    return valor_sugerido, int(meta), int(avance_base), int(pendiente)
 
 
 # ======================================================
@@ -3312,22 +3312,15 @@ elif menu == "Registrar actividad":
         st.session_state.ultima_delegacion = delegacion
 
     with col2:
+        responde_a = ""
+
         if usar_metas:
-            responde_a_lista = obtener_responde_a_datos()
-
-            responde_a = st.selectbox(
-                "Responde a",
-                responde_a_lista
-                if responde_a_lista
-                else ["Meta regional oficial"]
-            )
-
             programas_lista = obtener_programas_metas_por_delegacion(
                 delegacion
             )
 
             if not programas_lista:
-                programas_lista = obtener_programas_por_responde_a(responde_a)
+                programas_lista = obtener_programas_datos()
 
             programa = st.selectbox(
                 "Programa",
@@ -3343,14 +3336,11 @@ elif menu == "Registrar actividad":
 
             if actividades_filtradas:
                 actividad = st.selectbox(
-                    "Actividad que debe realizar la delegación",
+                    "Actividad oficial según meta",
                     actividades_filtradas
                 )
             else:
-                actividades_fallback = obtener_actividades_por_responde_a_programa(
-                    responde_a,
-                    programa
-                )
+                actividades_fallback = obtener_actividades_por_programa(programa)
                 actividad = st.selectbox(
                     "Actividad realizada",
                     actividades_fallback
@@ -3364,19 +3354,10 @@ elif menu == "Registrar actividad":
                 actividad
             )
 
-            mostrar_resumen_meta_seleccionada(fila_meta_seleccionada)
+            avance_sugerido, meta_oficial, avance_base_oficial, pendiente_oficial = mostrar_resumen_meta_seleccionada(fila_meta_seleccionada)
 
         else:
-            responde_a_lista = obtener_responde_a_datos()
-
-            responde_a = st.selectbox(
-                "Responde a",
-                responde_a_lista
-                if responde_a_lista
-                else ["Sin datos disponibles"]
-            )
-
-            programas_lista = obtener_programas_por_responde_a(responde_a)
+            programas_lista = obtener_programas_datos()
 
             programa = st.selectbox(
                 "Programa",
@@ -3385,16 +3366,34 @@ elif menu == "Registrar actividad":
                 else ["Sin datos disponibles"]
             )
 
-            actividades_filtradas = obtener_actividades_por_responde_a_programa(
-                responde_a,
-                programa
-            )
+            actividades_filtradas = obtener_actividades_por_programa(programa)
 
             actividad = st.selectbox(
                 "Actividad realizada",
                 actividades_filtradas
                 if actividades_filtradas
                 else ["Sin datos disponibles"]
+            )
+
+            avance_sugerido = 1
+            pendiente_oficial = 0
+
+        max_avance_registro = int(pendiente_oficial) if usar_metas and pendiente_oficial > 0 else None
+
+        if max_avance_registro:
+            avance_realizado = st.number_input(
+                "Avance realizado",
+                min_value=0,
+                max_value=max_avance_registro,
+                value=min(avance_sugerido, max_avance_registro),
+                step=1
+            )
+        else:
+            avance_realizado = st.number_input(
+                "Avance realizado",
+                min_value=0,
+                value=avance_sugerido,
+                step=1
             )
 
         responsable = st.text_input("Funcionario responsable")
@@ -3687,7 +3686,6 @@ elif menu == "Registrar actividad":
             "Hora Actividad": hora_actividad.strftime("%H:%M"),
             "Dirección Regional": direccion_regional,
             "Delegación": delegacion,
-            "Responde a": responde_a,
             "Programa": programa,
             "Actividad": actividad,
             "Provincia": provincia,
@@ -3701,6 +3699,7 @@ elif menu == "Registrar actividad":
             "Latitud": st.session_state.latitud_registro,
             "Longitud": st.session_state.longitud_registro,
             "Responsable": responsable,
+            "Avance Realizado": avance_realizado,
             "Cantidad Participantes": cantidad,
             "Cantidad Hombres": cantidad_hombres,
             "Cantidad Mujeres": cantidad_mujeres,
@@ -3853,11 +3852,6 @@ elif menu == "Registros cargados":
                         value=str(fila.get("Delegación", ""))
                     )
 
-                    responde_a_edit = st.text_input(
-                        "Responde a",
-                        value=str(fila.get("Responde a", ""))
-                    )
-
                     programa_edit = st.text_input(
                         "Programa",
                         value=str(fila.get("Programa", ""))
@@ -3917,6 +3911,18 @@ elif menu == "Registros cargados":
                     responsable_edit = st.text_input(
                         "Responsable",
                         value=str(fila.get("Responsable", ""))
+                    )
+
+                    avance_realizado_edit = st.number_input(
+                        "Avance Realizado",
+                        min_value=0,
+                        step=1,
+                        value=int(
+                            pd.to_numeric(
+                                fila.get("Avance Realizado", 1),
+                                errors="coerce"
+                            ) or 0
+                        )
                     )
 
                     cantidad_edit = st.number_input(
@@ -4072,7 +4078,6 @@ elif menu == "Registros cargados":
                         "Hora Actividad": hora_actividad_edit,
                         "Dirección Regional": direccion_regional_edit,
                         "Delegación": delegacion_edit,
-                        "Responde a": responde_a_edit,
                         "Programa": programa_edit,
                         "Actividad": actividad_edit,
                         "Provincia": provincia_edit,
@@ -4086,6 +4091,7 @@ elif menu == "Registros cargados":
                         "Latitud": latitud_edit,
                         "Longitud": longitud_edit,
                         "Responsable": responsable_edit,
+                        "Avance Realizado": avance_realizado_edit,
                         "Cantidad Participantes": cantidad_edit,
                         "Cantidad Hombres": hombres_edit,
                         "Cantidad Mujeres": mujeres_edit,
