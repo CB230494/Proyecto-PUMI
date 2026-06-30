@@ -3578,7 +3578,7 @@ def tarjeta_resumen_metas(items):
     )
 
 
-def aplicar_filtros_dashboard_metas(df_metas):
+def aplicar_filtros_dashboard_metas(df_metas, key_prefix="meta"):
     if df_metas is None or df_metas.empty:
         return df_metas
 
@@ -3587,19 +3587,19 @@ def aplicar_filtros_dashboard_metas(df_metas):
 
     with col1:
         regiones = opciones_ordenadas_region(df_metas["Dirección Regional"])
-        filtro_region = st.multiselect("Dirección Regional", regiones, key="filtro_meta_region")
+        filtro_region = st.multiselect("Dirección Regional", regiones, key=f"filtro_{key_prefix}_region")
 
     with col2:
         base_delegaciones = df_metas.copy()
         if filtro_region:
             base_delegaciones = base_delegaciones[base_delegaciones["Dirección Regional"].isin(filtro_region)]
         delegaciones = opciones_ordenadas_delegacion(base_delegaciones["Delegación"])
-        filtro_delegacion = st.multiselect("Delegación", delegaciones, key="filtro_meta_delegacion")
+        filtro_delegacion = st.multiselect("Delegación", delegaciones, key=f"filtro_{key_prefix}_delegacion")
 
     with col3:
         programas = sorted(df_metas["Programa"].replace("", pd.NA).dropna().astype(str).unique().tolist(), key=normalizar_texto)
-        filtro_programa = st.multiselect("Programa", programas, key="filtro_meta_programa")
-        filtro_estado = st.multiselect("Estado", ["En avance", "Completa", "Incompleta"], key="filtro_meta_estado")
+        filtro_programa = st.multiselect("Programa", programas, key=f"filtro_{key_prefix}_programa")
+        filtro_estado = st.multiselect("Estado", ["En avance", "Completa", "Incompleta"], key=f"filtro_{key_prefix}_estado")
 
     df_filtrado = df_metas.copy()
     if filtro_region:
@@ -3631,7 +3631,7 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         return
 
     df_metas = ordenar_dataframe_metas(df_metas)
-    df_filtrado = aplicar_filtros_dashboard_metas(df_metas)
+    df_filtrado = aplicar_filtros_dashboard_metas(df_metas, key_prefix="dashboard")
 
     if df_filtrado.empty:
         st.info("No hay metas para mostrar con los filtros seleccionados.")
@@ -3660,7 +3660,6 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
     )
 
     st.markdown("---")
-    col_g1, col_g2 = st.columns(2)
 
     colores_estado_meta = {
         "Completa": COLOR_AZUL,
@@ -3668,53 +3667,30 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         "Incompleta": COLOR_ROJO,
     }
 
-    with col_g1:
-        estado = (
-            df_filtrado.groupby("Estado", as_index=False)
-            .agg(Actividades=("Actividad", "count"), Meta=("Meta oficial", "sum"), Avance=("Avance base", "sum"))
-        )
-        orden_estado = {"En avance": 0, "Completa": 1, "Incompleta": 2}
-        estado["_orden"] = estado["Estado"].map(orden_estado).fillna(9)
-        estado = estado.sort_values("_orden").drop(columns="_orden")
-        if not estado.empty:
-            fig_estado = px.pie(
-                estado,
-                names="Estado",
-                values="Actividades",
-                title="Actividades por estado de avance",
-                hole=0.38,
-                color="Estado",
-                color_discrete_map=colores_estado_meta,
-            )
-            fig_estado.update_traces(
-                textinfo="percent+label+value",
-                marker=dict(line=dict(color=COLOR_AZUL, width=2))
-            )
-            fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
-            fig_estado.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
-            st.plotly_chart(fig_estado, use_container_width=True)
-
-    with col_g2:
-        avance_incomp = pd.DataFrame({
-            "Categoría": ["Avance base", "Incompleto"],
-            "Cantidad": [avance_base, incompleto]
-        })
-        fig_cumplimiento = px.pie(
-            avance_incomp,
-            names="Categoría",
-            values="Cantidad",
-            title="Avance base vs incompleto",
+    estado = (
+        df_filtrado.groupby("Estado", as_index=False)
+        .agg(Actividades=("Actividad", "count"), Meta=("Meta oficial", "sum"), Avance=("Avance base", "sum"))
+    )
+    orden_estado = {"En avance": 0, "Completa": 1, "Incompleta": 2}
+    estado["_orden"] = estado["Estado"].map(orden_estado).fillna(9)
+    estado = estado.sort_values("_orden").drop(columns="_orden")
+    if not estado.empty:
+        fig_estado = px.pie(
+            estado,
+            names="Estado",
+            values="Actividades",
+            title="Actividades por estado de avance",
             hole=0.38,
-            color="Categoría",
-            color_discrete_map={"Avance base": COLOR_AZUL, "Incompleto": COLOR_ROJO},
+            color="Estado",
+            color_discrete_map=colores_estado_meta,
         )
-        fig_cumplimiento.update_traces(
+        fig_estado.update_traces(
             textinfo="percent+label+value",
-            marker=dict(line=dict(color="white", width=2))
+            marker=dict(line=dict(color=COLOR_AZUL, width=2))
         )
-        fig_cumplimiento = aplicar_estilo_grafico_institucional(fig_cumplimiento)
-        fig_cumplimiento.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
-        st.plotly_chart(fig_cumplimiento, use_container_width=True)
+        fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+        fig_estado.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
+        st.plotly_chart(fig_estado, use_container_width=True)
 
     titulo_dashboard("Avance por Dirección Regional")
     resumen_region = (
@@ -3782,6 +3758,11 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         "Meta oficial", "Avance base", "Incompleto", "% avance base", "Estado"
     ]
     st.dataframe(detalle[columnas], use_container_width=True, hide_index=True, height=520)
+
+    st.session_state.dashboard_metas_filtrado = df_filtrado.copy()
+    st.session_state.dashboard_resumen_region = resumen_region.copy()
+    st.session_state.dashboard_resumen_delegacion = resumen_delegacion.copy()
+    st.session_state.dashboard_programa = programa_actual
 
     excel_bytes = BytesIO()
     with pd.ExcelWriter(excel_bytes, engine="openpyxl") as writer:
@@ -4573,6 +4554,262 @@ def modulo_informe_pdf(df_filtrado):
             mime="application/pdf",
             key="descargar_pdf_validacion"
         )
+
+
+# ======================================================
+# INFORME PDF DEL DASHBOARD DE METAS OFICIALES
+# Genera el PDF con la misma información filtrada del dashboard.
+# ======================================================
+
+def generar_pdf_dashboard_metas(df_metas, resumen_region, resumen_delegacion, programa_actual="", fecha_informe=""):
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        rightMargin=1.1 * cm,
+        leftMargin=1.1 * cm,
+        topMargin=1.5 * cm,
+        bottomMargin=1.3 * cm
+    )
+
+    estilos = obtener_estilos_pdf()
+    elementos = []
+
+    df_metas = ordenar_dataframe_metas(df_metas.copy()) if df_metas is not None else pd.DataFrame()
+    resumen_region = resumen_region.copy() if resumen_region is not None else pd.DataFrame()
+    resumen_delegacion = resumen_delegacion.copy() if resumen_delegacion is not None else pd.DataFrame()
+
+    logo_min = obtener_logo_pdf(LOGO_MINISTERIO, 5.0 * cm, 1.7 * cm)
+    logo_pumi = obtener_logo_pdf(LOGO_PUMI, 4.0 * cm, 2.0 * cm)
+    logo_fp = obtener_logo_pdf(LOGO_FUERZA_PUBLICA, 5.0 * cm, 2.0 * cm)
+
+    tabla_logos = Table([[logo_min, logo_pumi, logo_fp]], colWidths=[8 * cm, 8 * cm, 8 * cm])
+    tabla_logos.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(COLOR_AZUL)),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+
+    elementos.append(tabla_logos)
+    elementos.append(Spacer(1, 0.7 * cm))
+    elementos.append(parrafo_pdf("INFORME DEL DASHBOARD DE METAS OFICIALES", estilos["TituloPrincipalPDF"]))
+    elementos.append(parrafo_pdf("Coordinadores Nacionales P.U.M.I. 2026", estilos["TituloPrincipalPDF"]))
+    elementos.append(Spacer(1, 0.35 * cm))
+
+    meta_total = float(df_metas["Meta oficial"].sum()) if not df_metas.empty and "Meta oficial" in df_metas.columns else 0
+    avance_base = float(df_metas["Avance base"].sum()) if not df_metas.empty and "Avance base" in df_metas.columns else 0
+    incompleto = max(meta_total - avance_base, 0)
+    porcentaje = avance_base / meta_total if meta_total else 0
+    regiones = df_metas["Dirección Regional"].nunique() if not df_metas.empty and "Dirección Regional" in df_metas.columns else 0
+    delegaciones = df_metas["Delegación"].nunique() if not df_metas.empty and "Delegación" in df_metas.columns else 0
+
+    datos_portada = [
+        ["Programa", programa_actual if programa_actual else "No indicado"],
+        ["Meta oficial", f"{meta_total:,.0f}"],
+        ["Avance base", f"{avance_base:,.0f}"],
+        ["Incompleto", f"{incompleto:,.0f}"],
+        ["Porcentaje de avance", f"{porcentaje:.1%}"],
+        ["Regiones incluidas", f"{regiones:,}"],
+        ["Delegaciones incluidas", f"{delegaciones:,}"],
+        ["Fecha del informe", fecha_informe if fecha_informe else date.today().strftime("%d/%m/%Y")],
+    ]
+
+    tabla = Table(datos_portada, colWidths=[7 * cm, 17 * cm])
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (1, 0), (1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    elementos.append(tabla)
+    elementos.append(PageBreak())
+
+    elementos.append(parrafo_pdf("1. Filtros aplicados", estilos["SubtituloPDF"]))
+    filtros = st.session_state.get("filtros_admin_aplicados", {})
+    datos_filtros = [["Filtro", "Valor aplicado"]]
+    for clave, valor in filtros.items():
+        if isinstance(valor, list):
+            valor = ", ".join(valor) if valor else "Todos"
+        elif not valor:
+            valor = "Todos"
+        datos_filtros.append([clave, valor])
+    tabla_filtros = Table(datos_filtros, colWidths=[6 * cm, 18 * cm])
+    tabla_filtros.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+    ]))
+    elementos.append(tabla_filtros)
+    elementos.append(Spacer(1, 0.4 * cm))
+
+    elementos.append(parrafo_pdf("2. Resumen por Dirección Regional", estilos["SubtituloPDF"]))
+    if not resumen_region.empty:
+        datos_region = [["Dirección Regional", "Actividades", "Delegaciones", "Meta", "Avance", "Incompleto", "% avance"]]
+        for _, row in resumen_region.iterrows():
+            pct = row.get("% avance", 0)
+            datos_region.append([
+                parrafo_pdf(row.get("Dirección Regional", ""), estilos["TextoTablaPDF"]),
+                parrafo_pdf(row.get("Actividades", 0), estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(row.get("Delegaciones", 0), estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(row.get('Meta', 0)):,.0f}", estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(row.get('Avance', 0)):,.0f}", estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(row.get('Incompleto', 0)):,.0f}", estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(pct):.1%}", estilos["TextoTablaCentroPDF"]),
+            ])
+        tabla_region = Table(datos_region, colWidths=[6.5 * cm, 2.4 * cm, 2.5 * cm, 2.4 * cm, 2.4 * cm, 2.7 * cm, 2.5 * cm], repeatRows=1)
+        tabla_region.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#BFBFBF")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ]))
+        elementos.append(tabla_region)
+
+    elementos.append(PageBreak())
+    elementos.append(parrafo_pdf("3. Resumen por Delegación", estilos["SubtituloPDF"]))
+    if not resumen_delegacion.empty:
+        datos_deleg = [["Dirección Regional", "Delegación", "Actividades", "Meta", "Avance", "Incompleto", "% avance"]]
+        for _, row in resumen_delegacion.iterrows():
+            pct = row.get("% avance", 0)
+            datos_deleg.append([
+                parrafo_pdf(row.get("Dirección Regional", ""), estilos["TextoTablaPDF"]),
+                parrafo_pdf(row.get("Delegación", ""), estilos["TextoTablaPDF"]),
+                parrafo_pdf(row.get("Actividades", 0), estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(row.get('Meta', 0)):,.0f}", estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(row.get('Avance', 0)):,.0f}", estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(row.get('Incompleto', 0)):,.0f}", estilos["TextoTablaCentroPDF"]),
+                parrafo_pdf(f"{float(pct):.1%}", estilos["TextoTablaCentroPDF"]),
+            ])
+        tabla_deleg = Table(datos_deleg, colWidths=[5.2 * cm, 5.0 * cm, 2.1 * cm, 2.2 * cm, 2.2 * cm, 2.5 * cm, 2.3 * cm], repeatRows=1)
+        tabla_deleg.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#BFBFBF")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (2, 1), (-1, -1), "CENTER"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ]))
+        elementos.append(tabla_deleg)
+
+    elementos.append(PageBreak())
+    elementos.append(parrafo_pdf("4. Detalle de metas visibles", estilos["SubtituloPDF"]))
+    columnas = ["Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad", "Meta oficial", "Avance base", "Incompleto", "% avance base", "Estado"]
+    columnas = [c for c in columnas if c in df_metas.columns]
+    datos = [[parrafo_pdf(c, estilos["TextoTablaCentroPDF"]) for c in columnas]]
+    for _, row in df_metas.iterrows():
+        fila = []
+        for col in columnas:
+            val = row.get(col, "")
+            if col == "% avance base":
+                try:
+                    val = f"{float(val):.1%}"
+                except Exception:
+                    val = str(val)
+            elif col in ["Meta oficial", "Avance base", "Incompleto"]:
+                try:
+                    val = f"{float(val):,.0f}"
+                except Exception:
+                    val = str(val)
+            fila.append(parrafo_pdf(val, estilos["TextoTablaPDF"]))
+        datos.append(fila)
+    anchos = [3.2 * cm, 4.2 * cm, 3.2 * cm, 2.4 * cm, 6.2 * cm, 1.8 * cm, 1.8 * cm, 1.8 * cm, 2.0 * cm, 2.0 * cm][:len(columnas)]
+    tabla_detalle = Table(datos, colWidths=anchos, repeatRows=1)
+    tabla_detalle.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_AZUL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BFBFBF")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F7FB")]),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+    ]))
+    elementos.append(tabla_detalle)
+
+    doc.build(elementos, onFirstPage=dibujar_encabezado_pie_pdf, onLaterPages=dibujar_encabezado_pie_pdf)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def modulo_informe_pdf_metas(df_metas, programa_actual=""):
+    st.markdown("## Informe PDF nacional")
+    if df_metas is None or df_metas.empty:
+        st.info("No hay metas visibles para generar el informe PDF.")
+        return
+
+    st.info("Este PDF se genera con la misma información de metas oficiales que muestra el dashboard, respetando los filtros aplicados.")
+    df_filtrado = aplicar_filtros_dashboard_metas(df_metas, key_prefix="pdf")
+    if df_filtrado.empty:
+        st.warning("No hay información con los filtros seleccionados.")
+        return
+
+    meta_total = float(df_filtrado["Meta oficial"].sum())
+    avance_base = float(df_filtrado["Avance base"].sum())
+    incompleto = max(meta_total - avance_base, 0)
+    porcentaje = avance_base / meta_total if meta_total else 0
+
+    tarjeta_resumen_metas([
+        ("Programa", programa_actual if programa_actual else "Sin acceso"),
+        ("Meta oficial", f"{meta_total:,.0f}"),
+        ("Avance base", f"{avance_base:,.0f}"),
+        ("Incompleto", f"{incompleto:,.0f}"),
+        ("% avance", f"{porcentaje:.1%}"),
+        ("Delegaciones", f"{df_filtrado['Delegación'].nunique():,}"),
+    ])
+
+    resumen_region = (
+        df_filtrado.groupby("Dirección Regional", as_index=False)
+        .agg(Actividades=("Actividad", "count"), Delegaciones=("Delegación", "nunique"), Meta=("Meta oficial", "sum"), Avance=("Avance base", "sum"), Incompleto=("Incompleto", "sum"))
+    )
+    resumen_region["% avance"] = resumen_region.apply(lambda x: x["Avance"] / x["Meta"] if x["Meta"] else 0, axis=1)
+    resumen_region = resumen_region.sort_values("Dirección Regional", key=lambda s: s.map(clave_orden_region))
+
+    resumen_delegacion = (
+        df_filtrado.groupby(["Dirección Regional", "Delegación"], as_index=False)
+        .agg(Actividades=("Actividad", "count"), Meta=("Meta oficial", "sum"), Avance=("Avance base", "sum"), Incompleto=("Incompleto", "sum"))
+    )
+    resumen_delegacion["% avance"] = resumen_delegacion.apply(lambda x: x["Avance"] / x["Meta"] if x["Meta"] else 0, axis=1)
+    resumen_delegacion["_orden_region"] = resumen_delegacion["Dirección Regional"].apply(clave_orden_region)
+    resumen_delegacion["_orden_delegacion"] = resumen_delegacion["Delegación"].apply(clave_orden_delegacion)
+    resumen_delegacion = resumen_delegacion.sort_values(["_orden_region", "_orden_delegacion"]).drop(columns=["_orden_region", "_orden_delegacion"])
+
+    fecha_informe = st.text_input("Fecha del informe", value=date.today().strftime("%d/%m/%Y"), key="fecha_informe_metas")
+
+    if st.button("📄 Generar informe PDF del dashboard", key="generar_pdf_metas_dashboard"):
+        pdf_bytes = generar_pdf_dashboard_metas(
+            df_metas=df_filtrado,
+            resumen_region=resumen_region,
+            resumen_delegacion=resumen_delegacion,
+            programa_actual=programa_actual,
+            fecha_informe=fecha_informe
+        )
+        nombre_pdf = f"INFORME_DASHBOARD_METAS_{limpiar_nombre_archivo(programa_actual)}.pdf"
+        st.success("Informe PDF generado correctamente.")
+        st.download_button(
+            "⬇️ Descargar informe PDF",
+            data=pdf_bytes,
+            file_name=nombre_pdf,
+            mime="application/pdf",
+            key="descargar_pdf_metas_dashboard"
+        )
+
 # ======================================================
 # appADMIN.py
 # PARTE 5 DE 5 CORREGIDA
@@ -4953,34 +5190,25 @@ elif menu_admin == "Dashboard":
 
 elif menu_admin == "Informe PDF":
 
-    st.markdown("## Informe PDF nacional")
+    programa_actual = st.session_state.get("admin_programa_autenticado", "")
+    df_metas_todas = cargar_metas_regionales_nacionales()
+    df_metas_programa = filtrar_metas_por_programa_autorizado(
+        df_metas_todas,
+        programa_actual
+    )
 
-    if df_admin.empty:
-        st.info("Debe cargar primero uno o varios Excel regionales verificados.")
+    if not df_metas_programa.empty:
+        modulo_informe_pdf_metas(df_metas_programa, programa_actual=programa_actual)
     else:
-        df_filtrado = aplicar_filtros_admin(df_admin)
-
-        st.markdown("---")
-
-        mostrar_metricas_admin(df_filtrado)
-
-        st.markdown("---")
-
-        st.markdown("### Vista de apoyo para el informe")
-
-        with st.expander("Ver gráficos y mapa antes de generar el PDF", expanded=False):
-            mostrar_graficos_admin(df_filtrado)
-
+        st.markdown("## Informe PDF nacional")
+        if df_admin.empty:
+            st.info("Debe cargar primero uno o varios Excel regionales verificados.")
+        else:
+            df_filtrado = aplicar_filtros_admin(df_admin)
             st.markdown("---")
-
-            mostrar_mapa_admin(
-                df_filtrado,
-                key="mapa_previo_informe_pdf"
-            )
-
-        st.markdown("---")
-
-        modulo_informe_pdf(df_filtrado)
+            mostrar_metricas_admin(df_filtrado)
+            st.markdown("---")
+            modulo_informe_pdf(df_filtrado)
 
 
 # ======================================================
