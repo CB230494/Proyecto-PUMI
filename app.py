@@ -1296,21 +1296,23 @@ def generar_avance_contra_metas(df_registros):
             if col not in registros.columns:
                 registros[col] = ""
 
-        registros["Clave Regional"] = registros["Dirección Regional"].apply(normalizar_texto)
         registros["Clave Delegación"] = registros["Delegación"].apply(normalizar_texto)
         registros["Clave Programa"] = registros["Programa"].apply(normalizar_texto)
         registros["Clave Actividad"] = registros["Actividad"].apply(normalizar_texto)
 
+        # El cruce se hace por Delegación + Programa + Actividad.
+        # La Dirección Regional visible se conserva como el catálogo institucional,
+        # aunque el archivo de metas se llame DR2, DR3, etc.
         conteo = (
             registros
-            .groupby(["Clave Regional", "Clave Delegación", "Clave Programa", "Clave Actividad"])
+            .groupby(["Clave Delegación", "Clave Programa", "Clave Actividad"])
             .size()
             .reset_index(name="Realizado PUMI")
         )
 
         metas = metas.merge(
             conteo,
-            on=["Clave Regional", "Clave Delegación", "Clave Programa", "Clave Actividad"],
+            on=["Clave Delegación", "Clave Programa", "Clave Actividad"],
             how="left"
         )
         metas["Realizado PUMI"] = metas["Realizado PUMI"].fillna(0)
@@ -1332,8 +1334,68 @@ def generar_avance_contra_metas(df_registros):
     return metas[columnas].copy()
 
 
+def obtener_programas_metas_por_delegacion(delegacion):
+    df = cargar_metas_regionales()
+    if df.empty or not delegacion:
+        return []
+
+    deleg_norm = normalizar_texto(delegacion)
+    lista = df[df["Clave Delegación"] == deleg_norm]["Programa"].dropna().astype(str).unique().tolist()
+
+    # Mantiene el orden institucional cuando aplique.
+    programas_limpios = []
+    for programa in lista:
+        if normalizar_texto(programa) == "GREAT CAMP":
+            if "GREAT" not in programas_limpios:
+                programas_limpios.append("GREAT")
+        elif programa not in programas_limpios:
+            programas_limpios.append(programa)
+
+    orden_oficial = [p for p in PROGRAMAS if p in programas_limpios]
+    extras = sorted([p for p in programas_limpios if p not in orden_oficial])
+    return orden_oficial + extras
+
+
+def obtener_actividades_metas_por_delegacion_programa(delegacion, programa):
+    df = cargar_metas_regionales()
+    if df.empty or not delegacion or not programa:
+        return []
+
+    deleg_norm = normalizar_texto(delegacion)
+    programa_norm = normalizar_texto(programa)
+
+    actividades = df[
+        (df["Clave Delegación"] == deleg_norm) &
+        (df["Clave Programa"] == programa_norm)
+    ]["Actividad"].dropna().astype(str).unique().tolist()
+
+    return actividades
+
+
+def obtener_fila_meta_por_delegacion(delegacion, programa, actividad):
+    df = cargar_metas_regionales()
+    if df.empty:
+        return None
+
+    deleg_norm = normalizar_texto(delegacion)
+    programa_norm = normalizar_texto(programa)
+    actividad_norm = normalizar_texto(actividad)
+
+    fila = df[
+        (df["Clave Delegación"] == deleg_norm) &
+        (df["Clave Programa"] == programa_norm) &
+        (df["Clave Actividad"] == actividad_norm)
+    ]
+
+    if fila.empty:
+        return None
+
+    return fila.iloc[0].to_dict()
+
+
 def mostrar_resumen_meta_seleccionada(fila_meta):
     if not fila_meta:
+        st.warning("La delegación, programa y actividad seleccionada no tienen una meta oficial asociada.")
         return
 
     meta = float(fila_meta.get("Meta 2026", 0) or 0)
@@ -1341,21 +1403,32 @@ def mostrar_resumen_meta_seleccionada(fila_meta):
     pendiente = max(meta - avance_base, 0)
     porcentaje_meta = avance_base / meta if meta else 0
 
-    st.markdown("### Meta oficial seleccionada")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Meta 2026", f"{meta:,.0f}")
-    c2.metric("Avance base", f"{avance_base:,.0f}")
-    c3.metric("Pendiente base", f"{pendiente:,.0f}")
-    c4.metric("% base", f"{porcentaje_meta:.1%}")
+    st.markdown("#### Meta oficial de la actividad")
+
+    resumen_meta = pd.DataFrame([
+        {
+            "Meta 2026": f"{meta:,.0f}",
+            "Avance base": f"{avance_base:,.0f}",
+            "Pendiente base": f"{pendiente:,.0f}",
+            "% base": f"{porcentaje_meta:.1%}",
+        }
+    ])
+
+    st.dataframe(
+        resumen_meta,
+        use_container_width=True,
+        hide_index=True
+    )
 
     meses = []
     for mes in MESES_OFICIALES:
         valor = limpiar_numero_meta(fila_meta.get(mes.title(), 0))
         if valor > 0:
-            meses.append(f"{mes.title()}: {valor:,.0f}")
+            meses.append({"Mes": mes.title(), "Cantidad": f"{valor:,.0f}"})
 
     if meses:
-        st.info("Movimientos en meta base: " + " | ".join(meses))
+        with st.expander("Ver distribución mensual registrada en la meta base", expanded=False):
+            st.dataframe(pd.DataFrame(meses), use_container_width=True, hide_index=True)
 
 
 # ======================================================
@@ -3199,12 +3272,6 @@ elif menu == "Registrar actividad":
 
     usar_metas = metas_disponibles()
 
-    if usar_metas:
-        st.info(
-            "Las listas de Dirección Regional, Delegación, Programa y Actividad se están tomando "
-            "desde los Excel oficiales de metas regionales cargados al mismo nivel de app.py."
-        )
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -3219,10 +3286,8 @@ elif menu == "Registrar actividad":
             value=time(8, 0)
         )
 
-        if usar_metas:
-            regiones_lista = obtener_regiones_metas()
-        else:
-            regiones_lista = obtener_regiones_datos()
+        # La Dirección Regional mantiene el catálogo institucional original.
+        regiones_lista = obtener_regiones_datos()
 
         direccion_regional = st.selectbox(
             "Dirección Regional",
@@ -3231,14 +3296,11 @@ elif menu == "Registrar actividad":
 
         st.session_state.ultima_direccion_regional = direccion_regional
 
-        if usar_metas:
-            delegaciones_filtradas = obtener_delegaciones_metas_por_region(
-                direccion_regional
-            )
-        else:
-            delegaciones_filtradas = obtener_delegaciones_por_region(
-                direccion_regional
-            )
+        # Las delegaciones también mantienen el catálogo institucional original,
+        # filtradas por la Dirección Regional seleccionada.
+        delegaciones_filtradas = obtener_delegaciones_por_region(
+            direccion_regional
+        )
 
         delegacion = st.selectbox(
             "Delegación",
@@ -3251,12 +3313,21 @@ elif menu == "Registrar actividad":
 
     with col2:
         if usar_metas:
-            responde_a = "Meta regional oficial"
+            responde_a_lista = obtener_responde_a_datos()
 
-            programas_lista = obtener_programas_metas(
-                direccion_regional,
+            responde_a = st.selectbox(
+                "Responde a",
+                responde_a_lista
+                if responde_a_lista
+                else ["Meta regional oficial"]
+            )
+
+            programas_lista = obtener_programas_metas_por_delegacion(
                 delegacion
             )
+
+            if not programas_lista:
+                programas_lista = obtener_programas_por_responde_a(responde_a)
 
             programa = st.selectbox(
                 "Programa",
@@ -3265,21 +3336,29 @@ elif menu == "Registrar actividad":
                 else ["Sin datos disponibles"]
             )
 
-            actividades_filtradas = obtener_actividades_metas(
-                direccion_regional,
+            actividades_filtradas = obtener_actividades_metas_por_delegacion_programa(
                 delegacion,
                 programa
             )
 
-            actividad = st.selectbox(
-                "Actividad oficial según meta",
-                actividades_filtradas
-                if actividades_filtradas
-                else ["Sin datos disponibles"]
-            )
+            if actividades_filtradas:
+                actividad = st.selectbox(
+                    "Actividad que debe realizar la delegación",
+                    actividades_filtradas
+                )
+            else:
+                actividades_fallback = obtener_actividades_por_responde_a_programa(
+                    responde_a,
+                    programa
+                )
+                actividad = st.selectbox(
+                    "Actividad realizada",
+                    actividades_fallback
+                    if actividades_fallback
+                    else ["Sin datos disponibles"]
+                )
 
-            fila_meta_seleccionada = obtener_fila_meta(
-                direccion_regional,
+            fila_meta_seleccionada = obtener_fila_meta_por_delegacion(
                 delegacion,
                 programa,
                 actividad
