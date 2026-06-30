@@ -2519,6 +2519,10 @@ def actualizar_registro_admin_completo(indice_registro, nuevos_datos):
     if indice_registro not in df.index:
         return False
 
+    # Evita errores de pandas cuando una columna quedó como numérica y se
+    # intenta actualizar con texto desde la edición.
+    df = df.astype("object")
+
     for col, valor in nuevos_datos.items():
         if col in df.columns:
             df.loc[indice_registro, col] = valor
@@ -3122,6 +3126,136 @@ def mostrar_tabla_detallada_admin(df):
         use_container_width=True,
         hide_index=True
     )
+
+# ======================================================
+# DASHBOARD NACIONAL POR PROGRAMA AUTORIZADO
+# Muestra la información que compete al usuario autenticado
+# por región, delegación, programa y estado.
+# ======================================================
+
+def mostrar_dashboard_coordinador_nacional(df):
+    if df is None or df.empty:
+        st.info("No hay datos para mostrar con el programa y filtros seleccionados.")
+        return
+
+    df_metricas = limpiar_dataframe_metricas_admin(df)
+    programa_actual = st.session_state.get("admin_programa_autenticado", "")
+
+    st.markdown("### Resumen nacional del programa")
+    st.caption(f"Información visible para: {programa_actual}")
+
+    total_registros = len(df_metricas)
+    total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if "Cantidad Participantes" in df_metricas.columns else 0
+    total_regiones = df_metricas["Dirección Regional"].replace("", pd.NA).dropna().nunique() if "Dirección Regional" in df_metricas.columns else 0
+    total_delegaciones = df_metricas["Delegación"].replace("", pd.NA).dropna().nunique() if "Delegación" in df_metricas.columns else 0
+    total_aprobadas = len(df_metricas[df_metricas["Estado Validación"] == "Aprobada"]) if "Estado Validación" in df_metricas.columns else 0
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Registros visibles", total_registros)
+    c2.metric("Participantes", total_participantes)
+    c3.metric("Regiones", total_regiones)
+    c4.metric("Delegaciones", total_delegaciones)
+    c5.metric("Aprobadas", total_aprobadas)
+
+    st.markdown("---")
+
+    if "Estado Validación" in df_metricas.columns:
+        estado = (
+            df_metricas.groupby("Estado Validación")
+            .size()
+            .reset_index(name="Cantidad")
+            .sort_values("Cantidad", ascending=False)
+        )
+        if not estado.empty:
+            fig_estado = px.pie(
+                estado,
+                names="Estado Validación",
+                values="Cantidad",
+                title="Estado de validación nacional",
+                hole=0.38,
+                color="Estado Validación",
+                color_discrete_map={
+                    "Pendiente": COLOR_AMARILLO,
+                    "Aprobada": COLOR_VERDE,
+                    "Rechazada": COLOR_ROJO,
+                    "Con observaciones": COLOR_DORADO,
+                },
+            )
+            fig_estado.update_traces(textinfo="percent+label+value")
+            fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+            st.plotly_chart(fig_estado, use_container_width=True)
+
+    st.markdown("### Avance por Dirección Regional")
+
+    if "Dirección Regional" in df_metricas.columns:
+        resumen_region = (
+            df_metricas.groupby("Dirección Regional", dropna=False)
+            .agg(
+                Registros=("ID", "count"),
+                Participantes=("Cantidad Participantes", "sum"),
+                Aprobadas=("Estado Validación", lambda x: (x == "Aprobada").sum()),
+                Pendientes=("Estado Validación", lambda x: (x == "Pendiente").sum()),
+                Rechazadas=("Estado Validación", lambda x: (x == "Rechazada").sum()),
+                Observaciones=("Estado Validación", lambda x: (x == "Con observaciones").sum()),
+            )
+            .reset_index()
+            .sort_values("Registros", ascending=False)
+        )
+
+        st.dataframe(resumen_region, use_container_width=True, hide_index=True)
+
+        fig_region = px.bar(
+            resumen_region,
+            x="Dirección Regional",
+            y="Registros",
+            text="Registros",
+            title="Registros visibles por Dirección Regional",
+            color_discrete_sequence=[COLOR_AZUL],
+        )
+        fig_region.update_traces(textposition="outside", marker_line_color=COLOR_DORADO, marker_line_width=1.4)
+        fig_region.update_xaxes(tickangle=-25)
+        fig_region.update_yaxes(rangemode="tozero", dtick=1)
+        fig_region = aplicar_estilo_grafico_institucional(fig_region)
+        st.plotly_chart(fig_region, use_container_width=True)
+
+    st.markdown("### Avance por Delegación")
+
+    if "Delegación" in df_metricas.columns:
+        resumen_delegacion = (
+            df_metricas.groupby(["Dirección Regional", "Delegación"], dropna=False)
+            .agg(
+                Registros=("ID", "count"),
+                Participantes=("Cantidad Participantes", "sum"),
+                Aprobadas=("Estado Validación", lambda x: (x == "Aprobada").sum()),
+                Pendientes=("Estado Validación", lambda x: (x == "Pendiente").sum()),
+                Rechazadas=("Estado Validación", lambda x: (x == "Rechazada").sum()),
+                Observaciones=("Estado Validación", lambda x: (x == "Con observaciones").sum()),
+            )
+            .reset_index()
+            .sort_values(["Dirección Regional", "Delegación"])
+        )
+
+        st.dataframe(resumen_delegacion, use_container_width=True, hide_index=True)
+
+        top_delegaciones = resumen_delegacion.sort_values("Registros", ascending=False).head(20)
+        if not top_delegaciones.empty:
+            fig_delegacion = px.bar(
+                top_delegaciones,
+                x="Delegación",
+                y="Registros",
+                color="Dirección Regional",
+                text="Registros",
+                title="Delegaciones con más registros visibles",
+            )
+            fig_delegacion.update_traces(textposition="outside")
+            fig_delegacion.update_xaxes(tickangle=-30)
+            fig_delegacion.update_yaxes(rangemode="tozero", dtick=1)
+            fig_delegacion = aplicar_estilo_grafico_institucional(fig_delegacion)
+            st.plotly_chart(fig_delegacion, use_container_width=True)
+
+    st.markdown("### Detalle incluido en el dashboard")
+    mostrar_tabla_resumen_validacion(df_metricas)
+
 # ======================================================
 # appADMIN.py
 # PARTE 4 DE 5 CORREGIDA
@@ -3998,19 +4132,23 @@ if not st.session_state.get("admin_acceso_programa", False):
 
 df_admin_completo = st.session_state.df_admin.copy()
 
+programa_autorizado = st.session_state.get("admin_programa_autenticado", "")
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Acceso coordinador nacional")
+st.sidebar.success(f"Acceso activo: {programa_autorizado}")
+
+if st.sidebar.button("🔒 Cerrar sesión", key="cerrar_sesion_coordinador_nacional"):
+    st.session_state.admin_acceso_programa = False
+    st.session_state.admin_programa_autenticado = ""
+    st.session_state.admin_nombre_acceso = ""
+    st.session_state.df_admin = pd.DataFrame(columns=ENCABEZADOS_COMPLETOS)
+    st.session_state.archivo_admin_nombre = ""
+    st.rerun()
+
 if df_admin_completo.empty:
     df_admin = df_admin_completo
+    st.sidebar.info("Cargue uno o varios Excel regionales para ver la información del programa.")
 else:
-    acceso_autorizado = mostrar_acceso_por_programa_admin()
-
-    if not acceso_autorizado:
-        st.warning(
-            "Para continuar debe ingresar con el programa y la clave correspondiente. "
-            "Cada coordinación nacional verá únicamente la información que le compete."
-        )
-        st.stop()
-
-    programa_autorizado = st.session_state.get("admin_programa_autenticado", "")
     df_admin = filtrar_dataframe_por_programa_admin(
         df_admin_completo,
         programa_autorizado
@@ -4187,11 +4325,7 @@ elif menu_admin == "Dashboard":
 
         st.markdown("---")
 
-        mostrar_metricas_admin(df_filtrado)
-
-        st.markdown("---")
-
-        mostrar_graficos_admin(df_filtrado)
+        mostrar_dashboard_coordinador_nacional(df_filtrado)
 
         st.markdown("---")
 
@@ -4201,10 +4335,6 @@ elif menu_admin == "Dashboard":
         )
 
         st.markdown("---")
-        st.markdown("### Registros incluidos en el dashboard")
-
-        mostrar_tabla_resumen_validacion(df_filtrado)
-
         st.markdown("### Descargar Excel del dashboard filtrado")
 
         boton_descargar_excel_admin(
@@ -4254,7 +4384,7 @@ elif menu_admin == "Informe PDF":
 # ======================================================
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### Opciones administrativas")
+st.sidebar.markdown("### Opciones coordinadores nacionales")
 
 if df_admin.empty:
     st.sidebar.info("No hay datos cargados.")
@@ -4265,7 +4395,7 @@ else:
     )
 
     st.sidebar.download_button(
-        "⬇️ Descargar Excel validado del programa",
+        "⬇️ Descargar Excel del programa",
         data=convertir_excel_admin(df_admin),
         file_name=nombre_excel_admin,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
