@@ -44,7 +44,7 @@ from reportlab.platypus import (
 # ======================================================
 
 st.set_page_config(
-    page_title="PUMI 2026 - Administración",
+    page_title="PUMI 2026 - Coordinadores Nacionales",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -171,24 +171,19 @@ COLORES_PROGRAMA = {
 
 
 # ======================================================
-# ACCESOS POR PROGRAMA PARA VALIDACIÓN NACIONAL
-# Control interno de acceso por programa
+# ACCESOS POR PROGRAMA PARA COORDINADORES NACIONALES
+# Se leen desde Usuarios y Claves PUMI.xlsx
+# Hoja esperada: columnas Programas y CLAVES
 # ======================================================
 
-PROGRAMAS_ACCESO_ADMIN = {
-    "DARE": "DARE2310",
-    "GREAT": "GREAT2310",
-    "MPAS": "MPAS2310",
-    "PSCC": "PSCC2310",
-    "VIF": "VIF2310"
-}
+ARCHIVO_USUARIOS_CLAVES = "Usuarios y Claves PUMI.xlsx"
 
-PROGRAMAS_EQUIVALENTES_ADMIN = {
-    "DARE": ["DARE"],
-    "GREAT": ["GREAT", "GREAT CAMP"],
-    "MPAS": ["MPAS"],
-    "PSCC": ["PSCC"],
-    "VIF": ["VIF"]
+# Respaldo si el Excel no está disponible.
+PROGRAMAS_ACCESO_ADMIN_RESPALDO = {
+    "PSCC": "PSCC23",
+    "GREAT/MPAS/DARE": "GMD23",
+    "DARE": "DARE23",
+    "PLAN DE POLITICA LOCAL E IMPLEMENTACIÓN DE LA POLITICA LOCAL DE SEGURIDAD": "PLAN23"
 }
 
 PROGRAMAS_BASE = [
@@ -262,6 +257,9 @@ def inicializar_session_state_admin():
 
     if "admin_acceso_programa" not in st.session_state:
         st.session_state.admin_acceso_programa = False
+
+    if "admin_nombre_acceso" not in st.session_state:
+        st.session_state.admin_nombre_acceso = ""
 
 
 inicializar_session_state_admin()
@@ -375,6 +373,84 @@ def generar_nombre_reporte(df, tipo="PDF"):
 
 
 
+def normalizar_programa_pumi(valor):
+    texto = normalizar_texto(valor)
+    texto = texto.replace(" Y ", "/")
+    texto = texto.replace(" - ", "/")
+    texto = re.sub(r"\s*/\s*", "/", texto)
+    return texto
+
+
+@st.cache_data
+def cargar_accesos_programas_admin():
+    columnas = ["Programa", "Clave"]
+
+    if not os.path.exists(ARCHIVO_USUARIOS_CLAVES):
+        return pd.DataFrame([
+            {"Programa": k, "Clave": v}
+            for k, v in PROGRAMAS_ACCESO_ADMIN_RESPALDO.items()
+        ])
+
+    try:
+        df = pd.read_excel(ARCHIVO_USUARIOS_CLAVES)
+        df.columns = [str(c).strip() for c in df.columns]
+
+        col_programa = None
+        col_clave = None
+
+        for col in df.columns:
+            if normalizar_texto(col) in ["PROGRAMAS", "PROGRAMA"]:
+                col_programa = col
+            if normalizar_texto(col) in ["CLAVES", "CLAVE"]:
+                col_clave = col
+
+        if not col_programa or not col_clave:
+            return pd.DataFrame([
+                {"Programa": k, "Clave": v}
+                for k, v in PROGRAMAS_ACCESO_ADMIN_RESPALDO.items()
+            ])
+
+        accesos = df[[col_programa, col_clave]].copy()
+        accesos.columns = columnas
+        accesos["Programa"] = accesos["Programa"].fillna("").astype(str).str.strip()
+        accesos["Clave"] = accesos["Clave"].fillna("").astype(str).str.strip()
+        accesos = accesos[(accesos["Programa"] != "") & (accesos["Clave"] != "")]
+        accesos = accesos.drop_duplicates()
+
+        if accesos.empty:
+            return pd.DataFrame([
+                {"Programa": k, "Clave": v}
+                for k, v in PROGRAMAS_ACCESO_ADMIN_RESPALDO.items()
+            ])
+
+        return accesos
+
+    except Exception:
+        return pd.DataFrame([
+            {"Programa": k, "Clave": v}
+            for k, v in PROGRAMAS_ACCESO_ADMIN_RESPALDO.items()
+        ])
+
+
+def programa_permitido_por_acceso(programa_registro, programa_acceso):
+    registro = normalizar_programa_pumi(programa_registro)
+    acceso = normalizar_programa_pumi(programa_acceso)
+
+    if not registro or not acceso:
+        return False
+
+    # Regla especial solicitada:
+    # DARE accede a DARE solo y también a la capa compartida GREAT/MPAS/DARE.
+    # La clave de GREAT/MPAS/DARE solo accede a la capa compartida.
+    if acceso == "DARE":
+        return registro == "DARE" or registro == "GREAT/MPAS/DARE"
+
+    if acceso == "GREAT/MPAS/DARE":
+        return registro == "GREAT/MPAS/DARE"
+
+    return registro == acceso
+
+
 def filtrar_dataframe_por_programa_admin(df, programa_autorizado):
     if df is None or df.empty:
         return df
@@ -382,60 +458,61 @@ def filtrar_dataframe_por_programa_admin(df, programa_autorizado):
     if not programa_autorizado or "Programa" not in df.columns:
         return pd.DataFrame(columns=df.columns)
 
-    programas_permitidos = PROGRAMAS_EQUIVALENTES_ADMIN.get(
-        programa_autorizado,
-        [programa_autorizado]
+    mascara = df["Programa"].apply(
+        lambda x: programa_permitido_por_acceso(x, programa_autorizado)
     )
 
-    programas_permitidos_norm = [
-        normalizar_texto(programa)
-        for programa in programas_permitidos
-    ]
-
-    df_filtrado = df[
-        df["Programa"].apply(normalizar_texto).isin(programas_permitidos_norm)
-    ].copy()
-
-    return df_filtrado
+    return df[mascara].copy()
 
 
 def mostrar_acceso_por_programa_admin():
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### Acceso por programa")
+    st.sidebar.markdown("### Acceso coordinador nacional")
 
     if st.session_state.get("admin_acceso_programa"):
         programa_actual = st.session_state.get("admin_programa_autenticado", "")
         st.sidebar.success(f"Acceso activo: {programa_actual}")
 
-        if st.sidebar.button("🔒 Cerrar acceso de programa"):
+        if st.sidebar.button("🔒 Cerrar acceso"):
             st.session_state.admin_acceso_programa = False
             st.session_state.admin_programa_autenticado = ""
+            st.session_state.admin_nombre_acceso = ""
             st.rerun()
 
         return True
 
+    accesos = cargar_accesos_programas_admin()
+    programas = accesos["Programa"].dropna().astype(str).tolist()
+
     programa = st.sidebar.selectbox(
-        "Programa a validar",
-        list(PROGRAMAS_ACCESO_ADMIN.keys()),
+        "Programa",
+        programas,
         key="programa_acceso_admin"
     )
 
     clave = st.sidebar.text_input(
-        "Contraseña del programa",
+        "Clave",
         type="password",
         key="clave_acceso_admin"
     )
 
-    if st.sidebar.button("Ingresar al programa"):
-        clave_esperada = PROGRAMAS_ACCESO_ADMIN.get(programa, "")
+    if st.sidebar.button("Ingresar"):
+        fila = accesos[
+            accesos["Programa"].apply(normalizar_texto) == normalizar_texto(programa)
+        ]
 
-        if clave.strip() == clave_esperada:
+        clave_esperada = ""
+        if not fila.empty:
+            clave_esperada = str(fila.iloc[0].get("Clave", "")).strip()
+
+        if clave.strip() == clave_esperada and clave_esperada:
             st.session_state.admin_acceso_programa = True
             st.session_state.admin_programa_autenticado = programa
+            st.session_state.admin_nombre_acceso = programa
             st.sidebar.success("Acceso autorizado.")
             st.rerun()
         else:
-            st.sidebar.error("Contraseña incorrecta para el programa seleccionado.")
+            st.sidebar.error("Usuario o clave incorrectos.")
 
     return False
 
@@ -723,8 +800,8 @@ def mostrar_titulo_admin():
     st.markdown(
         """
         <div class="titulo-principal">
-            <h1>🛡️ P.U.M.I. 2026 - Panel Administrativo</h1>
-            <h3>Validación, análisis, dashboard e informe PDF de actividades</h3>
+            <h1>🛡️ P.U.M.I. 2026 - Coordinadores Nacionales</h1>
+            <h3>Validación nacional, análisis, dashboard e informe PDF por programa</h3>
         </div>
         """,
         unsafe_allow_html=True
@@ -2096,7 +2173,7 @@ def cargar_datos_importantes():
         col_provincia = obtener_columna_por_nombre(df_original, ["Provincia"])
         col_canton = obtener_columna_por_nombre(df_original, ["Cantón", "Canton"])
         col_distrito = obtener_columna_por_nombre(df_original, ["Distrito", "Distritos"])
-        col_region = obtener_columna_por_nombre(df_original, ["Dirección Regional", "Direccion Admin"])
+        col_region = obtener_columna_por_nombre(df_original, ["Dirección Regional", "Direccion Regional"])
         col_delegacion = obtener_columna_por_nombre(df_original, ["Delegación", "Delegacion"])
         col_responde_a = obtener_columna_por_nombre(df_original, ["Responde a", "Responde a:", "Responde", "Responda a", "Responda a:"])
         col_actividad = obtener_columna_por_nombre(df_original, ["Actividad Realizada", "Actividad"])
@@ -2905,7 +2982,7 @@ def boton_descargar_excel_admin(df, key="descarga_excel_admin"):
     nombre_archivo = generar_nombre_reporte(df, tipo="XLSX")
 
     st.download_button(
-        "⬇️ Descargar Excel administrativo validado",
+        "⬇️ Descargar Excel nacional validado",
         data=convertir_excel_admin(df),
         file_name=nombre_archivo,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3055,7 +3132,7 @@ def dibujar_encabezado_pie_pdf(canvas, doc):
     canvas.drawString(
         1.2 * cm,
         alto - 0.65 * cm,
-        "P.U.M.I. 2026 - Informe Administrativo de Validación"
+        "P.U.M.I. 2026 - Informe Nacional de Validación"
     )
 
     canvas.setFillColor(colors.HexColor(COLOR_DORADO))
@@ -3139,7 +3216,7 @@ def crear_figuras_pdf_admin(df):
 
             figuras.append({
                 "titulo": "Gráfico 1. Distribución por estado de validación",
-                "descripcion": "Muestra la proporción de actividades según su estado administrativo de validación.",
+                "descripcion": "Muestra la proporción de actividades según su estado nacional de validación.",
                 "figura": fig_estado
             })
 
@@ -3341,7 +3418,7 @@ def construir_portada_pdf(elementos, df, estilos, fecha_informe=""):
     elementos.append(Spacer(1, 0.7 * cm))
 
     elementos.append(parrafo_pdf(
-        "INFORME ADMINISTRATIVO DE VALIDACIÓN DE ACTIVIDADES",
+        "INFORME NACIONAL DE VALIDACIÓN DE ACTIVIDADES",
         estilos["TituloPrincipalPDF"]
     ))
 
@@ -3378,7 +3455,7 @@ def construir_portada_pdf(elementos, df, estilos, fecha_informe=""):
     ) if "Delegación" in df.columns and not df.empty else "Sin datos"
 
     elementos.append(parrafo_pdf(
-        "El presente informe consolida la información de actividades registradas en el sistema PUMI 2026, incorporando su estado administrativo de validación, observaciones, métricas principales y elementos de análisis.",
+        "El presente informe consolida la información de actividades registradas en el sistema PUMI 2026, incorporando su estado nacional de validación, observaciones, métricas principales y elementos de análisis.",
         estilos["TextoPDF"]
     ))
 
@@ -3671,7 +3748,7 @@ def modulo_informe_pdf(df_filtrado):
         """
         <div class="card-admin">
             <div class="texto-admin">
-                Este módulo genera un informe PDF administrativo con portada,
+                Este módulo genera un informe PDF nacional con portada,
                 resumen ejecutivo, filtros aplicados, cuadros analíticos,
                 gráficos institucionales, imagen del mapa y detalle de actividades.
             </div>
@@ -3715,7 +3792,7 @@ def modulo_informe_pdf(df_filtrado):
         "Descripción de la imagen del mapa",
         value=(
             "La imagen muestra la distribución territorial de las actividades "
-            "filtradas en el panel administrativo, según los criterios seleccionados "
+            "filtradas en el panel nacional, según los criterios seleccionados "
             "para la generación del informe."
         )
     )
@@ -3757,7 +3834,7 @@ def modulo_informe_pdf(df_filtrado):
 
 mostrar_logo_sidebar()
 
-st.sidebar.markdown("## Panel Administrativo PUMI 2026")
+st.sidebar.markdown("## Coordinadores Nacionales PUMI 2026")
 
 st.sidebar.markdown(
     """
@@ -3771,7 +3848,7 @@ st.sidebar.markdown(
         font-size:14px;
     ">
     Cargue el Excel verificado por la Dirección Regional para validar,
-    analizar y generar informes administrativos nacionales.
+    analizar y generar informes nacionals nacionales.
     </div>
     """,
     unsafe_allow_html=True
@@ -3780,25 +3857,50 @@ st.sidebar.markdown(
 
 # ======================================================
 # CARGA DEL EXCEL PUMI
+# Permite cargar uno o varios Excel regionales verificados.
 # ======================================================
 
-archivo_admin = st.sidebar.file_uploader(
-    "Subir Excel generado por PUMI",
-    type=["xlsx"]
+archivos_admin = st.sidebar.file_uploader(
+    "Subir uno o varios Excel regionales verificados",
+    type=["xlsx"],
+    accept_multiple_files=True
 )
 
-if archivo_admin is not None:
-    if st.session_state.archivo_admin_nombre != archivo_admin.name:
-        df_cargado = cargar_excel_pumi_admin(archivo_admin)
+if archivos_admin:
+    nombres_archivos = " | ".join([archivo.name for archivo in archivos_admin])
 
-        if not df_cargado.empty:
-            st.session_state.df_admin = df_cargado
-            st.session_state.archivo_admin_nombre = archivo_admin.name
+    if st.session_state.archivo_admin_nombre != nombres_archivos:
+        dataframes_cargados = []
+        archivos_con_error = []
+
+        for archivo_excel in archivos_admin:
+            df_cargado = cargar_excel_pumi_admin(archivo_excel)
+
+            if not df_cargado.empty:
+                if "Archivo Origen" in df_cargado.columns:
+                    df_cargado["Archivo Origen"] = df_cargado["Archivo Origen"].replace("", archivo_excel.name)
+                else:
+                    df_cargado["Archivo Origen"] = archivo_excel.name
+
+                dataframes_cargados.append(df_cargado)
+            else:
+                archivos_con_error.append(archivo_excel.name)
+
+        if dataframes_cargados:
+            df_unificado = pd.concat(dataframes_cargados, ignore_index=True)
+            df_unificado = preparar_dataframe_admin(df_unificado)
+
+            st.session_state.df_admin = df_unificado
+            st.session_state.archivo_admin_nombre = nombres_archivos
             st.session_state.admin_acceso_programa = False
             st.session_state.admin_programa_autenticado = ""
-            st.sidebar.success("Excel cargado correctamente.")
+            st.session_state.admin_nombre_acceso = ""
+            st.sidebar.success(f"{len(dataframes_cargados)} Excel cargado(s) correctamente.")
+
+            if archivos_con_error:
+                st.sidebar.warning("No se pudieron cargar estos archivos: " + ", ".join(archivos_con_error))
         else:
-            st.sidebar.warning("El Excel no contiene registros válidos.")
+            st.sidebar.warning("Ningún Excel contiene registros válidos.")
 
 
 # ======================================================
@@ -3822,8 +3924,8 @@ else:
 
     if not acceso_autorizado:
         st.warning(
-            "Para continuar debe seleccionar el programa e ingresar la contraseña correspondiente. "
-            "Cada programa solo podrá ver y validar sus propios registros."
+            "Para continuar debe ingresar con el programa y la clave correspondiente. "
+            "Cada coordinación nacional verá únicamente la información que le compete."
         )
         st.stop()
 
@@ -3842,7 +3944,7 @@ else:
 # ======================================================
 
 menu_admin = st.sidebar.radio(
-    "Menú administrativo",
+    "Menú coordinadores nacionales",
     [
         "Inicio",
         "Consulta y filtros",
@@ -3864,7 +3966,7 @@ if menu_admin == "Inicio":
         """
         <div class="card-admin">
             <div class="subtitulo-admin">
-                Bienvenido al Panel Administrativo PUMI 2026
+                Bienvenido al Coordinadores Nacionales PUMI 2026
             </div>
             <div class="texto-admin">
                 Esta aplicación permite cargar el Excel verificado por la Dirección Regional,
@@ -3891,7 +3993,7 @@ if menu_admin == "Inicio":
 
         mostrar_tabla_resumen_validacion(df_admin)
 
-        st.markdown("### Descargar Excel administrativo")
+        st.markdown("### Descargar Excel nacional")
 
         boton_descargar_excel_admin(
             df_admin,
@@ -3995,7 +4097,7 @@ elif menu_admin == "Editar o eliminar registros":
 
 elif menu_admin == "Dashboard":
 
-    st.markdown("## Dashboard administrativo")
+    st.markdown("## Dashboard nacional")
 
     if df_admin.empty:
         st.info("Debe cargar primero el Excel generado por PUMI.")
@@ -4036,7 +4138,7 @@ elif menu_admin == "Dashboard":
 
 elif menu_admin == "Informe PDF":
 
-    st.markdown("## Informe PDF administrativo")
+    st.markdown("## Informe PDF nacional")
 
     if df_admin.empty:
         st.info("Debe cargar primero el Excel generado por PUMI.")
