@@ -521,13 +521,16 @@ st.markdown(
 
 
     .meta-oficial-box {{
+        width: 100%;
+        box-sizing: border-box;
         background: #FFFFFF;
         border-radius: 20px;
-        padding: 20px 22px;
-        margin: 12px 0 20px 0;
+        padding: 22px 24px;
+        margin: 20px 0 24px 0;
         box-shadow: 0px 6px 18px rgba(0,0,0,0.10);
         border-left: 8px solid #002B7F;
         border-bottom: 5px solid #B88A2A;
+        overflow: visible;
     }}
 
     .meta-titulo {{
@@ -535,51 +538,74 @@ st.markdown(
         font-size: 28px;
         line-height: 1.15;
         font-weight: 900;
-        margin-bottom: 16px;
+        margin-bottom: 18px;
     }}
 
     .meta-grid {{
+        width: 100%;
         display: grid;
-        grid-template-columns: repeat(4, minmax(110px, 1fr));
-        gap: 14px;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 16px;
+        align-items: stretch;
     }}
 
     .meta-card {{
         background: linear-gradient(145deg, #FFFFFF 0%, #F3F6FF 100%);
         border-radius: 16px;
-        padding: 14px 16px;
+        padding: 18px 18px;
         border: 1px solid #E2E8F0;
-        min-height: 94px;
+        min-height: 105px;
         box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
+        box-sizing: border-box;
     }}
 
     .meta-label {{
         color: #4B5563;
-        font-size: 15px;
-        font-weight: 700;
-        margin-bottom: 8px;
-        white-space: nowrap;
+        font-size: 16px;
+        font-weight: 800;
+        margin-bottom: 10px;
+        white-space: normal;
+        line-height: 1.2;
     }}
 
     .meta-value {{
         color: #111827;
-        font-size: 34px;
+        font-size: 36px;
         font-weight: 900;
-        line-height: 1;
+        line-height: 1.05;
+        word-break: normal;
     }}
 
     .meta-meses {{
         background: #EAF1FF;
         color: #002B7F;
-        padding: 12px 14px;
+        padding: 13px 16px;
         border-radius: 12px;
-        margin-top: 14px;
+        margin-top: 16px;
         font-size: 16px;
+        line-height: 1.35;
+        width: 100%;
+        box-sizing: border-box;
     }}
 
-    @media (max-width: 900px) {{
+    .bloque-avance-registro {{
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFF 100%);
+        border-radius: 18px;
+        padding: 20px 22px;
+        margin: 10px 0 22px 0;
+        border-left: 7px solid #B88A2A;
+        box-shadow: 0px 4px 14px rgba(0,0,0,0.08);
+    }}
+
+    @media (max-width: 1200px) {{
         .meta-grid {{
-            grid-template-columns: repeat(2, minmax(120px, 1fr));
+            grid-template-columns: repeat(2, minmax(150px, 1fr));
+        }}
+    }}
+
+    @media (max-width: 700px) {{
+        .meta-grid {{
+            grid-template-columns: 1fr;
         }}
     }}
 
@@ -3443,8 +3469,6 @@ elif menu == "Registrar actividad":
                 actividad
             )
 
-            avance_sugerido, meta_oficial, avance_base_oficial, pendiente_oficial = mostrar_resumen_meta_seleccionada(fila_meta_seleccionada)
-
         else:
             programas_lista = obtener_programas_datos()
 
@@ -3464,11 +3488,28 @@ elif menu == "Registrar actividad":
                 else ["Sin datos disponibles"]
             )
 
-            avance_sugerido = 1
-            pendiente_oficial = 0
+            fila_meta_seleccionada = None
 
-        max_avance_registro = int(pendiente_oficial) if usar_metas and pendiente_oficial > 0 else None
+    if usar_metas:
+        avance_sugerido, meta_oficial, avance_base_oficial, pendiente_oficial = mostrar_resumen_meta_seleccionada(fila_meta_seleccionada)
+    else:
+        avance_sugerido = 1
+        pendiente_oficial = 0
 
+    st.markdown(
+        """
+        <div class="bloque-avance-registro">
+            <b>Registro del avance</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col_av1, col_av2, col_av3 = st.columns([1, 1, 1])
+
+    max_avance_registro = int(pendiente_oficial) if usar_metas and pendiente_oficial > 0 else None
+
+    with col_av1:
         if max_avance_registro:
             avance_realizado = st.number_input(
                 "Avance realizado",
@@ -3485,8 +3526,10 @@ elif menu == "Registrar actividad":
                 step=1
             )
 
+    with col_av2:
         responsable = st.text_input("Funcionario responsable")
 
+    with col_av3:
         usuario = st.text_input("Usuario que registra")
 
 
