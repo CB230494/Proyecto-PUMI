@@ -4623,23 +4623,45 @@ elif menu == "Dashboard":
         cdm4.metric("Pendiente", f"{pendiente_total_dash:,.0f}")
         cdm5.metric("% avance", f"{porcentaje_total_dash:.1%}")
 
-        st.markdown("### Gráfico circular de cumplimiento")
+        st.markdown("### Gráfico circular por estado")
 
-        completado_grafico = min(realizado_total_dash, meta_total_dash) if meta_total_dash else 0
-        pendiente_grafico = max(meta_total_dash - completado_grafico, 0)
+        # El gráfico circular se basa en el estado de cada actividad oficial:
+        # Completa: % Cumplimiento >= 100%
+        # En avance: % Cumplimiento mayor a 0% y menor a 100%
+        # Pendiente: % Cumplimiento igual a 0%
+        orden_estados = ["Completa", "En avance", "Pendiente"]
 
-        df_circular = pd.DataFrame({
-            "Estado": ["Completado", "Pendiente"],
-            "Cantidad": [completado_grafico, pendiente_grafico]
-        })
+        df_circular = (
+            df_avance_filtrado
+            .groupby("Estado cumplimiento", as_index=False)
+            .agg({
+                "Actividad": "count",
+                "Meta 2026": "sum",
+                "Realizado total": "sum",
+                "Pendiente": "sum"
+            })
+            .rename(columns={
+                "Estado cumplimiento": "Estado",
+                "Actividad": "Actividades"
+            })
+        )
 
-        if meta_total_dash > 0:
+        df_circular["Orden"] = df_circular["Estado"].apply(
+            lambda x: orden_estados.index(x) if x in orden_estados else 99
+        )
+        df_circular = df_circular.sort_values("Orden").drop(columns=["Orden"])
+
+        if not df_circular.empty:
             fig_circular = px.pie(
                 df_circular,
                 names="Estado",
-                values="Cantidad",
-                title="Completado vs pendiente",
-                hole=0.45
+                values="Actividades",
+                title="Actividades por estado de cumplimiento",
+                hole=0.45,
+                hover_data=["Meta 2026", "Realizado total", "Pendiente"]
+            )
+            fig_circular.update_traces(
+                textinfo="label+percent+value"
             )
             fig_circular.update_layout(
                 title_x=0.5,
@@ -4648,7 +4670,7 @@ elif menu == "Dashboard":
             )
             st.plotly_chart(fig_circular, use_container_width=True)
         else:
-            st.info("No hay meta oficial para graficar cumplimiento.")
+            st.info("No hay datos para graficar por estado.")
 
         st.markdown("### Avance por actividad oficial")
 
