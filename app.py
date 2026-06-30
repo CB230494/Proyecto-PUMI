@@ -44,6 +44,7 @@ st.set_page_config(
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
 ARCHIVO_DELEGACIONES = "DELEGACIONES Y DISTRITOS.xlsx"
 ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
+ARCHIVO_USUARIOS_CLAVES = "Usuarios y Claves PUMI.xlsx"
 MARCA_AGUA_EXCEL = "marca_agua.png"
 
 # Excel oficiales de metas regionales.
@@ -1149,15 +1150,73 @@ def limpiar_numero_meta(valor):
         return 0
 
 
+def obtener_codigo_region_desde_texto(valor):
+    texto = normalizar_texto(valor)
+    match = re.search(r"\bDR\s*([0-9]+)\b", texto)
+    if match:
+        return f"DR{match.group(1)}"
+
+    match = re.search(r"DIRECCION REGIONAL\s*([0-9]+)", texto)
+    if match:
+        return f"DR{match.group(1)}"
+
+    return ""
+
+
+def cargar_catalogo_usuarios_claves():
+    columnas = [
+        "Delegaciones", "Claves", "Regiones", "Claves.1", "Programas", "CLAVES"
+    ]
+
+    if not os.path.exists(ARCHIVO_USUARIOS_CLAVES):
+        return pd.DataFrame(columns=columnas)
+
+    try:
+        df = pd.read_excel(ARCHIVO_USUARIOS_CLAVES)
+    except Exception:
+        return pd.DataFrame(columns=columnas)
+
+    for col in columnas:
+        if col not in df.columns:
+            df[col] = ""
+
+    for col in columnas:
+        df[col] = df[col].fillna("").astype(str).str.strip()
+
+    return df
+
+
+def obtener_mapa_regiones_desde_usuarios():
+    df = cargar_catalogo_usuarios_claves()
+    mapa = {}
+
+    if df.empty:
+        return mapa
+
+    for _, row in df.iterrows():
+        region = str(row.get("Regiones", "")).strip()
+        clave = str(row.get("Claves.1", "")).strip().upper()
+
+        if not region or not clave:
+            continue
+
+        codigo = obtener_codigo_region_desde_texto(clave)
+        if codigo:
+            mapa[codigo] = region
+
+    return mapa
+
+
 def obtener_region_desde_archivo_meta(ruta_archivo):
     nombre = os.path.basename(ruta_archivo)
     nombre_sin_ext = os.path.splitext(nombre)[0]
-    match = re.search(r"\bDR\s*([0-9]+)\b", nombre_sin_ext.upper())
+    codigo = obtener_codigo_region_desde_texto(nombre_sin_ext)
 
-    if match:
-        numero = match.group(1)
-        # Se deja el nombre del archivo para que el usuario identifique claramente la base.
-        return f"DR{numero} - {nombre_sin_ext}"
+    if codigo:
+        mapa_regiones = obtener_mapa_regiones_desde_usuarios()
+        if codigo in mapa_regiones:
+            return mapa_regiones[codigo]
+        return codigo
 
     return nombre_sin_ext
 
@@ -3177,41 +3236,117 @@ def boton_descargar_excel_formulario(
     )
     
 # ======================================================
-# LOGIN POR DELEGACIÓN
-# Usuario para delegaciones: DELTA + número de delegación.
-# Ejemplo: D27 Alajuela Norte -> usuario DELTA27 / clave DELTA2723.
+# LOGIN DESDE EXCEL USUARIOS Y CLAVES PUMI
+# La app toma usuarios y claves desde el archivo:
+# Usuarios y Claves PUMI.xlsx
+#
+# Puede ingresar con:
+# - Delegación: usuario D27 o D27 Alajuela Norte y su clave de la columna Claves.
+# - Región: usuario DR2 o Dirección Regional 2 - Alajuela y su clave de la columna Claves.1.
+# - Programa: usuario PSCC, DARE, GMD o nombre del programa y su clave de la columna CLAVES.
 # ======================================================
+
 
 def extraer_numero_delegacion(nombre_delegacion):
     match = re.search(r"\bD\s*([0-9]+)\b", str(nombre_delegacion).upper())
     return match.group(1) if match else ""
 
 
-def construir_usuarios_region_2():
+def obtener_region_de_delegacion(delegacion):
+    df_metas = cargar_metas_regionales()
+    if df_metas.empty or not delegacion:
+        return ""
+
+    deleg_norm = normalizar_texto(delegacion)
+    fila = df_metas[df_metas["Clave Delegación"] == deleg_norm]
+
+    if fila.empty:
+        numero = extraer_numero_delegacion(delegacion)
+        if numero:
+            fila = df_metas[
+                df_metas["Delegación"].astype(str).apply(extraer_numero_delegacion) == numero
+            ]
+
+    if fila.empty:
+        return ""
+
+    return str(fila.iloc[0].get("Dirección Regional", "")).strip()
+
+
+def construir_usuarios_desde_excel():
     usuarios = {
         "ADMIN": {
             "clave": "ADMIN2026",
             "rol": "ADMIN",
             "region": "",
-            "delegacion": ""
+            "delegacion": "",
+            "programa": ""
         }
     }
 
-    df_metas = cargar_metas_regionales()
+    df = cargar_catalogo_usuarios_claves()
 
-    if not df_metas.empty:
-        delegaciones = sorted(df_metas["Delegación"].dropna().astype(str).unique().tolist())
-        for delegacion_item in delegaciones:
-            numero = extraer_numero_delegacion(delegacion_item)
-            if not numero:
-                continue
-            usuario = f"DELTA{numero}"
-            usuarios[usuario] = {
-                "clave": f"DELTA{numero}23",
+    if df.empty:
+        return usuarios
+
+    # Usuarios por delegación.
+    for _, row in df.iterrows():
+        delegacion = str(row.get("Delegaciones", "")).strip()
+        clave = str(row.get("Claves", "")).strip()
+
+        if delegacion and clave:
+            numero = extraer_numero_delegacion(delegacion)
+            usuario_codigo = f"D{numero}" if numero else delegacion
+            region = obtener_region_de_delegacion(delegacion)
+
+            datos = {
+                "clave": clave,
                 "rol": "DELEGACION",
-                "region": "Dirección Regional 2 - Alajuela",
-                "delegacion": delegacion_item
+                "region": region,
+                "delegacion": delegacion,
+                "programa": ""
             }
+
+            usuarios[normalizar_texto(usuario_codigo)] = datos
+            usuarios[normalizar_texto(delegacion)] = datos
+
+    # Usuarios regionales.
+    for _, row in df.iterrows():
+        region = str(row.get("Regiones", "")).strip()
+        clave = str(row.get("Claves.1", "")).strip()
+
+        if region and clave:
+            codigo_region = obtener_codigo_region_desde_texto(clave) or obtener_codigo_region_desde_texto(region) or clave
+            datos = {
+                "clave": clave,
+                "rol": "REGIONAL",
+                "region": region,
+                "delegacion": "",
+                "programa": ""
+            }
+
+            usuarios[normalizar_texto(codigo_region)] = datos
+            usuarios[normalizar_texto(region)] = datos
+
+    # Usuarios por programa.
+    for _, row in df.iterrows():
+        programa = str(row.get("Programas", "")).strip()
+        clave = str(row.get("CLAVES", "")).strip()
+
+        if programa and clave:
+            datos = {
+                "clave": clave,
+                "rol": "PROGRAMA",
+                "region": "",
+                "delegacion": "",
+                "programa": programa
+            }
+
+            usuarios[normalizar_texto(programa)] = datos
+            # También permite ingresar con la clave corta como usuario, por ejemplo GMD.
+            usuario_corto = clave.replace("23", "").strip()
+            if usuario_corto:
+                usuarios[normalizar_texto(usuario_corto)] = datos
 
     return usuarios
 
@@ -3225,16 +3360,16 @@ def pantalla_login():
     col_login_1, col_login_2, col_login_3 = st.columns([1, 1.2, 1])
 
     with col_login_2:
-        usuario_login = st.text_input("Usuario").strip().upper()
-        clave_login = st.text_input("Clave", type="password")
+        usuario_login = st.text_input("Usuario / Delegación / Región").strip()
+        clave_login = st.text_input("Clave", type="password").strip()
 
         if st.button("Ingresar"):
-            usuarios = construir_usuarios_region_2()
-            datos_usuario = usuarios.get(usuario_login)
+            usuarios = construir_usuarios_desde_excel()
+            datos_usuario = usuarios.get(normalizar_texto(usuario_login))
 
-            if datos_usuario and clave_login == datos_usuario["clave"]:
+            if datos_usuario and clave_login == datos_usuario.get("clave", ""):
                 st.session_state.usuario_autenticado = {
-                    "usuario": usuario_login,
+                    "usuario": usuario_login.upper(),
                     **datos_usuario
                 }
                 st.rerun()
@@ -3247,7 +3382,12 @@ if st.session_state.usuario_autenticado is None:
     st.stop()
 
 usuario_actual = st.session_state.usuario_autenticado
-es_admin = usuario_actual.get("rol") == "ADMIN"
+rol_actual = usuario_actual.get("rol", "")
+es_admin = rol_actual == "ADMIN"
+es_regional = rol_actual == "REGIONAL"
+es_delegacion = rol_actual == "DELEGACION"
+es_programa = rol_actual == "PROGRAMA"
+puede_ver_todo = es_admin or es_programa
 
 # ======================================================
 # PARTE 7 DE 10
@@ -3282,7 +3422,8 @@ st.sidebar.markdown(
     ">
     <b>Usuario:</b> {usuario_actual.get('usuario', '')}<br>
     <b>Perfil:</b> {usuario_actual.get('rol', '')}<br>
-    <b>Delegación:</b> {usuario_actual.get('delegacion', 'Todas') if not es_admin else 'Todas'}
+    <b>Región:</b> {usuario_actual.get('region', 'Todas') if usuario_actual.get('region', '') else 'Todas'}<br>
+    <b>Delegación:</b> {usuario_actual.get('delegacion', 'Todas') if usuario_actual.get('delegacion', '') else 'Todas'}
     </div>
     """,
     unsafe_allow_html=True
@@ -3472,15 +3613,15 @@ elif menu == "Registrar actividad":
 
         regiones_lista = obtener_regiones_datos()
 
-        if es_admin:
+        if es_admin or es_programa:
             direccion_regional = st.selectbox(
                 "Dirección Regional",
-                regiones_lista if regiones_lista else REGIONES
+                regiones_lista if regiones_lista else obtener_regiones_metas() or REGIONES
             )
         else:
             direccion_regional = st.selectbox(
                 "Dirección Regional",
-                [usuario_actual.get("region", "Dirección Regional 2 - Alajuela")],
+                [usuario_actual.get("region", "")],
                 disabled=True
             )
 
@@ -3488,16 +3629,16 @@ elif menu == "Registrar actividad":
 
         delegaciones_filtradas = obtener_delegaciones_por_region(direccion_regional)
 
-        if es_admin:
-            delegacion = st.selectbox(
-                "Delegación",
-                delegaciones_filtradas if delegaciones_filtradas else obtener_delegaciones_unicas()
-            )
-        else:
+        if es_delegacion:
             delegacion = st.selectbox(
                 "Delegación",
                 [usuario_actual.get("delegacion", "")],
                 disabled=True
+            )
+        else:
+            delegacion = st.selectbox(
+                "Delegación",
+                delegaciones_filtradas if delegaciones_filtradas else obtener_delegaciones_metas_por_region(direccion_regional) or obtener_delegaciones_unicas()
             )
 
         st.session_state.ultima_delegacion = delegacion
@@ -3940,7 +4081,7 @@ elif menu == "Editar y eliminar":
 
     df_actual = st.session_state.registros_pumi.copy()
 
-    if not es_admin and not df_actual.empty:
+    if es_delegacion and not df_actual.empty:
         df_actual = df_actual[
             df_actual["Delegación"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("delegacion", ""))
         ].copy()
@@ -4088,7 +4229,7 @@ elif menu == "Editar y eliminar":
                         fila.get("Dirección Regional", "")
                     )
 
-                    if es_admin:
+                    if es_admin or es_programa:
                         direccion_regional_edit = st.selectbox(
                             "Dirección Regional",
                             regiones_edit_lista,
@@ -4108,18 +4249,18 @@ elif menu == "Editar y eliminar":
                         fila.get("Delegación", "")
                     )
 
-                    if es_admin:
+                    if es_delegacion:
                         delegacion_edit = st.selectbox(
                             "Delegación",
-                            delegaciones_edit_lista,
-                            index=indice_opcion(delegaciones_edit_lista, fila.get("Delegación", "")),
+                            [usuario_actual.get("delegacion", fila.get("Delegación", ""))],
+                            disabled=True,
                             key="edit_delegacion"
                         )
                     else:
                         delegacion_edit = st.selectbox(
                             "Delegación",
-                            [usuario_actual.get("delegacion", fila.get("Delegación", ""))],
-                            disabled=True,
+                            delegaciones_edit_lista,
+                            index=indice_opcion(delegaciones_edit_lista, fila.get("Delegación", "")),
                             key="edit_delegacion"
                         )
 
@@ -4516,9 +4657,9 @@ elif menu == "Dashboard":
     df_actual = st.session_state.registros_pumi.copy()
 
     # La delegación solo ve sus registros y sus metas.
-    delegacion_login = usuario_actual.get("delegacion", "") if not es_admin else ""
+    delegacion_login = usuario_actual.get("delegacion", "") if es_delegacion else ""
 
-    if not es_admin and not df_actual.empty:
+    if es_delegacion and not df_actual.empty:
         df_actual = df_actual[
             df_actual["Delegación"].apply(normalizar_texto) == normalizar_texto(delegacion_login)
         ].copy()
@@ -4527,9 +4668,19 @@ elif menu == "Dashboard":
     # para que el usuario pueda ver la meta oficial pendiente.
     df_avance = generar_avance_contra_metas(df_actual)
 
-    if not es_admin and not df_avance.empty:
+    if es_delegacion and not df_avance.empty:
         df_avance = df_avance[
             df_avance["Delegación"].apply(normalizar_texto) == normalizar_texto(delegacion_login)
+        ].copy()
+
+    if es_regional and not df_avance.empty:
+        df_avance = df_avance[
+            df_avance["Dirección Regional"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("region", ""))
+        ].copy()
+
+    if es_programa and not df_avance.empty:
+        df_avance = df_avance[
+            df_avance["Programa"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("programa", ""))
         ].copy()
 
     if df_avance.empty:
@@ -4568,7 +4719,7 @@ elif menu == "Dashboard":
             )
 
         with colf3:
-            if es_admin:
+            if not es_delegacion:
                 delegaciones_dash = sorted(
                     df_avance["Delegación"]
                     .dropna()
@@ -4602,7 +4753,7 @@ elif menu == "Dashboard":
                 df_avance_filtrado["Estado cumplimiento"].isin(filtro_estado_dash)
             ]
 
-        if es_admin and filtro_delegacion_dash:
+        if not es_delegacion and filtro_delegacion_dash:
             df_avance_filtrado = df_avance_filtrado[
                 df_avance_filtrado["Delegación"].isin(filtro_delegacion_dash)
             ]
