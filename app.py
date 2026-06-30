@@ -3355,12 +3355,19 @@ def pantalla_login():
     mostrar_encabezado_institucional()
     mostrar_titulo_principal()
 
-    st.markdown("## Ingreso al sistema")
+    st.markdown(
+        """
+        <div style="text-align:center; margin-top:25px; margin-bottom:20px;">
+            <h1 style="margin-bottom:6px;">Ingreso al sistema</h1>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    col_login_1, col_login_2, col_login_3 = st.columns([1, 1.2, 1])
+    col_login_1, col_login_2, col_login_3 = st.columns([1, 1.15, 1])
 
     with col_login_2:
-        usuario_login = st.text_input("Usuario / Delegación / Región").strip()
+        usuario_login = st.text_input("Usuario").strip()
         clave_login = st.text_input("Clave", type="password").strip()
 
         if st.button("Ingresar"):
@@ -3462,6 +3469,9 @@ if archivo_excel_cargado is not None:
 # MENÚ PRINCIPAL
 # ======================================================
 
+if "menu_principal" not in st.session_state:
+    st.session_state.menu_principal = "Inicio"
+
 menu = st.sidebar.radio(
     "Menú principal",
     [
@@ -3469,7 +3479,8 @@ menu = st.sidebar.radio(
         "Registrar actividad",
         "Editar y eliminar",
         "Dashboard"
-    ]
+    ],
+    key="menu_principal"
 )
 
 
@@ -3499,59 +3510,45 @@ mostrar_titulo_principal()
 if menu == "Inicio":
 
     st.markdown(
-        """
+        f"""
         <div class="card-pumi">
             <div class="subtitulo-pumi">
                 Bienvenido al Sistema PUMI 2026
             </div>
-            <div class="texto-pumi">
-                Esta aplicación permite llenar registros de actividades,
-                conservarlos temporalmente durante la sesión y descargarlos
-                en un archivo Excel.
+            <div class="texto-pumi" style="text-align:center;">
+                Seleccione una opción para continuar con el registro, revisión o consulta de avances.
                 <br><br>
-                También permite subir nuevamente un Excel generado anteriormente
-                para continuar agregando o actualizando información sin necesidad
-                de conexión a una base de datos.
+                <b>Delegación activa:</b> {usuario_actual.get('delegacion', 'Todas') if usuario_actual.get('delegacion', '') else 'Todas'}<br>
+                <b>Dirección Regional:</b> {usuario_actual.get('region', 'Todas') if usuario_actual.get('region', '') else 'Todas'}
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    st.markdown("### Acceso rápido")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        if st.button("📝 Registrar actividad", use_container_width=True):
+            st.session_state.menu_principal = "Registrar actividad"
+            st.rerun()
+
+    with c2:
+        if st.button("✏️ Editar y eliminar", use_container_width=True):
+            st.session_state.menu_principal = "Editar y eliminar"
+            st.rerun()
+
+    with c3:
+        if st.button("📊 Dashboard", use_container_width=True):
+            st.session_state.menu_principal = "Dashboard"
+            st.rerun()
+
     df_actual = st.session_state.registros_pumi
 
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Registros cargados", len(df_actual))
-
-    with col2:
-        total_participantes = 0
-
-        if not df_actual.empty and "Cantidad Participantes" in df_actual.columns:
-            total_participantes = pd.to_numeric(
-                df_actual["Cantidad Participantes"],
-                errors="coerce"
-            ).fillna(0).sum()
-
-        st.metric("Participantes", int(total_participantes))
-
-    with col3:
-        programas = 0
-
-        if not df_actual.empty and "Programa" in df_actual.columns:
-            programas = (
-                df_actual["Programa"]
-                .replace("", pd.NA)
-                .dropna()
-                .nunique()
-            )
-
-        st.metric("Programas registrados", programas)
-
-    st.markdown("---")
-
     if not df_actual.empty:
+        st.markdown("---")
         boton_descargar_excel(
             df_actual,
             texto_boton="⬇️ Descargar Excel actual",
