@@ -1499,21 +1499,6 @@ def mostrar_resumen_meta_seleccionada(fila_meta):
     pendiente = max(meta - avance_base, 0)
     porcentaje_meta = avance_base / meta if meta else 0
 
-    meses = []
-    for mes in MESES_OFICIALES:
-        valor = limpiar_numero_meta(fila_meta.get(mes.title(), 0))
-        if valor > 0:
-            meses.append(f"{mes.title()}: {valor:,.0f}")
-
-    meses_html = ""
-    if meses:
-        meses_texto = " | ".join(meses)
-        meses_html = f"""
-        <div class="meta-meses">
-            <b>Movimientos en meta base:</b> {meses_texto}
-        </div>
-        """
-
     st.markdown(
         f"""
         <div class="meta-oficial-box">
@@ -1536,7 +1521,6 @@ def mostrar_resumen_meta_seleccionada(fila_meta):
                     <div class="meta-value">{porcentaje_meta:.1%}</div>
                 </div>
             </div>
-            {meses_html}
         </div>
         """,
         unsafe_allow_html=True
