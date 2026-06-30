@@ -3936,7 +3936,7 @@ elif menu == "Registrar actividad":
 
 elif menu == "Registros cargados":
 
-    st.markdown("## Registros cargados en la sesión")
+    st.markdown("## Editar / eliminar registros PUMI")
 
     df_actual = st.session_state.registros_pumi.copy()
 
@@ -3946,7 +3946,7 @@ elif menu == "Registros cargados":
         ].copy()
 
     if df_actual.empty:
-        st.info("Aún no hay registros cargados o agregados.")
+        st.info("Aún no hay registros para editar o eliminar.")
     else:
         st.markdown(
             """
@@ -4431,150 +4431,14 @@ elif menu == "Dashboard":
             hide_index=True
         )
 
-        st.markdown("### Gráficas de avance")
+        st.markdown("### Descarga del avance")
 
-        avance_programa = (
-            df_avance_filtrado
-            .groupby("Programa", as_index=False)[["Meta 2026", "Realizado total", "Pendiente"]]
-            .sum()
+        boton_descargar_excel(
+            df_avance_filtrado[columnas_vista_avance],
+            texto_boton="⬇️ Descargar avance filtrado",
+            filtrado=True,
+            key="descarga_dashboard_avance_filtrado"
         )
-
-        if not avance_programa.empty:
-            fig_avance_programa = px.bar(
-                avance_programa,
-                x="Programa",
-                y=["Meta 2026", "Realizado total", "Pendiente"],
-                barmode="group",
-                title="Meta, avance y pendiente por programa",
-                text_auto=True
-            )
-            fig_avance_programa.update_layout(
-                title_x=0.5,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                legend_title_text="Indicador"
-            )
-            st.plotly_chart(fig_avance_programa, use_container_width=True)
-
-        avance_actividad = df_avance_filtrado.copy()
-        avance_actividad["Actividad corta"] = avance_actividad["Actividad"].astype(str).apply(
-            lambda x: x[:85] + "..." if len(x) > 85 else x
-        )
-
-        if not avance_actividad.empty:
-            fig_avance_actividad = px.bar(
-                avance_actividad,
-                x="Actividad corta",
-                y=["Meta 2026", "Realizado total"],
-                color="Programa",
-                barmode="group",
-                title="Meta y avance por actividad oficial",
-                hover_data=["Actividad", "Pendiente", "Estado cumplimiento"],
-                text_auto=True
-            )
-            fig_avance_actividad.update_layout(
-                title_x=0.5,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                xaxis_title="Actividad oficial",
-                yaxis_title="Cantidad",
-                legend_title_text="Programa"
-            )
-            st.plotly_chart(fig_avance_actividad, use_container_width=True)
-
-        resumen_estado = (
-            df_avance_filtrado
-            .groupby("Estado cumplimiento", as_index=False)
-            .agg({
-                "Actividad": "count",
-                "Meta 2026": "sum",
-                "Realizado total": "sum",
-                "Pendiente": "sum"
-            })
-            .rename(columns={"Actividad": "Actividades"})
-        )
-
-        if not resumen_estado.empty:
-            fig_estado = px.pie(
-                resumen_estado,
-                names="Estado cumplimiento",
-                values="Actividades",
-                title="Distribución de actividades por estado",
-                hole=0.35
-            )
-            fig_estado.update_layout(title_x=0.5, paper_bgcolor="white")
-            st.plotly_chart(fig_estado, use_container_width=True)
-
-        if es_admin:
-            avance_delegacion = (
-                df_avance_filtrado
-                .groupby("Delegación", as_index=False)[["Meta 2026", "Realizado total", "Pendiente"]]
-                .sum()
-            )
-
-            if not avance_delegacion.empty:
-                fig_avance_delegacion = px.bar(
-                    avance_delegacion,
-                    x="Delegación",
-                    y=["Meta 2026", "Realizado total", "Pendiente"],
-                    barmode="group",
-                    title="Meta, avance y pendiente por delegación",
-                    text_auto=True
-                )
-                fig_avance_delegacion.update_layout(
-                    title_x=0.5,
-                    plot_bgcolor="white",
-                    paper_bgcolor="white",
-                    legend_title_text="Indicador"
-                )
-                st.plotly_chart(fig_avance_delegacion, use_container_width=True)
-
-        st.markdown("---")
-        st.markdown("### Registros PUMI cargados")
-
-        # Los registros se filtran con el mismo programa seleccionado para comparar contra las metas.
-        df_registros_vista = df_actual.copy()
-
-        if filtro_programa_dash and not df_registros_vista.empty:
-            df_registros_vista = df_registros_vista[
-                df_registros_vista["Programa"].isin(filtro_programa_dash)
-            ]
-
-        if df_registros_vista.empty:
-            st.info("Todavía no hay registros PUMI cargados para esta vista. Las metas se mantienen visibles como pendientes.")
-        else:
-            df_metricas = limpiar_dataframe_para_metricas(df_registros_vista)
-
-            total_registros = len(df_metricas)
-            total_participantes = int(df_metricas["Cantidad Participantes"].sum()) if "Cantidad Participantes" in df_metricas.columns else 0
-            total_hombres = int(df_metricas["Cantidad Hombres"].sum()) if "Cantidad Hombres" in df_metricas.columns else 0
-            total_mujeres = int(df_metricas["Cantidad Mujeres"].sum()) if "Cantidad Mujeres" in df_metricas.columns else 0
-
-            cr1, cr2, cr3, cr4 = st.columns(4)
-            cr1.metric("Registros", total_registros)
-            cr2.metric("Participantes", total_participantes)
-            cr3.metric("Hombres", total_hombres)
-            cr4.metric("Mujeres", total_mujeres)
-
-            st.dataframe(
-                df_registros_vista,
-                use_container_width=True,
-                hide_index=True
-            )
-
-            boton_descargar_excel(
-                df_registros_vista,
-                texto_boton="⬇️ Descargar Excel filtrado",
-                filtrado=True,
-                key="descarga_dashboard_filtrado"
-            )
-
-            st.markdown("### Mapa de registros")
-            mostrar_mapa_registros(
-                df_registros_vista,
-                height=560,
-                key="mapa_dashboard"
-            )
 
 
 # ======================================================
