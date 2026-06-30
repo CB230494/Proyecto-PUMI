@@ -440,13 +440,17 @@ def programa_permitido_por_acceso(programa_registro, programa_acceso):
         return False
 
     # Regla especial solicitada:
-    # DARE accede a DARE solo y también a la capa compartida GREAT/MPAS/DARE.
-    # La clave de GREAT/MPAS/DARE solo accede a la capa compartida.
+    # - DARE puede ver DARE exclusivo y la capa compartida GREAT/MPAS/DARE.
+    # - GREAT/MPAS/DARE puede ver solo la capa compartida y actividades GREAT/MPAS si vienen separadas,
+    #   pero NO puede ver el DARE exclusivo.
     if acceso == "DARE":
-        return registro == "DARE" or registro == "GREAT/MPAS/DARE"
+        return registro in ["DARE", "GREAT/MPAS/DARE"]
 
     if acceso == "GREAT/MPAS/DARE":
-        return registro == "GREAT/MPAS/DARE"
+        return registro in ["GREAT/MPAS/DARE", "GREAT", "GREAT CAMP", "MPAS"]
+
+    if acceso.startswith("PLAN DE POLITICA LOCAL"):
+        return registro.startswith("PLAN DE POLITICA LOCAL")
 
     return registro == acceso
 
@@ -515,6 +519,80 @@ def mostrar_acceso_por_programa_admin():
             st.sidebar.error("Usuario o clave incorrectos.")
 
     return False
+
+
+
+
+# ======================================================
+# LOGIN CENTRAL PARA COORDINADORES NACIONALES
+# ======================================================
+
+def mostrar_login_coordinador_nacional():
+    st.markdown(
+        """
+        <div style="max-width:720px;margin:20px auto 0 auto;text-align:center;">
+            <h1 style="color:#002B7F;font-weight:900;margin-bottom:8px;">
+                Ingreso al sistema
+            </h1>
+            <p style="font-size:18px;color:#2F3542;margin-bottom:28px;">
+                Coordinadores Nacionales PUMI 2026
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    accesos = cargar_accesos_programas_admin()
+
+    col_izq, col_centro, col_der = st.columns([1, 1.35, 1])
+
+    with col_centro:
+        usuario = st.text_input(
+            "Usuario",
+            key="login_usuario_coordinador_nacional",
+            placeholder="Digite el programa asignado"
+        )
+
+        clave = st.text_input(
+            "Clave",
+            type="password",
+            key="login_clave_coordinador_nacional"
+        )
+
+        if st.button("Ingresar", key="btn_login_coordinador_nacional"):
+            usuario_norm = normalizar_texto(usuario)
+            clave_txt = str(clave).strip()
+
+            fila = accesos[
+                accesos["Programa"].apply(normalizar_texto) == usuario_norm
+            ]
+
+            if not fila.empty:
+                clave_esperada = str(fila.iloc[0].get("Clave", "")).strip()
+                programa_real = str(fila.iloc[0].get("Programa", "")).strip()
+            else:
+                clave_esperada = ""
+                programa_real = ""
+
+            if programa_real and clave_txt == clave_esperada:
+                st.session_state.admin_acceso_programa = True
+                st.session_state.admin_programa_autenticado = programa_real
+                st.session_state.admin_nombre_acceso = programa_real
+                st.success("Acceso autorizado.")
+                st.rerun()
+            else:
+                st.error("Usuario o clave incorrectos.")
+
+    st.markdown(
+        """
+        <div style="max-width:900px;margin:34px auto 0 auto;background:#FFFFFF;border-radius:20px;
+                    padding:22px;border-left:8px solid #B88A2A;box-shadow:0 6px 16px rgba(0,0,0,.12);">
+            <b>Acceso por programa:</b> cada coordinación nacional visualiza, valida y genera reportes
+            únicamente con la información que le corresponde según el usuario autorizado.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 # ======================================================
@@ -3910,6 +3988,9 @@ if archivos_admin:
 mostrar_encabezado_institucional()
 mostrar_titulo_admin()
 
+if not st.session_state.get("admin_acceso_programa", False):
+    mostrar_login_coordinador_nacional()
+    st.stop()
 
 # ======================================================
 # DATAFRAME BASE Y CONTROL DE ACCESO POR PROGRAMA
