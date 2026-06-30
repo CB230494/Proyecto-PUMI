@@ -4060,7 +4060,7 @@ st.sidebar.markdown(
         font-size:14px;
     ">
     Cargue el Excel verificado por la Dirección Regional para validar,
-    analizar y generar informes nacionals nacionales.
+    analizar y generar informes nacionales.
     </div>
     """,
     unsafe_allow_html=True
@@ -4073,7 +4073,7 @@ st.sidebar.markdown(
 # ======================================================
 
 archivos_admin = st.sidebar.file_uploader(
-    "Subir uno o varios Excel regionales verificados",
+    "Subir Excel regional verificado",
     type=["xlsx"],
     accept_multiple_files=True
 )
@@ -4162,16 +4162,27 @@ else:
 # MENÚ PRINCIPAL
 # ======================================================
 
+opciones_menu_coord = [
+    "Inicio",
+    "Consulta y filtros",
+    "Validación de actividades",
+    "Editar o eliminar registros",
+    "Dashboard",
+    "Informe PDF"
+]
+
+if "menu_destino_coord" in st.session_state:
+    destino = st.session_state.pop("menu_destino_coord")
+    if destino in opciones_menu_coord:
+        st.session_state["menu_coord"] = destino
+
+if "menu_coord" not in st.session_state:
+    st.session_state["menu_coord"] = "Inicio"
+
 menu_admin = st.sidebar.radio(
     "Menú coordinadores nacionales",
-    [
-        "Inicio",
-        "Consulta y filtros",
-        "Validación de actividades",
-        "Editar o eliminar registros",
-        "Dashboard",
-        "Informe PDF"
-    ]
+    opciones_menu_coord,
+    key="menu_coord"
 )
 
 
@@ -4185,7 +4196,7 @@ if menu_admin == "Inicio":
         """
         <div class="card-admin">
             <div class="subtitulo-admin">
-                Bienvenido al Coordinadores Nacionales PUMI 2026
+                Bienvenido a Coordinadores Nacionales PUMI 2026
             </div>
             <div class="texto-admin">
                 Esta aplicación permite cargar el Excel verificado por la Dirección Regional,
@@ -4199,8 +4210,39 @@ if menu_admin == "Inicio":
         unsafe_allow_html=True
     )
 
+    st.markdown("### Accesos rápidos")
+    col_ac1, col_ac2, col_ac3 = st.columns(3)
+    with col_ac1:
+        if st.button("🔎 Consulta y filtros", use_container_width=True, key="inicio_ir_consulta_coord"):
+            st.session_state.menu_destino_coord = "Consulta y filtros"
+            st.rerun()
+    with col_ac2:
+        if st.button("✅ Validación de actividades", use_container_width=True, key="inicio_ir_validacion_coord"):
+            st.session_state.menu_destino_coord = "Validación de actividades"
+            st.rerun()
+    with col_ac3:
+        if st.button("📊 Dashboard", use_container_width=True, key="inicio_ir_dashboard_coord"):
+            st.session_state.menu_destino_coord = "Dashboard"
+            st.rerun()
+
+    col_ac4, col_ac5, col_ac6 = st.columns(3)
+    with col_ac4:
+        if st.button("✏️ Editar o eliminar", use_container_width=True, key="inicio_ir_editar_coord"):
+            st.session_state.menu_destino_coord = "Editar o eliminar registros"
+            st.rerun()
+    with col_ac5:
+        if st.button("📄 Informe PDF", use_container_width=True, key="inicio_ir_pdf_coord"):
+            st.session_state.menu_destino_coord = "Informe PDF"
+            st.rerun()
+    with col_ac6:
+        if st.button("🏠 Inicio", use_container_width=True, key="inicio_ir_inicio_coord"):
+            st.session_state.menu_destino_coord = "Inicio"
+            st.rerun()
+
+    st.markdown("---")
+
     if df_admin.empty:
-        st.info("Suba un archivo Excel desde el panel lateral para iniciar.")
+        st.info("Suba uno o varios Excel regionales verificados desde el panel lateral para iniciar.")
     else:
         mostrar_metricas_admin(df_admin)
 
@@ -4229,7 +4271,7 @@ elif menu_admin == "Consulta y filtros":
     st.markdown("## Consulta general de registros")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero uno o varios Excel regionales verificados.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
 
@@ -4257,7 +4299,7 @@ elif menu_admin == "Validación de actividades":
     st.markdown("## Módulo de validación administrativa")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero uno o varios Excel regionales verificados.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
 
@@ -4288,7 +4330,7 @@ elif menu_admin == "Editar o eliminar registros":
     st.markdown("## Editar o eliminar registros")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero uno o varios Excel regionales verificados.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
 
@@ -4319,7 +4361,13 @@ elif menu_admin == "Dashboard":
     st.markdown("## Dashboard nacional")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        programa_actual = st.session_state.get("admin_programa_autenticado", "")
+        st.info("Suba uno o varios Excel regionales verificados para visualizar el dashboard nacional del programa.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Programa", programa_actual if programa_actual else "Sin acceso")
+        c2.metric("Registros", 0)
+        c3.metric("Regiones", 0)
+        c4.metric("Delegaciones", 0)
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
 
@@ -4352,7 +4400,7 @@ elif menu_admin == "Informe PDF":
     st.markdown("## Informe PDF nacional")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero uno o varios Excel regionales verificados.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
 
