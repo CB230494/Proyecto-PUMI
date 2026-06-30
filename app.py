@@ -3982,14 +3982,43 @@ elif menu == "Editar y eliminar":
         ids_disponibles = df_actual["ID"].astype(str).tolist()
 
         id_eliminar = st.selectbox(
-            "Seleccione el ID del registro que desea eliminar",
-            ids_disponibles
+            "Seleccione el ID del registro que desea revisar/eliminar",
+            ids_disponibles,
+            key="id_eliminar_registro"
         )
 
-        if st.button("🗑️ Eliminar registro seleccionado"):
-            eliminar_registro_session(id_eliminar)
-            st.success("Registro eliminado correctamente.")
-            st.rerun()
+        fila_eliminar = df_actual[
+            df_actual["ID"].astype(str) == str(id_eliminar)
+        ]
+
+        if not fila_eliminar.empty:
+            registro_eliminar = fila_eliminar.iloc[0].to_dict()
+
+            st.markdown("#### Revisión del registro seleccionado")
+
+            columnas_revision = [
+                "ID", "Fecha Actividad", "Hora Actividad", "Dirección Regional",
+                "Delegación", "Programa", "Actividad", "Provincia", "Cantón",
+                "Distrito", "Lugar", "Avance Realizado", "Cantidad Participantes",
+                "Responsable", "Usuario Registra", "Observaciones"
+            ]
+            columnas_revision = [c for c in columnas_revision if c in fila_eliminar.columns]
+
+            st.dataframe(
+                fila_eliminar[columnas_revision],
+                use_container_width=True,
+                hide_index=True
+            )
+
+            confirmar_eliminacion = st.checkbox(
+                "Confirmo que revisé el registro y deseo eliminarlo definitivamente de esta sesión",
+                key="confirmar_eliminacion_registro"
+            )
+
+            if st.button("🗑️ Eliminar registro seleccionado", disabled=not confirmar_eliminacion):
+                eliminar_registro_session(id_eliminar)
+                st.success("Registro eliminado correctamente.")
+                st.rerun()
 
         st.markdown("---")
         st.markdown("### Editar registro existente")
@@ -4188,15 +4217,86 @@ elif menu == "Editar y eliminar":
                         value=str(fila.get("Código Presupuestario", ""))
                     )
 
+                    # ==============================================
+                    # Corrección de ubicación en mapa para edición
+                    # ==============================================
+                    st.markdown("#### Corregir ubicación en mapa")
+
+                    lat_key = f"edit_latitud_{id_editar}"
+                    lon_key = f"edit_longitud_{id_editar}"
+
+                    if lat_key not in st.session_state:
+                        st.session_state[lat_key] = str(fila.get("Latitud", ""))
+                    if lon_key not in st.session_state:
+                        st.session_state[lon_key] = str(fila.get("Longitud", ""))
+
+                    tipo_mapa_edit = st.selectbox(
+                        "Tipo de mapa para corregir marca",
+                        ["OpenStreetMap", "Mapa claro", "Topográfico", "Satélite"],
+                        key=f"edit_tipo_mapa_{id_editar}"
+                    )
+
+                    lat_actual_edit = limpiar_coordenada(st.session_state.get(lat_key, ""))
+                    lon_actual_edit = limpiar_coordenada(st.session_state.get(lon_key, ""))
+
+                    if lat_actual_edit is not None and lon_actual_edit is not None:
+                        centro_edit = [lat_actual_edit, lon_actual_edit]
+                        zoom_edit = 16
+                    else:
+                        centro_edit = CENTROS_PROVINCIA.get(provincia_edit, [9.7489, -83.7534])
+                        zoom_edit = 10
+
+                    mapa_edit = crear_mapa_base(
+                        centro=centro_edit,
+                        zoom=zoom_edit,
+                        tipo_mapa=tipo_mapa_edit
+                    )
+
+                    if lat_actual_edit is not None and lon_actual_edit is not None:
+                        folium.Marker(
+                            location=[lat_actual_edit, lon_actual_edit],
+                            popup="Ubicación actual del registro",
+                            tooltip="Marca actual",
+                            icon=folium.Icon(color="red", icon="map-marker")
+                        ).add_to(mapa_edit)
+
+                        folium.Circle(
+                            location=[lat_actual_edit, lon_actual_edit],
+                            radius=180,
+                            color=COLOR_AZUL,
+                            fill=True,
+                            fill_color=COLOR_DORADO,
+                            fill_opacity=0.18,
+                            weight=2
+                        ).add_to(mapa_edit)
+
+                    resultado_mapa_edit = st_folium(
+                        mapa_edit,
+                        height=420,
+                        use_container_width=True,
+                        key=f"mapa_edicion_{id_editar}"
+                    )
+
+                    if resultado_mapa_edit and resultado_mapa_edit.get("last_clicked"):
+                        st.session_state[lat_key] = str(resultado_mapa_edit["last_clicked"]["lat"])
+                        st.session_state[lon_key] = str(resultado_mapa_edit["last_clicked"]["lng"])
+                        st.success("Marca actualizada en el mapa. Revise las coordenadas antes de guardar.")
+                        st.rerun()
+
                     latitud_edit = st.text_input(
                         "Latitud",
-                        value=str(fila.get("Latitud", ""))
+                        value=st.session_state.get(lat_key, ""),
+                        key=f"input_latitud_edit_{id_editar}"
                     )
 
                     longitud_edit = st.text_input(
                         "Longitud",
-                        value=str(fila.get("Longitud", ""))
+                        value=st.session_state.get(lon_key, ""),
+                        key=f"input_longitud_edit_{id_editar}"
                     )
+
+                    st.session_state[lat_key] = latitud_edit
+                    st.session_state[lon_key] = longitud_edit
 
                 with col2:
                     responsable_edit = st.text_input(
@@ -4522,6 +4622,33 @@ elif menu == "Dashboard":
         cdm3.metric("Registrado PUMI", f"{realizado_pumi_dash:,.0f}")
         cdm4.metric("Pendiente", f"{pendiente_total_dash:,.0f}")
         cdm5.metric("% avance", f"{porcentaje_total_dash:.1%}")
+
+        st.markdown("### Gráfico circular de cumplimiento")
+
+        completado_grafico = min(realizado_total_dash, meta_total_dash) if meta_total_dash else 0
+        pendiente_grafico = max(meta_total_dash - completado_grafico, 0)
+
+        df_circular = pd.DataFrame({
+            "Estado": ["Completado", "Pendiente"],
+            "Cantidad": [completado_grafico, pendiente_grafico]
+        })
+
+        if meta_total_dash > 0:
+            fig_circular = px.pie(
+                df_circular,
+                names="Estado",
+                values="Cantidad",
+                title="Completado vs pendiente",
+                hole=0.45
+            )
+            fig_circular.update_layout(
+                title_x=0.5,
+                paper_bgcolor="white",
+                plot_bgcolor="white"
+            )
+            st.plotly_chart(fig_circular, use_container_width=True)
+        else:
+            st.info("No hay meta oficial para graficar cumplimiento.")
 
         st.markdown("### Avance por actividad oficial")
 
