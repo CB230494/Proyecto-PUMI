@@ -79,6 +79,7 @@ ENCABEZADOS = [
     "Hora Actividad",
     "Dirección Regional",
     "Delegación",
+    "Responde a",
     "Programa",
     "Actividad",
     "Provincia",
@@ -239,6 +240,9 @@ def inicializar_session_state():
 
     if "ultima_delegacion" not in st.session_state:
         st.session_state.ultima_delegacion = ""
+
+    if "usuario_autenticado" not in st.session_state:
+        st.session_state.usuario_autenticado = None
 
 
 inicializar_session_state()
@@ -3171,7 +3175,81 @@ def boton_descargar_excel_formulario(
         key=key,
         on_click="ignore"
     )
-    # ======================================================
+    
+# ======================================================
+# LOGIN POR DELEGACIÓN
+# Usuario para delegaciones: DELTA + número de delegación.
+# Ejemplo: D27 Alajuela Norte -> usuario DELTA27 / clave DELTA2723.
+# ======================================================
+
+def extraer_numero_delegacion(nombre_delegacion):
+    match = re.search(r"\bD\s*([0-9]+)\b", str(nombre_delegacion).upper())
+    return match.group(1) if match else ""
+
+
+def construir_usuarios_region_2():
+    usuarios = {
+        "ADMIN": {
+            "clave": "ADMIN2026",
+            "rol": "ADMIN",
+            "region": "",
+            "delegacion": ""
+        }
+    }
+
+    df_metas = cargar_metas_regionales()
+
+    if not df_metas.empty:
+        delegaciones = sorted(df_metas["Delegación"].dropna().astype(str).unique().tolist())
+        for delegacion_item in delegaciones:
+            numero = extraer_numero_delegacion(delegacion_item)
+            if not numero:
+                continue
+            usuario = f"DELTA{numero}"
+            usuarios[usuario] = {
+                "clave": f"DELTA{numero}23",
+                "rol": "DELEGACION",
+                "region": "Dirección Regional 2 - Alajuela",
+                "delegacion": delegacion_item
+            }
+
+    return usuarios
+
+
+def pantalla_login():
+    mostrar_encabezado_institucional()
+    mostrar_titulo_principal()
+
+    st.markdown("## Ingreso al sistema")
+
+    col_login_1, col_login_2, col_login_3 = st.columns([1, 1.2, 1])
+
+    with col_login_2:
+        usuario_login = st.text_input("Usuario").strip().upper()
+        clave_login = st.text_input("Clave", type="password")
+
+        if st.button("Ingresar"):
+            usuarios = construir_usuarios_region_2()
+            datos_usuario = usuarios.get(usuario_login)
+
+            if datos_usuario and clave_login == datos_usuario["clave"]:
+                st.session_state.usuario_autenticado = {
+                    "usuario": usuario_login,
+                    **datos_usuario
+                }
+                st.rerun()
+            else:
+                st.error("Usuario o clave incorrectos.")
+
+
+if st.session_state.usuario_autenticado is None:
+    pantalla_login()
+    st.stop()
+
+usuario_actual = st.session_state.usuario_autenticado
+es_admin = usuario_actual.get("rol") == "ADMIN"
+
+# ======================================================
 # PARTE 7 DE 10
 # SIDEBAR, CARGA DE EXCEL EXISTENTE, MENÚ PRINCIPAL
 # Y ENCABEZADOS VISUALES DE LA APP
@@ -3192,7 +3270,7 @@ mostrar_logo()
 st.sidebar.markdown("## Sistema PUMI 2026")
 
 st.sidebar.markdown(
-    """
+    f"""
     <div style="
         background:#FFFFFF;
         padding:14px;
@@ -3202,11 +3280,18 @@ st.sidebar.markdown(
         margin-bottom:15px;
         font-size:14px;
     ">
-    Modo formulario local con exportación a Excel.
+    <b>Usuario:</b> {usuario_actual.get('usuario', '')}<br>
+    <b>Perfil:</b> {usuario_actual.get('rol', '')}<br>
+    <b>Delegación:</b> {usuario_actual.get('delegacion', 'Todas') if not es_admin else 'Todas'}
     </div>
     """,
     unsafe_allow_html=True
 )
+
+if st.sidebar.button("Cerrar sesión"):
+    st.session_state.usuario_autenticado = None
+    st.session_state.registros_pumi = pd.DataFrame(columns=ENCABEZADOS)
+    st.rerun()
 
 
 # ======================================================
@@ -3385,47 +3470,62 @@ elif menu == "Registrar actividad":
             value=time(8, 0)
         )
 
-        # La Dirección Regional mantiene el catálogo institucional original.
         regiones_lista = obtener_regiones_datos()
 
-        direccion_regional = st.selectbox(
-            "Dirección Regional",
-            regiones_lista if regiones_lista else REGIONES
-        )
+        if es_admin:
+            direccion_regional = st.selectbox(
+                "Dirección Regional",
+                regiones_lista if regiones_lista else REGIONES
+            )
+        else:
+            direccion_regional = st.selectbox(
+                "Dirección Regional",
+                [usuario_actual.get("region", "Dirección Regional 2 - Alajuela")],
+                disabled=True
+            )
 
         st.session_state.ultima_direccion_regional = direccion_regional
 
-        # Las delegaciones también mantienen el catálogo institucional original,
-        # filtradas por la Dirección Regional seleccionada.
-        delegaciones_filtradas = obtener_delegaciones_por_region(
-            direccion_regional
-        )
+        delegaciones_filtradas = obtener_delegaciones_por_region(direccion_regional)
 
-        delegacion = st.selectbox(
-            "Delegación",
-            delegaciones_filtradas
-            if delegaciones_filtradas
-            else ["Sin datos disponibles"]
-        )
+        if es_admin:
+            delegacion = st.selectbox(
+                "Delegación",
+                delegaciones_filtradas if delegaciones_filtradas else obtener_delegaciones_unicas()
+            )
+        else:
+            delegacion = st.selectbox(
+                "Delegación",
+                [usuario_actual.get("delegacion", "")],
+                disabled=True
+            )
 
         st.session_state.ultima_delegacion = delegacion
 
     with col2:
-        responde_a = ""
+        responde_a_lista = obtener_responde_a_datos()
+
+        responde_a = st.selectbox(
+            "Responde a",
+            responde_a_lista if responde_a_lista else ["Sin datos disponibles"]
+        )
+
+        programas_por_responde = obtener_programas_por_responde_a(responde_a)
 
         if usar_metas:
-            programas_lista = obtener_programas_metas_por_delegacion(
-                delegacion
-            )
+            programas_metas = obtener_programas_metas_por_delegacion(delegacion)
+
+            programas_lista = [
+                p for p in programas_por_responde
+                if normalizar_texto(p) in [normalizar_texto(x) for x in programas_metas]
+            ]
 
             if not programas_lista:
-                programas_lista = obtener_programas_datos()
+                programas_lista = programas_metas if programas_metas else programas_por_responde
 
             programa = st.selectbox(
                 "Programa",
-                programas_lista
-                if programas_lista
-                else ["Sin datos disponibles"]
+                programas_lista if programas_lista else ["Sin datos disponibles"]
             )
 
             actividades_filtradas = obtener_actividades_metas_por_delegacion_programa(
@@ -3433,19 +3533,10 @@ elif menu == "Registrar actividad":
                 programa
             )
 
-            if actividades_filtradas:
-                actividad = st.selectbox(
-                    "Actividad oficial según meta",
-                    actividades_filtradas
-                )
-            else:
-                actividades_fallback = obtener_actividades_por_programa(programa)
-                actividad = st.selectbox(
-                    "Actividad realizada",
-                    actividades_fallback
-                    if actividades_fallback
-                    else ["Sin datos disponibles"]
-                )
+            actividad = st.selectbox(
+                "Actividad oficial según meta",
+                actividades_filtradas if actividades_filtradas else ["Sin datos disponibles"]
+            )
 
             fila_meta_seleccionada = obtener_fila_meta_por_delegacion(
                 delegacion,
@@ -3454,22 +3545,21 @@ elif menu == "Registrar actividad":
             )
 
         else:
-            programas_lista = obtener_programas_datos()
+            programas_lista = programas_por_responde if programas_por_responde else obtener_programas_datos()
 
             programa = st.selectbox(
                 "Programa",
-                programas_lista
-                if programas_lista
-                else ["Sin datos disponibles"]
+                programas_lista if programas_lista else ["Sin datos disponibles"]
             )
 
-            actividades_filtradas = obtener_actividades_por_programa(programa)
+            actividades_filtradas = obtener_actividades_por_responde_a_programa(
+                responde_a,
+                programa
+            )
 
             actividad = st.selectbox(
                 "Actividad realizada",
-                actividades_filtradas
-                if actividades_filtradas
-                else ["Sin datos disponibles"]
+                actividades_filtradas if actividades_filtradas else ["Sin datos disponibles"]
             )
 
             fila_meta_seleccionada = None
@@ -3780,20 +3870,6 @@ elif menu == "Registrar actividad":
 
     if st.button("💾 Agregar registro al Excel temporal"):
 
-        if cantidad > 0 and suma_sexo != cantidad:
-            st.error(
-                "No se puede agregar el registro porque la suma de hombres "
-                "y mujeres no coincide con el total de participantes."
-            )
-            st.stop()
-
-        if cantidad > 0 and suma_edades != cantidad:
-            st.error(
-                "No se puede agregar el registro porque la suma de rangos de edad "
-                "no coincide con el total de participantes."
-            )
-            st.stop()
-
         nuevo_id = generar_id_consecutivo()
 
         registro = {
@@ -3802,6 +3878,7 @@ elif menu == "Registrar actividad":
             "Hora Actividad": hora_actividad.strftime("%H:%M"),
             "Dirección Regional": direccion_regional,
             "Delegación": delegacion,
+            "Responde a": responde_a,
             "Programa": programa,
             "Actividad": actividad,
             "Provincia": provincia,
@@ -3880,6 +3957,11 @@ elif menu == "Registros cargados":
     st.markdown("## Registros cargados en la sesión")
 
     df_actual = st.session_state.registros_pumi.copy()
+
+    if not es_admin and not df_actual.empty:
+        df_actual = df_actual[
+            df_actual["Delegación"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("delegacion", ""))
+        ].copy()
 
     if df_actual.empty:
         st.info("Aún no hay registros cargados o agregados.")
@@ -4240,9 +4322,73 @@ elif menu == "Dashboard":
 
     df_actual = st.session_state.registros_pumi.copy()
 
+    if not es_admin and not df_actual.empty:
+        df_actual = df_actual[
+            df_actual["Delegación"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("delegacion", ""))
+        ].copy()
+
     if df_actual.empty:
         st.info("Aún no hay datos para mostrar en el dashboard.")
     else:
+        df_avance = generar_avance_contra_metas(df_actual)
+
+        if not es_admin and not df_avance.empty:
+            df_avance = df_avance[
+                df_avance["Delegación"].apply(normalizar_texto) == normalizar_texto(usuario_actual.get("delegacion", ""))
+            ].copy()
+
+        if not df_avance.empty:
+            meta_total_dash = df_avance["Meta 2026"].sum()
+            realizado_total_dash = df_avance["Realizado total"].sum()
+            pendiente_total_dash = df_avance["Pendiente"].sum()
+            porcentaje_total_dash = realizado_total_dash / meta_total_dash if meta_total_dash else 0
+
+            cdm1, cdm2, cdm3, cdm4 = st.columns(4)
+            cdm1.metric("Meta total", f"{meta_total_dash:,.0f}")
+            cdm2.metric("Avance total", f"{realizado_total_dash:,.0f}")
+            cdm3.metric("Pendiente", f"{pendiente_total_dash:,.0f}")
+            cdm4.metric("% avance", f"{porcentaje_total_dash:.1%}")
+
+            st.markdown("### Avance por meta oficial")
+
+            df_avance_vista = df_avance.copy()
+            df_avance_vista["% Cumplimiento"] = df_avance_vista["% Cumplimiento"].map(lambda x: f"{x:.1%}")
+            st.dataframe(df_avance_vista, use_container_width=True, hide_index=True)
+
+            avance_programa = (
+                df_avance
+                .groupby("Programa", as_index=False)[["Meta 2026", "Realizado total"]]
+                .sum()
+            )
+            if not avance_programa.empty:
+                fig_avance_programa = px.bar(
+                    avance_programa,
+                    x="Programa",
+                    y=["Meta 2026", "Realizado total"],
+                    barmode="group",
+                    title="Meta y avance por programa"
+                )
+                fig_avance_programa.update_layout(title_x=0.5, plot_bgcolor="white", paper_bgcolor="white")
+                st.plotly_chart(fig_avance_programa, use_container_width=True)
+
+            avance_delegacion = (
+                df_avance
+                .groupby("Delegación", as_index=False)[["Meta 2026", "Realizado total"]]
+                .sum()
+            )
+            if es_admin and not avance_delegacion.empty:
+                fig_avance_delegacion = px.bar(
+                    avance_delegacion,
+                    x="Delegación",
+                    y=["Meta 2026", "Realizado total"],
+                    barmode="group",
+                    title="Meta y avance por delegación"
+                )
+                fig_avance_delegacion.update_layout(title_x=0.5, plot_bgcolor="white", paper_bgcolor="white")
+                st.plotly_chart(fig_avance_delegacion, use_container_width=True)
+
+            st.markdown("---")
+
         df_metricas = limpiar_dataframe_para_metricas(df_actual)
 
         total_registros = len(df_metricas)
