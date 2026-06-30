@@ -14,6 +14,7 @@ import base64
 import unicodedata
 import re
 import textwrap
+import glob
 
 from io import BytesIO
 from datetime import datetime, date
@@ -46,6 +47,9 @@ LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
 MARCA_AGUA_EXCEL = "marca_agua.png"
 ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
+ARCHIVO_USUARIOS_CLAVES = "Usuarios y Claves PUMI.xlsx"
+CARPETA_METAS_REGIONALES = "."
+CARPETA_METAS_ALTERNATIVA = "metas"
 
 NOMBRE_HOJA_EXCEL = "REGISTRO_PUMI_2026"
 
@@ -1751,7 +1755,6 @@ def mostrar_tarjeta_registro_validacion(fila):
 
     with col2:
         st.markdown("#### Actividad")
-        st.write(f"**Responde a:** {fila.get('Responde a', '')}")
         st.write(f"**Programa:** {fila.get('Programa', '')}")
         st.write(f"**Actividad:** {fila.get('Actividad', '')}")
         st.write(f"**Lugar:** {fila.get('Lugar', '')}")
@@ -2879,14 +2882,606 @@ def mostrar_tabla_detallada_admin(df):
 # ======================================================
 
 
+
 # ======================================================
-# appREGIONAL.py
-# PARTE 5 DE 5 CORREGIDA
-# FLUJO PRINCIPAL DE LA APP REGIONAL:
-# SIDEBAR, CARGA MÚLTIPLE DE EXCEL, MENÚ, DASHBOARD,
-# VERIFICACIÓN INDIVIDUAL Y DESCARGA GLOBAL
+# ACCESO REGIONAL DESDE EXCEL DE USUARIOS Y CLAVES
 # ======================================================
 
+MESES_OFICIALES = [
+    "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+    "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+]
+
+
+def limpiar_numero_meta(valor):
+    if pd.isna(valor) or valor == "":
+        return 0
+    if isinstance(valor, str):
+        valor = valor.replace("%", "").replace(",", ".").strip()
+    try:
+        return float(valor)
+    except Exception:
+        return 0
+
+
+def obtener_codigo_region_desde_texto(valor):
+    texto = normalizar_texto(valor)
+    match = re.search(r"\bDR\s*([0-9]+)\s*([A-Z])?\b", texto)
+    if match:
+        numero = match.group(1)
+        letra = match.group(2) or ""
+        return f"DR{numero}{letra}"
+
+    match = re.search(r"DIRECCION REGIONAL\s*([0-9]+)", texto)
+    if match:
+        return f"DR{match.group(1)}"
+
+    match = re.search(r"REGION\s*([0-9]+)", texto)
+    if match:
+        return f"DR{match.group(1)}"
+
+    return ""
+
+
+def simplificar_usuario_region(valor):
+    texto = normalizar_texto(valor)
+    texto = texto.replace("DIRECCION REGIONAL", "REGION")
+    texto = texto.replace("SAN JOSE", "")
+    texto = texto.replace("HUETAR", "")
+    texto = re.sub(r"[^A-Z0-9 ]", " ", texto)
+    texto = " ".join(texto.split())
+    return texto
+
+
+@st.cache_data(show_spinner=False)
+def cargar_catalogo_usuarios_claves_regional():
+    columnas_base = ["Regiones", "Claves.1"]
+    if not os.path.exists(ARCHIVO_USUARIOS_CLAVES):
+        return pd.DataFrame(columns=columnas_base)
+
+    try:
+        df = pd.read_excel(ARCHIVO_USUARIOS_CLAVES)
+    except Exception:
+        return pd.DataFrame(columns=columnas_base)
+
+    for col in columnas_base:
+        if col not in df.columns:
+            df[col] = ""
+
+    df = df[columnas_base].copy()
+    df.columns = ["Region", "Clave"]
+
+    for col in ["Region", "Clave"]:
+        df[col] = df[col].fillna("").astype(str).str.strip()
+
+    df = df[(df["Region"] != "") & (df["Clave"] != "")].copy()
+    df["Region_Normalizada"] = df["Region"].apply(normalizar_texto)
+    df["Region_Simple"] = df["Region"].apply(simplificar_usuario_region)
+    df["Clave_Normalizada"] = df["Clave"].apply(normalizar_texto)
+    df["Codigo Region"] = df["Clave"].apply(obtener_codigo_region_desde_texto)
+
+    return df.reset_index(drop=True)
+
+
+def validar_login_regional(usuario, clave):
+    df = cargar_catalogo_usuarios_claves_regional()
+    if df.empty:
+        return None
+
+    usuario_norm = normalizar_texto(usuario)
+    usuario_simple = simplificar_usuario_region(usuario)
+    clave_norm = normalizar_texto(clave)
+
+    coincidencia = df[
+        (
+            (df["Region_Normalizada"] == usuario_norm) |
+            (df["Region_Simple"] == usuario_simple)
+        ) &
+        (df["Clave_Normalizada"] == clave_norm)
+    ]
+
+    if coincidencia.empty:
+        return None
+
+    fila = coincidencia.iloc[0].to_dict()
+    return {
+        "region": fila.get("Region", ""),
+        "clave": fila.get("Clave", ""),
+        "codigo": fila.get("Codigo Region", "")
+    }
+
+
+def inicializar_session_state_regional_login():
+    if "regional_autenticado" not in st.session_state:
+        st.session_state.regional_autenticado = False
+    if "regional_region" not in st.session_state:
+        st.session_state.regional_region = ""
+    if "regional_codigo" not in st.session_state:
+        st.session_state.regional_codigo = ""
+    if "regional_usuario" not in st.session_state:
+        st.session_state.regional_usuario = ""
+    if "regional_menu" not in st.session_state:
+        st.session_state.regional_menu = "Inicio"
+
+
+inicializar_session_state_regional_login()
+
+
+def mostrar_login_regional():
+    mostrar_encabezado_institucional()
+    mostrar_titulo_admin()
+
+    st.markdown(
+        """
+        <div style="max-width:650px;margin:0 auto;text-align:center;">
+            <h1 style="text-align:center;">Ingreso regional</h1>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col_izq, col_centro, col_der = st.columns([1, 1.2, 1])
+
+    with col_centro:
+        usuario = st.text_input("Usuario", key="login_regional_usuario")
+        clave = st.text_input("Clave", type="password", key="login_regional_clave")
+
+        if st.button("Ingresar", key="btn_login_regional"):
+            datos = validar_login_regional(usuario, clave)
+            if datos:
+                st.session_state.regional_autenticado = True
+                st.session_state.regional_region = datos["region"]
+                st.session_state.regional_codigo = datos["codigo"]
+                st.session_state.regional_usuario = usuario.strip()
+                st.success("Acceso regional correcto.")
+                st.rerun()
+            else:
+                st.error("Usuario o clave incorrectos.")
+
+
+def region_usuario_actual():
+    return st.session_state.get("regional_region", "")
+
+
+def codigo_region_actual():
+    return st.session_state.get("regional_codigo", "")
+
+
+def filtrar_df_por_region_autenticada(df):
+    if df is None or df.empty:
+        return df
+
+    region = region_usuario_actual()
+    if not region:
+        return df
+
+    region_norm = normalizar_texto(region)
+    df = df.copy()
+
+    if "Dirección Regional" not in df.columns:
+        return df.iloc[0:0]
+
+    return df[df["Dirección Regional"].astype(str).apply(normalizar_texto) == region_norm].copy()
+
+
+def mapa_codigos_a_regiones():
+    df = cargar_catalogo_usuarios_claves_regional()
+    mapa = {}
+    if df.empty:
+        return mapa
+    for _, row in df.iterrows():
+        codigo = str(row.get("Codigo Region", "")).strip()
+        region = str(row.get("Region", "")).strip()
+        if codigo and region:
+            mapa[codigo] = region
+    return mapa
+
+
+def obtener_region_desde_archivo_meta(ruta_archivo):
+    nombre = os.path.basename(ruta_archivo)
+    nombre_sin_ext = os.path.splitext(nombre)[0]
+    codigo = obtener_codigo_region_desde_texto(nombre_sin_ext)
+    mapa = mapa_codigos_a_regiones()
+
+    if codigo and codigo in mapa:
+        return mapa[codigo]
+
+    # Casos de archivos como DR1 C, DR1 N, DR1 S.
+    texto_nombre = normalizar_texto(nombre_sin_ext)
+    for cod, region in mapa.items():
+        if normalizar_texto(cod) in texto_nombre.replace(" ", ""):
+            return region
+
+    return codigo if codigo else nombre_sin_ext
+
+
+def buscar_archivos_metas_regionales():
+    rutas = []
+    patrones = [
+        os.path.join(CARPETA_METAS_REGIONALES, "DR*.xlsx"),
+        os.path.join(CARPETA_METAS_REGIONALES, "DR*.xlsm"),
+        os.path.join(CARPETA_METAS_REGIONALES, "DR*.xls"),
+    ]
+
+    if os.path.isdir(CARPETA_METAS_ALTERNATIVA):
+        patrones.extend([
+            os.path.join(CARPETA_METAS_ALTERNATIVA, "DR*.xlsx"),
+            os.path.join(CARPETA_METAS_ALTERNATIVA, "DR*.xlsm"),
+            os.path.join(CARPETA_METAS_ALTERNATIVA, "DR*.xls"),
+        ])
+
+    for patron in patrones:
+        rutas.extend(glob.glob(patron))
+
+    rutas_limpias = []
+    for ruta in rutas:
+        nombre = os.path.basename(ruta).upper()
+        if nombre.startswith("~$"):
+            continue
+        if "REGISTRO_PUMI" in nombre or "INFORME_VALIDACION" in nombre:
+            continue
+        if ruta not in rutas_limpias:
+            rutas_limpias.append(ruta)
+
+    return sorted(rutas_limpias)
+
+
+@st.cache_data(show_spinner=False)
+def cargar_metas_regionales():
+    registros = []
+    archivos = buscar_archivos_metas_regionales()
+
+    for ruta in archivos:
+        try:
+            xl = pd.ExcelFile(ruta)
+        except Exception:
+            continue
+
+        region_archivo = obtener_region_desde_archivo_meta(ruta)
+
+        for hoja in xl.sheet_names:
+            if str(hoja).strip().upper().startswith("TOTAL"):
+                continue
+
+            try:
+                raw = pd.read_excel(ruta, sheet_name=hoja, header=None)
+            except Exception:
+                continue
+
+            if raw.empty or raw.shape[1] < 4:
+                continue
+
+            df = raw.iloc[2:].copy()
+            if df.empty:
+                continue
+
+            df = df.rename(columns={0: "Programa", 1: "Actividad", 2: "Meta 2026", 3: "Avance base"})
+
+            for idx_mes, mes in enumerate(MESES_OFICIALES, start=4):
+                if idx_mes in df.columns:
+                    df[mes.title()] = df[idx_mes]
+                else:
+                    df[mes.title()] = 0
+
+            df["Programa"] = df["Programa"].ffill()
+
+            for _, fila in df.iterrows():
+                programa = str(fila.get("Programa", "")).strip()
+                actividad = str(fila.get("Actividad", "")).strip()
+
+                if not programa or programa.lower() == "nan":
+                    continue
+                if not actividad or actividad.lower() == "nan":
+                    continue
+
+                meta = limpiar_numero_meta(fila.get("Meta 2026", 0))
+                avance_base = limpiar_numero_meta(fila.get("Avance base", 0))
+
+                if meta == 0 and avance_base == 0:
+                    meses_sum = sum(limpiar_numero_meta(fila.get(mes.title(), 0)) for mes in MESES_OFICIALES)
+                    if meses_sum == 0:
+                        continue
+
+                item = {
+                    "Archivo meta": os.path.basename(ruta),
+                    "Dirección Regional": region_archivo,
+                    "Delegación": str(hoja).strip(),
+                    "Programa": programa,
+                    "Actividad": actividad,
+                    "Meta 2026": meta,
+                    "Avance base": avance_base,
+                    "Clave Regional": normalizar_texto(region_archivo),
+                    "Clave Delegación": normalizar_texto(hoja),
+                    "Clave Programa": normalizar_texto(programa),
+                    "Clave Actividad": normalizar_texto(actividad),
+                }
+
+                for mes in MESES_OFICIALES:
+                    item[mes.title()] = limpiar_numero_meta(fila.get(mes.title(), 0))
+
+                registros.append(item)
+
+    if not registros:
+        return pd.DataFrame(columns=[
+            "Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad",
+            "Meta 2026", "Avance base", "Clave Regional", "Clave Delegación",
+            "Clave Programa", "Clave Actividad"
+        ])
+
+    df_metas = pd.DataFrame(registros).drop_duplicates(
+        subset=["Archivo meta", "Delegación", "Programa", "Actividad"],
+        keep="first"
+    ).reset_index(drop=True)
+
+    return df_metas
+
+
+def filtrar_metas_region_actual(df_metas=None):
+    if df_metas is None:
+        df_metas = cargar_metas_regionales()
+    if df_metas.empty:
+        return df_metas
+
+    region = region_usuario_actual()
+    if not region:
+        return df_metas
+
+    region_norm = normalizar_texto(region)
+    return df_metas[df_metas["Clave Regional"] == region_norm].copy()
+
+
+def clasificar_avance_meta(porc):
+    if porc >= 1:
+        return "Completa"
+    if porc > 0:
+        return "En avance"
+    return "Pendiente"
+
+
+def generar_avance_contra_metas_regional(df_registros):
+    metas = filtrar_metas_region_actual().copy()
+
+    if metas.empty:
+        return pd.DataFrame()
+
+    if df_registros is None or df_registros.empty:
+        metas["Registrado PUMI"] = 0
+    else:
+        registros = filtrar_df_por_region_autenticada(df_registros).copy()
+
+        for col in ["Delegación", "Programa", "Actividad"]:
+            if col not in registros.columns:
+                registros[col] = ""
+
+        registros["Clave Delegación"] = registros["Delegación"].apply(normalizar_texto)
+        registros["Clave Programa"] = registros["Programa"].apply(normalizar_texto)
+        registros["Clave Actividad"] = registros["Actividad"].apply(normalizar_texto)
+
+        if "Avance Realizado" not in registros.columns:
+            registros["Avance Realizado"] = 1
+
+        registros["Avance Realizado"] = pd.to_numeric(
+            registros["Avance Realizado"],
+            errors="coerce"
+        ).fillna(0)
+
+        conteo = (
+            registros
+            .groupby(["Clave Delegación", "Clave Programa", "Clave Actividad"], as_index=False)["Avance Realizado"]
+            .sum()
+            .rename(columns={"Avance Realizado": "Registrado PUMI"})
+        )
+
+        metas = metas.merge(
+            conteo,
+            on=["Clave Delegación", "Clave Programa", "Clave Actividad"],
+            how="left"
+        )
+        metas["Registrado PUMI"] = metas["Registrado PUMI"].fillna(0)
+
+    metas["Avance acumulado"] = metas["Avance base"] + metas["Registrado PUMI"]
+    metas["Pendiente"] = (metas["Meta 2026"] - metas["Avance acumulado"]).clip(lower=0)
+    metas["% Cumplimiento"] = metas.apply(
+        lambda x: x["Avance acumulado"] / x["Meta 2026"] if x["Meta 2026"] else 0,
+        axis=1
+    )
+    metas["Estado cumplimiento"] = metas["% Cumplimiento"].apply(clasificar_avance_meta)
+
+    columnas = [
+        "Dirección Regional", "Delegación", "Programa", "Actividad", "Meta 2026",
+        "Avance base", "Registrado PUMI", "Avance acumulado", "Pendiente",
+        "% Cumplimiento", "Estado cumplimiento", "Archivo meta"
+    ]
+
+    return metas[columnas].copy()
+
+
+def mostrar_dashboard_avances_regional(df_registros):
+    st.markdown("## Dashboard regional de metas y avances")
+
+    df_avance = generar_avance_contra_metas_regional(df_registros)
+
+    if df_avance.empty:
+        st.info("No se encontraron metas oficiales para esta región.")
+        return
+
+    st.markdown("### Filtros del avance")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        delegaciones = sorted(df_avance["Delegación"].dropna().astype(str).unique().tolist())
+        filtro_delegacion = st.multiselect("Delegación", delegaciones, key="dash_regional_delegacion")
+
+    with col2:
+        programas = sorted(df_avance["Programa"].dropna().astype(str).unique().tolist())
+        filtro_programa = st.multiselect("Programa", programas, key="dash_regional_programa")
+
+    with col3:
+        filtro_estado = st.multiselect(
+            "Estado",
+            ["Completa", "En avance", "Pendiente"],
+            key="dash_regional_estado"
+        )
+
+    df_filtrado = df_avance.copy()
+
+    if filtro_delegacion:
+        df_filtrado = df_filtrado[df_filtrado["Delegación"].isin(filtro_delegacion)]
+    if filtro_programa:
+        df_filtrado = df_filtrado[df_filtrado["Programa"].isin(filtro_programa)]
+    if filtro_estado:
+        df_filtrado = df_filtrado[df_filtrado["Estado cumplimiento"].isin(filtro_estado)]
+
+    total_meta = df_filtrado["Meta 2026"].sum()
+    total_base = df_filtrado["Avance base"].sum()
+    total_pumi = df_filtrado["Registrado PUMI"].sum()
+    total_acum = df_filtrado["Avance acumulado"].sum()
+    total_pend = df_filtrado["Pendiente"].sum()
+    porc = total_acum / total_meta if total_meta else 0
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Meta oficial", f"{total_meta:,.0f}")
+    c2.metric("Avance base", f"{total_base:,.0f}")
+    c3.metric("Registrado PUMI", f"{total_pumi:,.0f}")
+    c4.metric("Pendiente", f"{total_pend:,.0f}")
+    c5.metric("% avance", f"{porc:.1%}")
+
+    st.markdown("### Cumplimiento por estado")
+
+    resumen_estado = (
+        df_filtrado
+        .groupby("Estado cumplimiento", as_index=False)["Meta 2026"]
+        .sum()
+        .rename(columns={"Meta 2026": "Cantidad"})
+    )
+
+    if not resumen_estado.empty:
+        fig_estado = px.pie(
+            resumen_estado,
+            names="Estado cumplimiento",
+            values="Cantidad",
+            title="Distribución de metas por estado",
+            hole=0.35,
+            color="Estado cumplimiento",
+            color_discrete_map={
+                "Completa": COLOR_VERDE,
+                "En avance": COLOR_DORADO,
+                "Pendiente": COLOR_ROJO,
+            }
+        )
+        fig_estado.update_traces(textinfo="percent+label+value")
+        fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+        st.plotly_chart(fig_estado, use_container_width=True)
+
+    st.markdown("### Avance por delegación")
+
+    resumen_delegacion = (
+        df_filtrado
+        .groupby("Delegación", as_index=False)[["Meta 2026", "Avance acumulado", "Pendiente"]]
+        .sum()
+    )
+
+    if not resumen_delegacion.empty:
+        grafico_delegacion = resumen_delegacion.melt(
+            id_vars="Delegación",
+            value_vars=["Meta 2026", "Avance acumulado", "Pendiente"],
+            var_name="Indicador",
+            value_name="Cantidad"
+        )
+        fig_delegacion = px.bar(
+            grafico_delegacion,
+            x="Delegación",
+            y="Cantidad",
+            color="Indicador",
+            barmode="group",
+            title="Meta, avance y pendiente por delegación",
+            text="Cantidad"
+        )
+        fig_delegacion.update_xaxes(tickangle=-30)
+        fig_delegacion = aplicar_estilo_grafico_institucional(fig_delegacion)
+        st.plotly_chart(fig_delegacion, use_container_width=True)
+
+    st.markdown("### Detalle de metas y avances")
+
+    vista = df_filtrado.copy()
+    vista["% Cumplimiento"] = vista["% Cumplimiento"].apply(lambda x: f"{x:.1%}")
+    for col in ["Meta 2026", "Avance base", "Registrado PUMI", "Avance acumulado", "Pendiente"]:
+        vista[col] = vista[col].apply(lambda x: f"{x:,.0f}")
+
+    st.dataframe(
+        vista,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown("### Descargar avance regional")
+    salida_avance = BytesIO()
+    with pd.ExcelWriter(salida_avance, engine="openpyxl") as writer:
+        df_filtrado.to_excel(writer, index=False, sheet_name="AVANCE_REGIONAL")
+    salida_avance.seek(0)
+    st.download_button(
+        "⬇️ Descargar avance regional filtrado",
+        data=salida_avance.getvalue(),
+        file_name=f"AVANCE_REGIONAL_PUMI_2026_{limpiar_nombre_archivo(region_usuario_actual())}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="descarga_avance_regional_dashboard"
+    )
+
+
+def mostrar_inicio_regional():
+    st.markdown(
+        f"""
+        <div class="card-admin">
+            <div class="subtitulo-admin">Panel Regional PUMI 2026</div>
+            <div class="texto-admin" style="text-align:center;">
+                Región activa: <b>{region_usuario_actual()}</b><br>
+                Desde este panel puede cargar los Excel remitidos por las delegaciones de su región,
+                revisar registros, validar actividades, editar o eliminar datos cuando corresponda,
+                consultar avances contra metas oficiales y descargar el Excel regional verificado.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("### Accesos rápidos")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if st.button("🔎 Consulta y filtros", key="inicio_ir_consulta"):
+            st.session_state.regional_menu = "Consulta y filtros"
+            st.rerun()
+    with col2:
+        if st.button("✅ Verificación", key="inicio_ir_validacion"):
+            st.session_state.regional_menu = "Verificación de actividades"
+            st.rerun()
+    with col3:
+        if st.button("✏️ Editar o eliminar", key="inicio_ir_editar"):
+            st.session_state.regional_menu = "Editar o eliminar registros"
+            st.rerun()
+    with col4:
+        if st.button("📊 Dashboard", key="inicio_ir_dashboard"):
+            st.session_state.regional_menu = "Dashboard"
+            st.rerun()
+
+    df_admin_region = filtrar_df_por_region_autenticada(st.session_state.df_admin)
+    if df_admin_region.empty:
+        st.info("Cargue uno o varios Excel de las delegaciones desde el panel lateral.")
+    else:
+        mostrar_metricas_admin(df_admin_region)
+        st.markdown("### Vista rápida de registros cargados")
+        mostrar_tabla_resumen_validacion(df_admin_region)
+        st.markdown("### Descargar Excel regional")
+        boton_descargar_excel_admin(df_admin_region, key="descarga_inicio_regional_login")
+
+
+# ======================================================
+# FLUJO PRINCIPAL DE LA APP REGIONAL CON ACCESO POR REGIÓN
+# ======================================================
+
+if not st.session_state.regional_autenticado:
+    mostrar_login_regional()
+    st.stop()
 
 # ======================================================
 # SIDEBAR
@@ -2895,6 +3490,16 @@ def mostrar_tabla_detallada_admin(df):
 mostrar_logo_sidebar()
 
 st.sidebar.markdown("## Panel Regional PUMI 2026")
+st.sidebar.success(f"Región: {region_usuario_actual()}")
+
+if st.sidebar.button("Cerrar sesión", key="cerrar_sesion_regional"):
+    st.session_state.regional_autenticado = False
+    st.session_state.regional_region = ""
+    st.session_state.regional_codigo = ""
+    st.session_state.regional_usuario = ""
+    st.session_state.df_admin = pd.DataFrame(columns=ENCABEZADOS_COMPLETOS)
+    st.session_state.archivo_admin_nombre = ""
+    st.rerun()
 
 st.sidebar.markdown(
     """
@@ -2907,13 +3512,11 @@ st.sidebar.markdown(
         margin-bottom:15px;
         font-size:14px;
     ">
-    Cargue el Excel generado por la delegación para verificar,
-    analizar y generar informes regionals.
+    Cargue únicamente los Excel generados por las delegaciones de su región.
     </div>
     """,
     unsafe_allow_html=True
 )
-
 
 # ======================================================
 # CARGA DEL EXCEL PUMI
@@ -2931,53 +3534,61 @@ if archivos_admin:
     if st.session_state.archivo_admin_nombre != nombres_archivos:
         dataframes_cargados = []
         archivos_con_error = []
+        registros_excluidos = 0
 
         for archivo_excel in archivos_admin:
             df_cargado = cargar_excel_pumi_admin(archivo_excel)
 
             if not df_cargado.empty:
                 df_cargado["Archivo Origen"] = archivo_excel.name
-                dataframes_cargados.append(df_cargado)
+                total_antes = len(df_cargado)
+                df_cargado = filtrar_df_por_region_autenticada(df_cargado)
+                registros_excluidos += max(total_antes - len(df_cargado), 0)
+
+                if not df_cargado.empty:
+                    dataframes_cargados.append(df_cargado)
             else:
                 archivos_con_error.append(archivo_excel.name)
 
         if dataframes_cargados:
-            df_unificado = pd.concat(
-                dataframes_cargados,
-                ignore_index=True
-            )
-
+            df_unificado = pd.concat(dataframes_cargados, ignore_index=True)
             df_unificado = preparar_dataframe_admin(df_unificado)
 
             st.session_state.df_admin = df_unificado
             st.session_state.archivo_admin_nombre = nombres_archivos
-            st.sidebar.success(
-                f"{len(dataframes_cargados)} Excel cargado(s) y unificado(s) correctamente."
-            )
+            st.sidebar.success(f"{len(dataframes_cargados)} Excel cargado(s) correctamente.")
+
+            if registros_excluidos:
+                st.sidebar.warning(f"Se excluyeron {registros_excluidos} registro(s) que no pertenecen a esta región.")
 
             if archivos_con_error:
-                st.sidebar.warning(
-                    "No se pudieron cargar estos archivos: " + ", ".join(archivos_con_error)
-                )
+                st.sidebar.warning("No se pudieron cargar estos archivos: " + ", ".join(archivos_con_error))
         else:
-            st.sidebar.warning("Ningún Excel contiene registros válidos.")
-
+            st.sidebar.warning("Ningún Excel contiene registros válidos para esta región.")
 
 # ======================================================
 # MENÚ PRINCIPAL
 # ======================================================
 
+opciones_menu = [
+    "Inicio",
+    "Consulta y filtros",
+    "Verificación de actividades",
+    "Editar o eliminar registros",
+    "Dashboard"
+]
+
+if st.session_state.regional_menu not in opciones_menu:
+    st.session_state.regional_menu = "Inicio"
+
 menu_admin = st.sidebar.radio(
     "Menú regional",
-    [
-        "Inicio",
-        "Consulta y filtros",
-        "Verificación de actividades",
-        "Editar o eliminar registros",
-        "Dashboard"
-    ]
+    opciones_menu,
+    index=opciones_menu.index(st.session_state.regional_menu),
+    key="radio_menu_regional"
 )
 
+st.session_state.regional_menu = menu_admin
 
 # ======================================================
 # ENCABEZADO GENERAL
@@ -2986,54 +3597,18 @@ menu_admin = st.sidebar.radio(
 mostrar_encabezado_institucional()
 mostrar_titulo_admin()
 
-
 # ======================================================
-# DATAFRAME BASE
+# DATAFRAME BASE FILTRADO POR REGIÓN AUTENTICADA
 # ======================================================
 
-df_admin = st.session_state.df_admin.copy()
-
+df_admin = filtrar_df_por_region_autenticada(st.session_state.df_admin.copy())
 
 # ======================================================
 # INICIO
 # ======================================================
 
 if menu_admin == "Inicio":
-
-    st.markdown(
-        """
-        <div class="card-admin">
-            <div class="subtitulo-admin">
-                Bienvenido al Panel Regional PUMI 2026
-            </div>
-            <div class="texto-admin">
-                Esta aplicación permite cargar el Excel generado desde la app PUMI,
-                revisar los registros, aplicar verificaciones regionales de forma
-                individual, consultar datos mediante filtros, visualizar gráficos y mapas,
-                y descargar un Excel unificado verificado con colores por estado,
-                bloqueo de hoja/libro y marca de agua institucional.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    if df_admin.empty:
-        st.info("Suba un archivo Excel desde el panel lateral para iniciar.")
-    else:
-        mostrar_metricas_admin(df_admin)
-
-        st.markdown("### Vista rápida de registros cargados")
-
-        mostrar_tabla_resumen_validacion(df_admin)
-
-        st.markdown("### Descargar Excel regional")
-
-        boton_descargar_excel_admin(
-            df_admin,
-            key="descarga_inicio_admin"
-        )
-
+    mostrar_inicio_regional()
 
 # ======================================================
 # CONSULTA Y FILTROS
@@ -3044,7 +3619,7 @@ elif menu_admin == "Consulta y filtros":
     st.markdown("## Consulta general de registros")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero el Excel generado por PUMI para esta región.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
 
@@ -3052,16 +3627,10 @@ elif menu_admin == "Consulta y filtros":
         mostrar_resumen_validacion(df_filtrado)
 
         st.markdown("### Registros filtrados")
-
         mostrar_tabla_resumen_validacion(df_filtrado)
 
         st.markdown("### Descargar Excel filtrado verificado")
-
-        boton_descargar_excel_admin(
-            df_filtrado,
-            key="descarga_consulta_filtrada"
-        )
-
+        boton_descargar_excel_admin(df_filtrado, key="descarga_consulta_filtrada")
 
 # ======================================================
 # VALIDACIÓN DE ACTIVIDADES
@@ -3072,23 +3641,15 @@ elif menu_admin == "Verificación de actividades":
     st.markdown("## Módulo de verificación regional")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero el Excel generado por PUMI para esta región.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
-
         st.markdown("---")
-
         modulo_validacion_actividades(df_filtrado)
 
         st.markdown("---")
         st.markdown("### Descargar Excel con verificaciones")
-
-        boton_descargar_excel_admin(
-            st.session_state.df_admin,
-            key="descarga_validacion_admin"
-        )
-
-
+        boton_descargar_excel_admin(filtrar_df_por_region_autenticada(st.session_state.df_admin), key="descarga_validacion_admin")
 
 # ======================================================
 # EDITAR O ELIMINAR REGISTROS
@@ -3099,22 +3660,15 @@ elif menu_admin == "Editar o eliminar registros":
     st.markdown("## Módulo regional de edición y eliminación")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("Debe cargar primero el Excel generado por PUMI para esta región.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
-
         st.markdown("---")
-
         modulo_editar_eliminar_registros(df_filtrado)
 
         st.markdown("---")
         st.markdown("### Descargar Excel actualizado")
-
-        boton_descargar_excel_admin(
-            st.session_state.df_admin,
-            key="descarga_edicion_regional"
-        )
-
+        boton_descargar_excel_admin(filtrar_df_por_region_autenticada(st.session_state.df_admin), key="descarga_edicion_regional")
 
 # ======================================================
 # DASHBOARD
@@ -3122,59 +3676,39 @@ elif menu_admin == "Editar o eliminar registros":
 
 elif menu_admin == "Dashboard":
 
-    st.markdown("## Dashboard regional")
+    mostrar_dashboard_avances_regional(df_admin)
+
+    st.markdown("---")
+    st.markdown("## Mapa y registros cargados")
 
     if df_admin.empty:
-        st.info("Debe cargar primero el Excel generado por PUMI.")
+        st.info("No hay registros PUMI cargados para mostrar en el mapa. Las metas oficiales se mantienen visibles en el dashboard.")
     else:
         df_filtrado = aplicar_filtros_admin(df_admin)
-
         st.markdown("---")
-
-        mostrar_metricas_admin(df_filtrado)
-
-        st.markdown("---")
-
-        mostrar_graficos_admin(df_filtrado)
-
-        st.markdown("---")
-
-        mostrar_mapa_admin(
-            df_filtrado,
-            key="mapa_dashboard_admin"
-        )
-
-        st.markdown("---")
-        st.markdown("### Registros incluidos en el dashboard")
-
+        mostrar_mapa_admin(df_filtrado, key="mapa_dashboard_regional_login")
+        st.markdown("### Registros incluidos")
         mostrar_tabla_resumen_validacion(df_filtrado)
-
-        st.markdown("### Descargar Excel del dashboard filtrado")
-
-        boton_descargar_excel_admin(
-            df_filtrado,
-            key="descarga_dashboard_filtrado"
-        )
-
+        st.markdown("### Descargar Excel filtrado")
+        boton_descargar_excel_admin(df_filtrado, key="descarga_dashboard_registros_filtrados")
 
 # ======================================================
 # DESCARGA GLOBAL Y LIMPIEZA EN SIDEBAR
 # ======================================================
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### Opciones regionals")
+st.sidebar.markdown("### Opciones regionales")
 
-if df_admin.empty:
+df_sidebar = filtrar_df_por_region_autenticada(st.session_state.df_admin)
+
+if df_sidebar.empty:
     st.sidebar.info("No hay datos cargados.")
 else:
-    nombre_excel_admin = generar_nombre_reporte(
-        st.session_state.df_admin,
-        tipo="XLSX"
-    )
+    nombre_excel_admin = generar_nombre_reporte(df_sidebar, tipo="XLSX")
 
     st.sidebar.download_button(
         "⬇️ Descargar Excel verificado",
-        data=convertir_excel_admin(st.session_state.df_admin),
+        data=convertir_excel_admin(df_sidebar),
         file_name=nombre_excel_admin,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="descarga_sidebar_admin"
