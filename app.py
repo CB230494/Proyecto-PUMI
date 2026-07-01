@@ -1000,6 +1000,23 @@ def preparar_dataframe_importado(df):
             .astype(int)
         )
 
+    # Estados que pueden venir desde app Regional o Coordinadores Nacionales.
+    # Si el Excel original no los trae, quedan como pendientes.
+    valores_defecto_estado = {
+        "Estado Verificación Regional": "Pendiente de verificación",
+        "Observaciones Verificación Regional": "",
+        "Coordinador Regional": "",
+        "Fecha Verificación Regional": "",
+        "Estado Validación": "Pendiente",
+        "Observaciones Validación": "",
+        "Funcionario Validador": "",
+        "Fecha Validación": ""
+    }
+
+    for col, valor_defecto in valores_defecto_estado.items():
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str).replace("", valor_defecto)
+
     return df
 
 
@@ -1101,7 +1118,7 @@ def actualizar_registro_session(id_registro, nuevos_datos):
     return True
 
 
-def ocultar_columnas_internas(df):
+def vista_previa_registros_pumi(df):
     if df is None or df.empty:
         return df
 
@@ -1114,6 +1131,76 @@ def ocultar_columnas_internas(df):
         columns=[c for c in columnas_ocultas if c in df.columns],
         errors="ignore"
     )
+
+
+def vista_previa_registros_pumi(df):
+    """
+    Vista de lectura para delegaciones.
+    Coloca los estados regionales y nacionales al inicio para que el usuario
+    vea de inmediato si sus registros fueron verificados, observados o validados.
+    """
+    if df is None or df.empty:
+        return df
+
+    df_vista = ocultar_columnas_internas(df.copy())
+
+    columnas_prioritarias = [
+        "ID",
+        "Fecha Actividad",
+        "Dirección Regional",
+        "Delegación",
+        "Programa",
+        "Actividad",
+        "Avance Realizado",
+        "Estado Verificación Regional",
+        "Observaciones Verificación Regional",
+        "Coordinador Regional",
+        "Fecha Verificación Regional",
+        "Estado Validación",
+        "Observaciones Validación",
+        "Funcionario Validador",
+        "Fecha Validación",
+        "Usuario Registra"
+    ]
+
+    columnas_prioritarias = [c for c in columnas_prioritarias if c in df_vista.columns]
+    columnas_restantes = [c for c in df_vista.columns if c not in columnas_prioritarias]
+
+    return df_vista[columnas_prioritarias + columnas_restantes]
+
+
+def mostrar_resumen_revision_delegacion(df):
+    if df is None or df.empty:
+        return
+
+    df_tmp = df.copy()
+    for col in ["Estado Verificación Regional", "Estado Validación"]:
+        if col not in df_tmp.columns:
+            df_tmp[col] = ""
+        df_tmp[col] = df_tmp[col].fillna("").astype(str).str.strip()
+
+    verificada = int((df_tmp["Estado Verificación Regional"] == "Verificada para envío").sum())
+    pendiente_regional = int((df_tmp["Estado Verificación Regional"] == "Pendiente de verificación").sum())
+    devuelta = int((df_tmp["Estado Verificación Regional"] == "Devuelta a delegación").sum())
+    observada_regional = int((df_tmp["Estado Verificación Regional"] == "Con observaciones regionales").sum())
+
+    aprobada_nacional = int((df_tmp["Estado Validación"] == "Aprobada").sum())
+    pendiente_nacional = int((df_tmp["Estado Validación"] == "Pendiente").sum())
+    rechazada_nacional = int((df_tmp["Estado Validación"] == "Rechazada").sum())
+    observada_nacional = int((df_tmp["Estado Validación"] == "Con observaciones").sum())
+
+    st.markdown("### Estado de revisión recibida")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Verificada regional", verificada)
+    c2.metric("Pendiente regional", pendiente_regional)
+    c3.metric("Devuelta regional", devuelta)
+    c4.metric("Obs. regional", observada_regional)
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Aprobada nacional", aprobada_nacional)
+    c6.metric("Pendiente nacional", pendiente_nacional)
+    c7.metric("Rechazada nacional", rechazada_nacional)
+    c8.metric("Obs. nacional", observada_nacional)
 
 
 # ======================================================
@@ -4182,10 +4269,12 @@ elif menu == "Registrar actividad":
             key="descarga_formulario"
         )
 
+        mostrar_resumen_revision_delegacion(df_actual)
+
         st.markdown("### Vista previa de registros cargados")
 
         st.dataframe(
-            ocultar_columnas_internas(df_actual),
+            vista_previa_registros_pumi(df_actual),
             use_container_width=True,
             hide_index=True
         )
@@ -4223,8 +4312,10 @@ elif menu == "Editar y eliminar":
             unsafe_allow_html=True
         )
 
+        mostrar_resumen_revision_delegacion(df_actual)
+
         st.dataframe(
-            ocultar_columnas_internas(df_actual),
+            vista_previa_registros_pumi(df_actual),
             use_container_width=True,
             hide_index=True
         )
