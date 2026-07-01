@@ -2992,6 +2992,103 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
         use_container_width=True,
         key=key
     )
+
+def aplicar_marca_agua_fondo_excel(excel_bytes):
+    """
+    Coloca marca_agua.png como fondo real de la hoja de Excel.
+    A diferencia de worksheet.add_image(), esta opción queda detrás de los datos
+    y Excel la muestra repetida como fondo de hoja.
+    """
+    if not os.path.exists(MARCA_AGUA_EXCEL):
+        return excel_bytes
+
+    try:
+        import zipfile
+        import re as _re
+
+        entrada = BytesIO(excel_bytes)
+        salida = BytesIO()
+
+        ruta_sheet = "xl/worksheets/sheet1.xml"
+        ruta_rels = "xl/worksheets/_rels/sheet1.xml.rels"
+        ruta_media = "xl/media/marca_agua.png"
+        ruta_content_types = "[Content_Types].xml"
+
+        with zipfile.ZipFile(entrada, "r") as zip_entrada:
+            nombres = set(zip_entrada.namelist())
+
+            rels_texto = ""
+            if ruta_rels in nombres:
+                rels_texto = zip_entrada.read(ruta_rels).decode("utf-8")
+                ids = [int(x) for x in _re.findall(r'Id="rId(\d+)"', rels_texto)]
+                nuevo_id = f"rId{(max(ids) + 1) if ids else 1}"
+                relacion_imagen = (
+                    f'<Relationship Id="{nuevo_id}" '
+                    f'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+                    f'Target="../media/marca_agua.png"/>'
+                )
+                if "marca_agua.png" not in rels_texto:
+                    rels_texto = rels_texto.replace("</Relationships>", relacion_imagen + "</Relationships>")
+                else:
+                    encontrado = _re.search(r'<Relationship[^>]+Id="([^"]+)"[^>]+marca_agua\.png[^>]*/>', rels_texto)
+                    if encontrado:
+                        nuevo_id = encontrado.group(1)
+            else:
+                nuevo_id = "rId1"
+                rels_texto = (
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                    f'<Relationship Id="{nuevo_id}" '
+                    f'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+                    f'Target="../media/marca_agua.png"/>'
+                    '</Relationships>'
+                )
+
+            with zipfile.ZipFile(salida, "w", compression=zipfile.ZIP_DEFLATED) as zip_salida:
+                for item in zip_entrada.infolist():
+                    nombre = item.filename
+
+                    if nombre in {ruta_rels, ruta_media}:
+                        continue
+
+                    data = zip_entrada.read(nombre)
+
+                    if nombre == ruta_sheet:
+                        texto = data.decode("utf-8")
+
+                        if "xmlns:r=" not in texto:
+                            texto = texto.replace(
+                                '<worksheet ',
+                                '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
+                                1
+                            )
+
+                        texto = _re.sub(r'<picture r:id="[^"]+"\s*/>', '', texto)
+                        texto = texto.replace("</worksheet>", f'<picture r:id="{nuevo_id}"/></worksheet>')
+                        data = texto.encode("utf-8")
+
+                    elif nombre == ruta_content_types:
+                        texto = data.decode("utf-8")
+                        if 'Extension="png"' not in texto:
+                            texto = texto.replace(
+                                "</Types>",
+                                '<Default Extension="png" ContentType="image/png"/></Types>'
+                            )
+                        data = texto.encode("utf-8")
+
+                    zip_salida.writestr(item, data)
+
+                zip_salida.writestr(ruta_rels, rels_texto.encode("utf-8"))
+                with open(MARCA_AGUA_EXCEL, "rb") as img:
+                    zip_salida.writestr(ruta_media, img.read())
+
+        salida.seek(0)
+        return salida.getvalue()
+
+    except Exception:
+        return excel_bytes
+
+
 # ======================================================
 # PARTE 6 DE 10
 # EXPORTACIÓN A EXCEL CON FORMATO INSTITUCIONAL,
@@ -3040,19 +3137,10 @@ def convertir_excel(df):
     worksheet = workbook[NOMBRE_HOJA_EXCEL]
 
     # ==================================================
-    # MARCA DE AGUA VISIBLE EN LA HOJA
-    # Archivo requerido:
-    # marca_agua.png
+    # MARCA DE AGUA COMO FONDO DE HOJA
+    # Se aplica al final del proceso para que quede detrás
+    # de los datos y repetida como en la app regional.
     # ==================================================
-
-    if os.path.exists(MARCA_AGUA_EXCEL):
-        try:
-            marca_agua = Image(MARCA_AGUA_EXCEL)
-            marca_agua.width = 900
-            marca_agua.height = 520
-            worksheet.add_image(marca_agua, "A3")
-        except Exception:
-            pass
 
     # ==================================================
     # FORMATO DEL ENCABEZADO
@@ -3204,7 +3292,7 @@ def convertir_excel(df):
     workbook.save(final_output)
     final_output.seek(0)
 
-    return final_output.getvalue()
+    return aplicar_marca_agua_fondo_excel(final_output.getvalue())
 
 
 def boton_descargar_excel(
