@@ -4988,19 +4988,24 @@ opciones_menu_coord = [
     "Informe PDF"
 ]
 
-if "menu_destino_coord" in st.session_state:
-    destino = st.session_state.pop("menu_destino_coord")
-    if destino in opciones_menu_coord:
-        st.session_state["menu_coord"] = destino
+# Control estable de navegación.
+# Se evita usar la misma clave del widget como variable modificada por botones,
+# porque Streamlit puede dejar el menú pegado en una vista anterior.
+if "menu_actual_coord" not in st.session_state:
+    st.session_state.menu_actual_coord = "Inicio"
 
-if "menu_coord" not in st.session_state:
-    st.session_state["menu_coord"] = "Inicio"
+if st.session_state.menu_actual_coord not in opciones_menu_coord:
+    st.session_state.menu_actual_coord = "Inicio"
+
+indice_menu_coord = opciones_menu_coord.index(st.session_state.menu_actual_coord)
 
 menu_admin = st.sidebar.radio(
     "Menú coordinadores nacionales",
     opciones_menu_coord,
-    key="menu_coord"
+    index=indice_menu_coord
 )
+
+st.session_state.menu_actual_coord = menu_admin
 
 
 # ======================================================
@@ -5031,29 +5036,29 @@ if menu_admin == "Inicio":
     col_ac1, col_ac2, col_ac3 = st.columns(3)
     with col_ac1:
         if st.button("🔎 Consulta y filtros", use_container_width=True, key="inicio_ir_consulta_coord"):
-            st.session_state.menu_destino_coord = "Consulta y filtros"
+            st.session_state.menu_actual_coord = "Consulta y filtros"
             st.rerun()
     with col_ac2:
         if st.button("✅ Validación de actividades", use_container_width=True, key="inicio_ir_validacion_coord"):
-            st.session_state.menu_destino_coord = "Validación de actividades"
+            st.session_state.menu_actual_coord = "Validación de actividades"
             st.rerun()
     with col_ac3:
         if st.button("📊 Dashboard", use_container_width=True, key="inicio_ir_dashboard_coord"):
-            st.session_state.menu_destino_coord = "Dashboard"
+            st.session_state.menu_actual_coord = "Dashboard"
             st.rerun()
 
     col_ac4, col_ac5, col_ac6 = st.columns(3)
     with col_ac4:
         if st.button("✏️ Editar o eliminar", use_container_width=True, key="inicio_ir_editar_coord"):
-            st.session_state.menu_destino_coord = "Editar o eliminar registros"
+            st.session_state.menu_actual_coord = "Editar o eliminar registros"
             st.rerun()
     with col_ac5:
         if st.button("📄 Informe PDF", use_container_width=True, key="inicio_ir_pdf_coord"):
-            st.session_state.menu_destino_coord = "Informe PDF"
+            st.session_state.menu_actual_coord = "Informe PDF"
             st.rerun()
     with col_ac6:
         if st.button("🏠 Inicio", use_container_width=True, key="inicio_ir_inicio_coord"):
-            st.session_state.menu_destino_coord = "Inicio"
+            st.session_state.menu_actual_coord = "Inicio"
             st.rerun()
 
     st.markdown("---")
