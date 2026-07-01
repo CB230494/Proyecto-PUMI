@@ -4826,6 +4826,43 @@ def modulo_informe_pdf_metas(df_metas, programa_actual=""):
 
 mostrar_logo_sidebar()
 
+# ======================================================
+# AJUSTE VISUAL DEL BOTÓN DE CARGA DE ARCHIVOS
+# Evita que se muestre texto duplicado tipo "uploadUpload".
+# ======================================================
+st.markdown(
+    """
+    <style>
+    [data-testid="stFileUploaderDropzone"] button {
+        min-width: 150px !important;
+        height: 48px !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        color: transparent !important;
+        position: relative !important;
+    }
+
+    [data-testid="stFileUploaderDropzone"] button * {
+        display: none !important;
+    }
+
+    [data-testid="stFileUploaderDropzone"] button::after {
+        content: "Subir archivo";
+        color: #2F3542 !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        position: absolute !important;
+        left: 50% !important;
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        white-space: nowrap !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 st.sidebar.markdown("## Coordinadores Nacionales PUMI 2026")
 
 st.sidebar.markdown(
@@ -4853,7 +4890,7 @@ st.sidebar.markdown(
 # ======================================================
 
 archivos_admin = st.sidebar.file_uploader(
-    "Subir Excel regional verificado",
+    "Cargar Excel regional verificado",
     type=["xlsx"],
     accept_multiple_files=True
 )
