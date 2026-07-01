@@ -3047,21 +3047,97 @@ def codigo_region_actual():
     return st.session_state.get("regional_codigo", "")
 
 
+def normalizar_codigo_region_base(valor):
+    """
+    Convierte variantes de región a un código base comparable.
+
+    Ejemplos:
+    - DR1, DR1N, DR1 NORTE -> DR1
+    - Dirección Regional 1 - San José Norte -> DR1
+    - Región 12 - Caribe -> DR12
+
+    Se usa código base para evitar que un Excel con DR1 sea rechazado
+    cuando el usuario ingresó como Dirección Regional 1 - San José Norte.
+    """
+    texto = normalizar_texto(valor)
+    if not texto:
+        return ""
+
+    match = re.search(r"\bDR\s*([0-9]+)", texto)
+    if match:
+        return f"DR{int(match.group(1))}"
+
+    match = re.search(r"DIRECCION REGIONAL\s*([0-9]+)", texto)
+    if match:
+        return f"DR{int(match.group(1))}"
+
+    match = re.search(r"REGION\s*([0-9]+)", texto)
+    if match:
+        return f"DR{int(match.group(1))}"
+
+    return texto
+
+
+def regiones_compatibles(valor_excel, region_usuario, codigo_usuario=""):
+    """
+    Valida si el valor regional del Excel pertenece a la región autenticada.
+    Acepta códigos cortos y nombres completos sin exigir coincidencia literal.
+    """
+    valor_excel_norm = normalizar_texto(valor_excel)
+    region_usuario_norm = normalizar_texto(region_usuario)
+    codigo_usuario_norm = normalizar_texto(codigo_usuario)
+
+    if not valor_excel_norm:
+        return False
+
+    # Coincidencia literal cuando ambos vienen con el mismo texto.
+    if valor_excel_norm == region_usuario_norm:
+        return True
+
+    # Coincidencia por código base: DR1, DR2, DR12, etc.
+    codigo_excel_base = normalizar_codigo_region_base(valor_excel)
+    codigo_region_base = normalizar_codigo_region_base(region_usuario)
+    codigo_usuario_base = normalizar_codigo_region_base(codigo_usuario)
+
+    codigos_validos_usuario = {
+        c for c in [codigo_region_base, codigo_usuario_base] if c
+    }
+
+    if codigo_excel_base and codigo_excel_base in codigos_validos_usuario:
+        return True
+
+    # Respaldo: si el código de usuario completo aparece en el texto del Excel
+    # o viceversa, también se acepta.
+    if codigo_usuario_norm and (codigo_usuario_norm in valor_excel_norm or valor_excel_norm in codigo_usuario_norm):
+        return True
+
+    return False
+
+
 def filtrar_df_por_region_autenticada(df):
     if df is None or df.empty:
         return df
 
     region = region_usuario_actual()
-    if not region:
+    codigo = codigo_region_actual()
+
+    if not region and not codigo:
         return df
 
-    region_norm = normalizar_texto(region)
     df = df.copy()
 
     if "Dirección Regional" not in df.columns:
         return df.iloc[0:0]
 
-    return df[df["Dirección Regional"].astype(str).apply(normalizar_texto) == region_norm].copy()
+    mascara_region = df["Dirección Regional"].astype(str).apply(
+        lambda valor: regiones_compatibles(
+            valor_excel=valor,
+            region_usuario=region,
+            codigo_usuario=codigo
+        )
+    )
+
+    return df[mascara_region].copy()
 
 
 def mapa_codigos_a_regiones():
@@ -3346,6 +3422,33 @@ def mostrar_dashboard_avances_regional(df_registros):
     c3.metric("Registrado PUMI", f"{total_pumi:,.0f}")
     c4.metric("Pendiente", f"{total_pend:,.0f}")
     c5.metric("% avance", f"{porc:.1%}")
+
+    st.markdown("### Cumplimiento por estado")
+
+    resumen_estado = (
+        df_filtrado
+        .groupby("Estado cumplimiento", as_index=False)["Meta 2026"]
+        .sum()
+        .rename(columns={"Meta 2026": "Cantidad"})
+    )
+
+    if not resumen_estado.empty:
+        fig_estado = px.pie(
+            resumen_estado,
+            names="Estado cumplimiento",
+            values="Cantidad",
+            title="Distribución de metas por estado",
+            hole=0.35,
+            color="Estado cumplimiento",
+            color_discrete_map={
+                "Completa": COLOR_VERDE,
+                "En avance": COLOR_DORADO,
+                "Pendiente": COLOR_ROJO,
+            }
+        )
+        fig_estado.update_traces(textinfo="percent+label+value")
+        fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
+        st.plotly_chart(fig_estado, use_container_width=True)
 
     st.markdown("### Avance por delegación")
 
