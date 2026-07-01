@@ -3423,32 +3423,7 @@ def mostrar_dashboard_avances_regional(df_registros):
     c4.metric("Pendiente", f"{total_pend:,.0f}")
     c5.metric("% avance", f"{porc:.1%}")
 
-    st.markdown("### Cumplimiento por estado")
-
-    resumen_estado = (
-        df_filtrado
-        .groupby("Estado cumplimiento", as_index=False)["Meta 2026"]
-        .sum()
-        .rename(columns={"Meta 2026": "Cantidad"})
-    )
-
-    if not resumen_estado.empty:
-        fig_estado = px.pie(
-            resumen_estado,
-            names="Estado cumplimiento",
-            values="Cantidad",
-            title="Distribución de metas por estado",
-            hole=0.35,
-            color="Estado cumplimiento",
-            color_discrete_map={
-                "Completa": COLOR_VERDE,
-                "En avance": COLOR_DORADO,
-                "Pendiente": COLOR_ROJO,
-            }
-        )
-        fig_estado.update_traces(textinfo="percent+label+value")
-        fig_estado = aplicar_estilo_grafico_institucional(fig_estado)
-        st.plotly_chart(fig_estado, use_container_width=True)
+    # Gráfico de cumplimiento por estado eliminado por solicitud del usuario.
 
     st.markdown("### Avance por delegación")
 
