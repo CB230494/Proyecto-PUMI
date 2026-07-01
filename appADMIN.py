@@ -14,6 +14,7 @@ import base64
 import unicodedata
 import re
 import textwrap
+import zipfile
 
 from io import BytesIO
 from datetime import datetime, date
@@ -21,6 +22,8 @@ from streamlit_folium import st_folium
 
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.drawing.image import Image as OpenpyxlImage
+from PIL import Image as PILImage, ImageDraw, ImageFont
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, landscape
@@ -59,6 +62,7 @@ st.set_page_config(
 LOGO_MINISTERIO = "Logo2.jpeg"
 LOGO_PUMI = "logo_pumi.jpeg"
 LOGO_FUERZA_PUBLICA = "Logo1.jpeg"
+MARCA_AGUA_EXCEL = "marca_agua.png"
 
 ARCHIVO_DATOS_IMPORTANTES = "Datos Importantes.xlsx"
 ARCHIVO_MEP = "BASE DE DATOS MEP 2025.xlsx"
@@ -986,6 +990,83 @@ def cargar_excel_pumi_admin(archivo_excel):
 # CON COLORES EN COLUMNAS DE VALIDACIÓN
 # ======================================================
 
+def aplicar_marca_agua_como_fondo_excel(xlsx_bytes, ruta_imagen, hoja_xml="xl/worksheets/sheet1.xml"):
+    """
+    Inserta una imagen como fondo de hoja de Excel.
+    Queda detrás de los datos y se repite visualmente como marca de agua.
+    """
+    if not os.path.exists(ruta_imagen):
+        return xlsx_bytes
+
+    try:
+        entrada = BytesIO(xlsx_bytes)
+        salida = BytesIO()
+        nombre_media = "marca_agua_fondo.png"
+        ruta_media = f"xl/media/{nombre_media}"
+        ruta_rels = "xl/worksheets/_rels/sheet1.xml.rels"
+        tipo_rel_imagen = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+
+        with zipfile.ZipFile(entrada, "r") as zin, zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as zout:
+            nombres = set(zin.namelist())
+
+            for item in zin.infolist():
+                nombre = item.filename
+                if nombre in {hoja_xml, ruta_rels, "[Content_Types].xml", ruta_media}:
+                    continue
+                zout.writestr(item, zin.read(nombre))
+
+            hoja_contenido = zin.read(hoja_xml).decode("utf-8")
+
+            if "xmlns:r=" not in hoja_contenido.split(">", 1)[0]:
+                hoja_contenido = hoja_contenido.replace(
+                    "<worksheet ",
+                    '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
+                    1
+                )
+
+            if "<picture " not in hoja_contenido:
+                hoja_contenido = hoja_contenido.replace(
+                    "</worksheet>",
+                    '<picture r:id="rIdMarcaAguaFondo"/></worksheet>'
+                )
+
+            zout.writestr(hoja_xml, hoja_contenido.encode("utf-8"))
+
+            if ruta_rels in nombres:
+                rels_contenido = zin.read(ruta_rels).decode("utf-8")
+                if "rIdMarcaAguaFondo" not in rels_contenido:
+                    rels_contenido = rels_contenido.replace(
+                        "</Relationships>",
+                        f'<Relationship Id="rIdMarcaAguaFondo" Type="{tipo_rel_imagen}" Target="../media/{nombre_media}"/></Relationships>'
+                    )
+            else:
+                rels_contenido = (
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                    f'<Relationship Id="rIdMarcaAguaFondo" Type="{tipo_rel_imagen}" Target="../media/{nombre_media}"/>'
+                    '</Relationships>'
+                )
+
+            zout.writestr(ruta_rels, rels_contenido.encode("utf-8"))
+
+            content_types = zin.read("[Content_Types].xml").decode("utf-8")
+            if 'Extension="png"' not in content_types:
+                content_types = content_types.replace(
+                    "</Types>",
+                    '<Default Extension="png" ContentType="image/png"/></Types>'
+                )
+            zout.writestr("[Content_Types].xml", content_types.encode("utf-8"))
+
+            with open(ruta_imagen, "rb") as img:
+                zout.writestr(ruta_media, img.read())
+
+        salida.seek(0)
+        return salida.getvalue()
+
+    except Exception:
+        return xlsx_bytes
+
+
 def convertir_excel_admin(df):
     output = BytesIO()
 
@@ -1134,11 +1215,34 @@ def convertir_excel_admin(df):
 
     worksheet.freeze_panes = "A2"
 
+    # Configuración de impresión y marca institucional.
+    worksheet.oddHeader.center.text = "Dirección de Programas Preventivos Policiales"
+    worksheet.oddHeader.center.size = 24
+    worksheet.oddHeader.center.font = "Arial,Bold"
+    worksheet.oddHeader.center.color = "D9D9D9"
+
+    worksheet.evenHeader.center.text = "Dirección de Programas Preventivos Policiales"
+    worksheet.evenHeader.center.size = 24
+    worksheet.evenHeader.center.font = "Arial,Bold"
+    worksheet.evenHeader.center.color = "D9D9D9"
+
+    worksheet.page_setup.orientation = "landscape"
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 0
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+    worksheet.page_margins.left = 0.25
+    worksheet.page_margins.right = 0.25
+    worksheet.page_margins.top = 0.75
+    worksheet.page_margins.bottom = 0.75
+
     final_output = BytesIO()
     workbook.save(final_output)
     final_output.seek(0)
 
-    return final_output.getvalue()
+    excel_bytes = final_output.getvalue()
+    excel_bytes = aplicar_marca_agua_como_fondo_excel(excel_bytes, MARCA_AGUA_EXCEL)
+
+    return excel_bytes
 
 
 # ======================================================
@@ -1247,8 +1351,7 @@ def aplicar_filtros_admin(df):
                 "Verificada para envío",
                 "Devuelta a delegación",
                 "Con observaciones regionales"
-            ],
-            default=["Verificada para envío"]
+            ]
         )
 
         filtro_estado = st.multiselect(
@@ -1554,6 +1657,91 @@ def mostrar_mapa_admin(df, key="mapa_admin"):
         use_container_width=True,
         key=key
     )
+
+
+def mapa_correccion_ubicacion_admin(fila, indice_registro, provincia_actual=""):
+    """Muestra un mapa para corregir la ubicación del registro.
+    Devuelve latitud y longitud actualizadas si el usuario hace clic en el mapa.
+    """
+    st.markdown("#### Corregir ubicación en mapa")
+
+    lat_key = f"edit_latitud_mapa_admin_{indice_registro}"
+    lon_key = f"edit_longitud_mapa_admin_{indice_registro}"
+
+    if lat_key not in st.session_state:
+        st.session_state[lat_key] = str(fila.get("Latitud", ""))
+    if lon_key not in st.session_state:
+        st.session_state[lon_key] = str(fila.get("Longitud", ""))
+
+    tipo_mapa_edit = st.selectbox(
+        "Tipo de mapa para corregir marca",
+        ["OpenStreetMap", "Mapa claro", "Mapa oscuro", "Topográfico", "Satélite"],
+        key=f"edit_tipo_mapa_admin_{indice_registro}"
+    )
+
+    lat_actual = limpiar_coordenada(st.session_state.get(lat_key, ""))
+    lon_actual = limpiar_coordenada(st.session_state.get(lon_key, ""))
+
+    if lat_actual is not None and lon_actual is not None:
+        centro = [lat_actual, lon_actual]
+        zoom = 16
+    else:
+        centro = CENTROS_PROVINCIA.get(provincia_actual, [9.7489, -83.7534])
+        zoom = 10
+
+    mapa_edit = crear_mapa_base_admin(
+        centro=centro,
+        zoom=zoom,
+        tipo_mapa=tipo_mapa_edit
+    )
+
+    if lat_actual is not None and lon_actual is not None:
+        folium.Marker(
+            location=[lat_actual, lon_actual],
+            popup="Ubicación actual del registro",
+            tooltip="Marca actual",
+            icon=folium.Icon(color="red", icon="map-marker")
+        ).add_to(mapa_edit)
+
+        folium.Circle(
+            location=[lat_actual, lon_actual],
+            radius=180,
+            color=COLOR_AZUL,
+            fill=True,
+            fill_color=COLOR_DORADO,
+            fill_opacity=0.18,
+            weight=2
+        ).add_to(mapa_edit)
+
+    resultado_mapa = st_folium(
+        mapa_edit,
+        height=420,
+        use_container_width=True,
+        key=f"mapa_edicion_admin_{indice_registro}"
+    )
+
+    if resultado_mapa and resultado_mapa.get("last_clicked"):
+        st.session_state[lat_key] = str(resultado_mapa["last_clicked"]["lat"])
+        st.session_state[lon_key] = str(resultado_mapa["last_clicked"]["lng"])
+        st.success("Marca actualizada en el mapa. Revise las coordenadas antes de guardar.")
+        st.rerun()
+
+    latitud = st.text_input(
+        "Latitud",
+        value=st.session_state.get(lat_key, ""),
+        key=f"input_latitud_admin_{indice_registro}"
+    )
+
+    longitud = st.text_input(
+        "Longitud",
+        value=st.session_state.get(lon_key, ""),
+        key=f"input_longitud_admin_{indice_registro}"
+    )
+
+    st.session_state[lat_key] = str(latitud)
+    st.session_state[lon_key] = str(longitud)
+
+    return latitud, longitud
 
 
 # ======================================================
@@ -2097,12 +2285,9 @@ def modulo_validacion_actividades(df_filtrado):
 
     st.markdown("### Selección del registro")
 
-    df_filtrado = df_filtrado[df_filtrado["Estado Verificación Regional"].astype(str) == "Verificada para envío"].copy()
-
-    if df_filtrado.empty:
-        st.warning("No hay actividades verificadas por la Dirección Regional para validación nacional con los filtros aplicados.")
-        return
-
+    # Se muestran todos los registros visibles con los filtros aplicados.
+    # Así el coordinador puede revisar registros de diferentes delegaciones aunque
+    # vengan con variaciones de texto en la verificación regional.
     indices_filtrados = df_filtrado.index.tolist()
 
     indice_validar = st.selectbox(
@@ -2602,6 +2787,53 @@ def selectbox_edicion_admin(label, columna, fila, key, df_base=None, filtros=Non
         key=key
     )
 
+def mostrar_mapa_correccion_ubicacion_admin(latitud_actual, longitud_actual, lat_key, lon_key, key):
+    st.markdown("#### Corregir ubicación en mapa")
+
+    tipo_mapa = st.selectbox(
+        "Tipo de mapa para corregir marca",
+        ["OpenStreetMap", "Mapa claro", "Mapa oscuro", "Topográfico", "Satélite"],
+        key=f"tipo_mapa_correccion_{key}"
+    )
+
+    lat = limpiar_coordenada(latitud_actual)
+    lon = limpiar_coordenada(longitud_actual)
+
+    if lat is None or lon is None:
+        lat, lon = 9.7489, -83.7534
+        zoom = 7
+    else:
+        zoom = 16
+
+    mapa = crear_mapa_base_admin([lat, lon], zoom, tipo_mapa)
+
+    folium.Marker(
+        location=[lat, lon],
+        tooltip="Ubicación actual. Haga clic en el mapa para corregir la marca.",
+        icon=folium.Icon(color="red", icon="map-marker")
+    ).add_to(mapa)
+
+    folium.Circle(
+        location=[lat, lon],
+        radius=220,
+        color=COLOR_AZUL,
+        fill=True,
+        fill_opacity=0.10
+    ).add_to(mapa)
+
+    st.caption("Para corregir la ubicación, haga clic sobre el punto correcto en el mapa. La latitud y longitud se actualizarán automáticamente.")
+    resultado = st_folium(mapa, height=390, use_container_width=True, key=f"mapa_correccion_{key}")
+
+    if resultado and resultado.get("last_clicked"):
+        nuevo_lat = resultado["last_clicked"].get("lat")
+        nuevo_lon = resultado["last_clicked"].get("lng")
+        if nuevo_lat is not None and nuevo_lon is not None:
+            st.session_state[f"{lat_key}_pending"] = str(nuevo_lat)
+            st.session_state[f"{lon_key}_pending"] = str(nuevo_lon)
+            st.success("Ubicación actualizada. Revise los campos de latitud y longitud antes de guardar.")
+            st.rerun()
+
+
 def modulo_editar_eliminar_registros(df_filtrado):
     st.markdown("## Editar o eliminar registros")
 
@@ -2804,16 +3036,10 @@ def modulo_editar_eliminar_registros(df_filtrado):
             centro_educativo = ""
             codigo_presupuestario = ""
 
-        latitud = st.text_input(
-            "Latitud",
-            value=str(fila.get("Latitud", "")),
-            key=f"edit_latitud_{indice_editar}"
-        )
-
-        longitud = st.text_input(
-            "Longitud",
-            value=str(fila.get("Longitud", "")),
-            key=f"edit_longitud_{indice_editar}"
+        latitud, longitud = mapa_correccion_ubicacion_admin(
+            fila=fila,
+            indice_registro=indice_editar,
+            provincia_actual=provincia
         )
 
     with col2:
@@ -3724,7 +3950,13 @@ def mostrar_dashboard_metas_nacionales(df_metas, df_registros=None):
         fig_region.update_traces(marker_line_color=COLOR_AZUL, marker_line_width=1.3)
         fig_region.update_xaxes(tickangle=-25, categoryorder="array", categoryarray=resumen_region["Dirección Regional"].tolist())
         fig_region = aplicar_estilo_grafico_institucional(fig_region)
-        fig_region.update_layout(title_x=0.5, title_font=dict(size=22, color=COLOR_AZUL))
+        fig_region.update_layout(
+            title_x=0.5,
+            title_font=dict(size=22, color=COLOR_AZUL),
+            height=560,
+            margin=dict(l=50, r=50, t=95, b=150),
+            legend_title_text="Indicador"
+        )
         st.plotly_chart(fig_region, use_container_width=True)
 
     titulo_dashboard("Avance por Delegación")
