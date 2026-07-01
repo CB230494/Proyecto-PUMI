@@ -385,6 +385,16 @@ def normalizar_programa_pumi(valor):
     return texto
 
 
+def ocultar_columna_responde_a(df):
+    """Oculta la columna Responde a en vistas, exportaciones e informes de coordinadores nacionales."""
+    if df is None:
+        return df
+    try:
+        return df.drop(columns=["Responde a"], errors="ignore")
+    except Exception:
+        return df
+
+
 @st.cache_data
 def cargar_accesos_programas_admin():
     columnas = ["Programa", "Clave"]
@@ -1070,7 +1080,7 @@ def aplicar_marca_agua_como_fondo_excel(xlsx_bytes, ruta_imagen, hoja_xml="xl/wo
 def convertir_excel_admin(df):
     output = BytesIO()
 
-    df_exportar = preparar_dataframe_admin(df)
+    df_exportar = ocultar_columna_responde_a(preparar_dataframe_admin(df))
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_exportar.to_excel(
@@ -2201,7 +2211,6 @@ def mostrar_tarjeta_registro_validacion(fila):
 
     with col2:
         st.markdown("#### Actividad")
-        st.write(f"**Responde a:** {fila.get('Responde a', '')}")
         st.write(f"**Programa:** {fila.get('Programa', '')}")
         st.write(f"**Actividad:** {fila.get('Actividad', '')}")
         st.write(f"**Lugar:** {fila.get('Lugar', '')}")
@@ -2914,18 +2923,11 @@ def modulo_editar_eliminar_registros(df_filtrado):
             key=f"edit_delegacion_{indice_editar}"
         )
 
-        responde_a = selectbox_con_valor_actual(
-            "Responde a",
-            obtener_responde_a_datos(fila.get("Responde a", "")),
-            fila.get("Responde a", ""),
-            key=f"edit_responde_{indice_editar}"
-        )
+        # Campo interno conservado para compatibilidad con Excel anteriores,
+        # pero ya no se muestra en la aplicación de Coordinadores Nacionales.
+        responde_a = str(fila.get("Responde a", "")).strip()
 
-        valor_programa_actual = (
-            fila.get("Programa", "")
-            if normalizar_texto(responde_a) == normalizar_texto(fila.get("Responde a", ""))
-            else ""
-        )
+        valor_programa_actual = fila.get("Programa", "")
 
         programa = selectbox_con_valor_actual(
             "Programa",
@@ -2936,10 +2938,7 @@ def modulo_editar_eliminar_registros(df_filtrado):
 
         valor_actividad_actual = (
             fila.get("Actividad", "")
-            if (
-                normalizar_texto(responde_a) == normalizar_texto(fila.get("Responde a", "")) and
-                normalizar_texto(programa) == normalizar_texto(fila.get("Programa", ""))
-            )
+            if normalizar_texto(programa) == normalizar_texto(fila.get("Programa", ""))
             else ""
         )
 
@@ -3332,7 +3331,7 @@ def mostrar_tabla_resumen_validacion(df):
     ]
 
     st.dataframe(
-        df[columnas_existentes],
+        ocultar_columna_responde_a(df[columnas_existentes]),
         use_container_width=True,
         hide_index=True
     )
@@ -3348,7 +3347,7 @@ def mostrar_tabla_detallada_admin(df):
         return
 
     st.dataframe(
-        df,
+        ocultar_columna_responde_a(df),
         use_container_width=True,
         hide_index=True
     )
@@ -4076,6 +4075,16 @@ def obtener_estilos_pdf():
         textColor=colors.HexColor("#222222")
     ))
 
+    estilos.add(ParagraphStyle(
+        name="TextoTablaHeaderPDF",
+        parent=estilos["BodyText"],
+        fontName="Helvetica-Bold",
+        fontSize=7,
+        leading=9,
+        alignment=TA_CENTER,
+        textColor=colors.white
+    ))
+
     return estilos
 
 
@@ -4517,7 +4526,7 @@ def construir_filtros_pdf(elementos, estilos):
         elementos.append(parrafo_pdf("No se registraron filtros específicos.", estilos["TextoPDF"]))
         return
 
-    datos = [["Filtro", "Valor aplicado"]]
+    datos = [[parrafo_pdf("Filtro", estilos["TextoTablaHeaderPDF"]), parrafo_pdf("Valor aplicado", estilos["TextoTablaHeaderPDF"])]]
 
     for clave, valor in filtros.items():
         if isinstance(valor, list):
@@ -4556,7 +4565,7 @@ def construir_tabla_agrupada_pdf(elementos, df, columna, titulo, estilos):
         .sort_values("Cantidad", ascending=False)
     )
 
-    datos = [["Categoría", "Cantidad"]]
+    datos = [[parrafo_pdf("Categoría", estilos["TextoTablaHeaderPDF"]), parrafo_pdf("Cantidad", estilos["TextoTablaHeaderPDF"])]]
 
     for _, row in resumen.iterrows():
         datos.append([
@@ -4603,7 +4612,7 @@ def construir_tabla_detalle_pdf(elementos, df, estilos):
     ]
 
     columnas = [c for c in columnas if c in df.columns]
-    datos = [[parrafo_pdf(c, estilos["TextoTablaCentroPDF"]) for c in columnas]]
+    datos = [[parrafo_pdf(c, estilos["TextoTablaHeaderPDF"]) for c in columnas]]
 
     for _, row in df.iterrows():
         datos.append([
@@ -4890,7 +4899,7 @@ def generar_pdf_dashboard_metas(df_metas, resumen_region, resumen_delegacion, pr
 
     elementos.append(parrafo_pdf("2. Resumen por Dirección Regional", estilos["SubtituloPDF"]))
     if not resumen_region.empty:
-        datos_region = [["Dirección Regional", "Actividades", "Delegaciones", "Meta", "Avance", "Incompleto", "% avance"]]
+        datos_region = [[parrafo_pdf(x, estilos["TextoTablaHeaderPDF"]) for x in ["Dirección Regional", "Actividades", "Delegaciones", "Meta", "Avance", "Incompleto", "% avance"]]]
         for _, row in resumen_region.iterrows():
             pct = row.get("% avance", 0)
             datos_region.append([
@@ -4917,7 +4926,7 @@ def generar_pdf_dashboard_metas(df_metas, resumen_region, resumen_delegacion, pr
     elementos.append(PageBreak())
     elementos.append(parrafo_pdf("3. Resumen por Delegación", estilos["SubtituloPDF"]))
     if not resumen_delegacion.empty:
-        datos_deleg = [["Dirección Regional", "Delegación", "Actividades", "Meta", "Avance", "Incompleto", "% avance"]]
+        datos_deleg = [[parrafo_pdf(x, estilos["TextoTablaHeaderPDF"]) for x in ["Dirección Regional", "Delegación", "Actividades", "Meta", "Avance", "Incompleto", "% avance"]]]
         for _, row in resumen_delegacion.iterrows():
             pct = row.get("% avance", 0)
             datos_deleg.append([
@@ -4945,7 +4954,7 @@ def generar_pdf_dashboard_metas(df_metas, resumen_region, resumen_delegacion, pr
     elementos.append(parrafo_pdf("4. Detalle de metas visibles", estilos["SubtituloPDF"]))
     columnas = ["Archivo meta", "Dirección Regional", "Delegación", "Programa", "Actividad", "Meta oficial", "Avance base", "Incompleto", "% avance base", "Estado"]
     columnas = [c for c in columnas if c in df_metas.columns]
-    datos = [[parrafo_pdf(c, estilos["TextoTablaCentroPDF"]) for c in columnas]]
+    datos = [[parrafo_pdf(c, estilos["TextoTablaHeaderPDF"]) for c in columnas]]
     for _, row in df_metas.iterrows():
         fila = []
         for col in columnas:
