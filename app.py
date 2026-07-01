@@ -106,7 +106,16 @@ ENCABEZADOS = [
     "Número de Referencia",
     "Número de Expediente Referencia",
     "Observaciones",
-    "Usuario Registra"
+    "Usuario Registra",
+    "Archivo Origen",
+    "Estado Verificación Regional",
+    "Observaciones Verificación Regional",
+    "Coordinador Regional",
+    "Fecha Verificación Regional",
+    "Estado Validación",
+    "Observaciones Validación",
+    "Funcionario Validador",
+    "Fecha Validación"
 ]
 
 
@@ -3000,6 +3009,83 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 # ======================================================
 
 
+def aplicar_marca_agua_como_fondo_excel(xlsx_bytes, ruta_imagen, hoja_xml="xl/worksheets/sheet1.xml"):
+    """
+    Inserta la marca de agua como fondo de hoja de Excel.
+    Queda detrás de los datos, a diferencia de worksheet.add_image().
+    """
+    if not os.path.exists(ruta_imagen):
+        return xlsx_bytes
+
+    try:
+        entrada = BytesIO(xlsx_bytes)
+        salida = BytesIO()
+        nombre_media = "marca_agua_fondo.png"
+        ruta_media = f"xl/media/{nombre_media}"
+        ruta_rels = "xl/worksheets/_rels/sheet1.xml.rels"
+        tipo_rel_imagen = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+
+        with zipfile.ZipFile(entrada, "r") as zin, zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as zout:
+            nombres = set(zin.namelist())
+
+            for item in zin.infolist():
+                nombre = item.filename
+                if nombre in {hoja_xml, ruta_rels, "[Content_Types].xml", ruta_media}:
+                    continue
+                zout.writestr(item, zin.read(nombre))
+
+            hoja_contenido = zin.read(hoja_xml).decode("utf-8")
+
+            if "xmlns:r=" not in hoja_contenido.split(">", 1)[0]:
+                hoja_contenido = hoja_contenido.replace(
+                    "<worksheet ",
+                    '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
+                    1
+                )
+
+            if "<picture " not in hoja_contenido:
+                hoja_contenido = hoja_contenido.replace(
+                    "</worksheet>",
+                    '<picture r:id="rIdMarcaAguaFondo"/></worksheet>'
+                )
+
+            zout.writestr(hoja_xml, hoja_contenido.encode("utf-8"))
+
+            if ruta_rels in nombres:
+                rels_contenido = zin.read(ruta_rels).decode("utf-8")
+                if "rIdMarcaAguaFondo" not in rels_contenido:
+                    rels_contenido = rels_contenido.replace(
+                        "</Relationships>",
+                        f'<Relationship Id="rIdMarcaAguaFondo" Type="{tipo_rel_imagen}" Target="../media/{nombre_media}"/></Relationships>'
+                    )
+            else:
+                rels_contenido = (
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                    f'<Relationship Id="rIdMarcaAguaFondo" Type="{tipo_rel_imagen}" Target="../media/{nombre_media}"/>'
+                    '</Relationships>'
+                )
+
+            zout.writestr(ruta_rels, rels_contenido.encode("utf-8"))
+
+            content_types = zin.read("[Content_Types].xml").decode("utf-8")
+            if 'Extension="png"' not in content_types:
+                content_types = content_types.replace(
+                    "</Types>",
+                    '<Default Extension="png" ContentType="image/png"/></Types>'
+                )
+            zout.writestr("[Content_Types].xml", content_types.encode("utf-8"))
+
+            with open(ruta_imagen, "rb") as img:
+                zout.writestr(ruta_media, img.read())
+
+        salida.seek(0)
+        return salida.getvalue()
+
+    except Exception:
+        return xlsx_bytes
+
+
 def convertir_excel(df):
     output = BytesIO()
 
@@ -3040,19 +3126,10 @@ def convertir_excel(df):
     worksheet = workbook[NOMBRE_HOJA_EXCEL]
 
     # ==================================================
-    # MARCA DE AGUA VISIBLE EN LA HOJA
-    # Archivo requerido:
-    # marca_agua.png
+    # MARCA DE AGUA
+    # Se aplica al final como fondo de hoja para que quede
+    # detrás de los datos y no tape el contenido.
     # ==================================================
-
-    if os.path.exists(MARCA_AGUA_EXCEL):
-        try:
-            marca_agua = Image(MARCA_AGUA_EXCEL)
-            marca_agua.width = 900
-            marca_agua.height = 520
-            worksheet.add_image(marca_agua, "A3")
-        except Exception:
-            pass
 
     # ==================================================
     # FORMATO DEL ENCABEZADO
@@ -3204,7 +3281,13 @@ def convertir_excel(df):
     workbook.save(final_output)
     final_output.seek(0)
 
-    return final_output.getvalue()
+    excel_bytes = final_output.getvalue()
+    excel_bytes = aplicar_marca_agua_como_fondo_excel(
+        excel_bytes,
+        MARCA_AGUA_EXCEL
+    )
+
+    return excel_bytes
 
 
 def boton_descargar_excel(
@@ -4056,7 +4139,16 @@ elif menu == "Registrar actividad":
             "Número de Referencia": numero_referencia,
             "Número de Expediente Referencia": numero_expediente,
             "Observaciones": observaciones,
-            "Usuario Registra": usuario
+            "Usuario Registra": usuario,
+            "Archivo Origen": "",
+            "Estado Verificación Regional": "Pendiente de verificación",
+            "Observaciones Verificación Regional": "",
+            "Coordinador Regional": "",
+            "Fecha Verificación Regional": "",
+            "Estado Validación": "Pendiente",
+            "Observaciones Validación": "",
+            "Funcionario Validador": "",
+            "Fecha Validación": ""
         }
 
         agregar_registro_session(registro)
