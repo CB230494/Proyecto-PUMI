@@ -106,16 +106,7 @@ ENCABEZADOS = [
     "Número de Referencia",
     "Número de Expediente Referencia",
     "Observaciones",
-    "Usuario Registra",
-    "Archivo Origen",
-    "Estado Verificación Regional",
-    "Observaciones Verificación Regional",
-    "Coordinador Regional",
-    "Fecha Verificación Regional",
-    "Estado Validación",
-    "Observaciones Validación",
-    "Funcionario Validador",
-    "Fecha Validación"
+    "Usuario Registra"
 ]
 
 
@@ -1000,23 +991,6 @@ def preparar_dataframe_importado(df):
             .astype(int)
         )
 
-    # Estados que pueden venir desde app Regional o Coordinadores Nacionales.
-    # Si el Excel original no los trae, quedan como pendientes.
-    valores_defecto_estado = {
-        "Estado Verificación Regional": "Pendiente de verificación",
-        "Observaciones Verificación Regional": "",
-        "Coordinador Regional": "",
-        "Fecha Verificación Regional": "",
-        "Estado Validación": "Pendiente",
-        "Observaciones Validación": "",
-        "Funcionario Validador": "",
-        "Fecha Validación": ""
-    }
-
-    for col, valor_defecto in valores_defecto_estado.items():
-        if col in df.columns:
-            df[col] = df[col].fillna("").astype(str).replace("", valor_defecto)
-
     return df
 
 
@@ -1118,95 +1092,19 @@ def actualizar_registro_session(id_registro, nuevos_datos):
     return True
 
 
-
 def ocultar_columnas_internas(df):
-    """Oculta columnas internas en vistas previas sin afectar el Excel ni la sesión."""
     if df is None or df.empty:
         return df
 
     columnas_ocultas = [
         "Responde a",
-        "Dirección Mapa",
-        "Clave Regional",
-        "Clave Delegación",
-        "Clave Programa",
-        "Clave Actividad",
+        "Dirección Mapa"
     ]
 
     return df.drop(
         columns=[c for c in columnas_ocultas if c in df.columns],
         errors="ignore"
     )
-
-
-def vista_previa_registros_pumi(df):
-    """
-    Vista de lectura para delegaciones.
-    Coloca los estados regionales y nacionales al inicio para que el usuario
-    vea de inmediato si sus registros fueron verificados, observados o validados.
-    """
-    if df is None or df.empty:
-        return df
-
-    df_vista = ocultar_columnas_internas(df.copy())
-
-    columnas_prioritarias = [
-        "ID",
-        "Fecha Actividad",
-        "Dirección Regional",
-        "Delegación",
-        "Programa",
-        "Actividad",
-        "Avance Realizado",
-        "Estado Verificación Regional",
-        "Observaciones Verificación Regional",
-        "Coordinador Regional",
-        "Fecha Verificación Regional",
-        "Estado Validación",
-        "Observaciones Validación",
-        "Funcionario Validador",
-        "Fecha Validación",
-        "Usuario Registra"
-    ]
-
-    columnas_prioritarias = [c for c in columnas_prioritarias if c in df_vista.columns]
-    columnas_restantes = [c for c in df_vista.columns if c not in columnas_prioritarias]
-
-    return df_vista[columnas_prioritarias + columnas_restantes]
-
-
-def mostrar_resumen_revision_delegacion(df):
-    if df is None or df.empty:
-        return
-
-    df_tmp = df.copy()
-    for col in ["Estado Verificación Regional", "Estado Validación"]:
-        if col not in df_tmp.columns:
-            df_tmp[col] = ""
-        df_tmp[col] = df_tmp[col].fillna("").astype(str).str.strip()
-
-    verificada = int((df_tmp["Estado Verificación Regional"] == "Verificada para envío").sum())
-    pendiente_regional = int((df_tmp["Estado Verificación Regional"] == "Pendiente de verificación").sum())
-    devuelta = int((df_tmp["Estado Verificación Regional"] == "Devuelta a delegación").sum())
-    observada_regional = int((df_tmp["Estado Verificación Regional"] == "Con observaciones regionales").sum())
-
-    aprobada_nacional = int((df_tmp["Estado Validación"] == "Aprobada").sum())
-    pendiente_nacional = int((df_tmp["Estado Validación"] == "Pendiente").sum())
-    rechazada_nacional = int((df_tmp["Estado Validación"] == "Rechazada").sum())
-    observada_nacional = int((df_tmp["Estado Validación"] == "Con observaciones").sum())
-
-    st.markdown("### Estado de revisión recibida")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Verificada regional", verificada)
-    c2.metric("Pendiente regional", pendiente_regional)
-    c3.metric("Devuelta regional", devuelta)
-    c4.metric("Obs. regional", observada_regional)
-
-    c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Aprobada nacional", aprobada_nacional)
-    c6.metric("Pendiente nacional", pendiente_nacional)
-    c7.metric("Rechazada nacional", rechazada_nacional)
-    c8.metric("Obs. nacional", observada_nacional)
 
 
 # ======================================================
@@ -3102,83 +3000,6 @@ def mostrar_mapa_registros(df, height=560, key="mapa_registros"):
 # ======================================================
 
 
-def aplicar_marca_agua_como_fondo_excel(xlsx_bytes, ruta_imagen, hoja_xml="xl/worksheets/sheet1.xml"):
-    """
-    Inserta la marca de agua como fondo de hoja de Excel.
-    Queda detrás de los datos, a diferencia de worksheet.add_image().
-    """
-    if not os.path.exists(ruta_imagen):
-        return xlsx_bytes
-
-    try:
-        entrada = BytesIO(xlsx_bytes)
-        salida = BytesIO()
-        nombre_media = "marca_agua_fondo.png"
-        ruta_media = f"xl/media/{nombre_media}"
-        ruta_rels = "xl/worksheets/_rels/sheet1.xml.rels"
-        tipo_rel_imagen = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-
-        with zipfile.ZipFile(entrada, "r") as zin, zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as zout:
-            nombres = set(zin.namelist())
-
-            for item in zin.infolist():
-                nombre = item.filename
-                if nombre in {hoja_xml, ruta_rels, "[Content_Types].xml", ruta_media}:
-                    continue
-                zout.writestr(item, zin.read(nombre))
-
-            hoja_contenido = zin.read(hoja_xml).decode("utf-8")
-
-            if "xmlns:r=" not in hoja_contenido.split(">", 1)[0]:
-                hoja_contenido = hoja_contenido.replace(
-                    "<worksheet ",
-                    '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
-                    1
-                )
-
-            if "<picture " not in hoja_contenido:
-                hoja_contenido = hoja_contenido.replace(
-                    "</worksheet>",
-                    '<picture r:id="rIdMarcaAguaFondo"/></worksheet>'
-                )
-
-            zout.writestr(hoja_xml, hoja_contenido.encode("utf-8"))
-
-            if ruta_rels in nombres:
-                rels_contenido = zin.read(ruta_rels).decode("utf-8")
-                if "rIdMarcaAguaFondo" not in rels_contenido:
-                    rels_contenido = rels_contenido.replace(
-                        "</Relationships>",
-                        f'<Relationship Id="rIdMarcaAguaFondo" Type="{tipo_rel_imagen}" Target="../media/{nombre_media}"/></Relationships>'
-                    )
-            else:
-                rels_contenido = (
-                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                    f'<Relationship Id="rIdMarcaAguaFondo" Type="{tipo_rel_imagen}" Target="../media/{nombre_media}"/>'
-                    '</Relationships>'
-                )
-
-            zout.writestr(ruta_rels, rels_contenido.encode("utf-8"))
-
-            content_types = zin.read("[Content_Types].xml").decode("utf-8")
-            if 'Extension="png"' not in content_types:
-                content_types = content_types.replace(
-                    "</Types>",
-                    '<Default Extension="png" ContentType="image/png"/></Types>'
-                )
-            zout.writestr("[Content_Types].xml", content_types.encode("utf-8"))
-
-            with open(ruta_imagen, "rb") as img:
-                zout.writestr(ruta_media, img.read())
-
-        salida.seek(0)
-        return salida.getvalue()
-
-    except Exception:
-        return xlsx_bytes
-
-
 def convertir_excel(df):
     output = BytesIO()
 
@@ -3219,10 +3040,19 @@ def convertir_excel(df):
     worksheet = workbook[NOMBRE_HOJA_EXCEL]
 
     # ==================================================
-    # MARCA DE AGUA
-    # Se aplica al final como fondo de hoja para que quede
-    # detrás de los datos y no tape el contenido.
+    # MARCA DE AGUA VISIBLE EN LA HOJA
+    # Archivo requerido:
+    # marca_agua.png
     # ==================================================
+
+    if os.path.exists(MARCA_AGUA_EXCEL):
+        try:
+            marca_agua = Image(MARCA_AGUA_EXCEL)
+            marca_agua.width = 900
+            marca_agua.height = 520
+            worksheet.add_image(marca_agua, "A3")
+        except Exception:
+            pass
 
     # ==================================================
     # FORMATO DEL ENCABEZADO
@@ -3374,13 +3204,7 @@ def convertir_excel(df):
     workbook.save(final_output)
     final_output.seek(0)
 
-    excel_bytes = final_output.getvalue()
-    excel_bytes = aplicar_marca_agua_como_fondo_excel(
-        excel_bytes,
-        MARCA_AGUA_EXCEL
-    )
-
-    return excel_bytes
+    return final_output.getvalue()
 
 
 def boton_descargar_excel(
@@ -4232,16 +4056,7 @@ elif menu == "Registrar actividad":
             "Número de Referencia": numero_referencia,
             "Número de Expediente Referencia": numero_expediente,
             "Observaciones": observaciones,
-            "Usuario Registra": usuario,
-            "Archivo Origen": "",
-            "Estado Verificación Regional": "Pendiente de verificación",
-            "Observaciones Verificación Regional": "",
-            "Coordinador Regional": "",
-            "Fecha Verificación Regional": "",
-            "Estado Validación": "Pendiente",
-            "Observaciones Validación": "",
-            "Funcionario Validador": "",
-            "Fecha Validación": ""
+            "Usuario Registra": usuario
         }
 
         agregar_registro_session(registro)
@@ -4275,12 +4090,10 @@ elif menu == "Registrar actividad":
             key="descarga_formulario"
         )
 
-        mostrar_resumen_revision_delegacion(df_actual)
-
         st.markdown("### Vista previa de registros cargados")
 
         st.dataframe(
-            vista_previa_registros_pumi(df_actual),
+            ocultar_columnas_internas(df_actual),
             use_container_width=True,
             hide_index=True
         )
@@ -4318,10 +4131,8 @@ elif menu == "Editar y eliminar":
             unsafe_allow_html=True
         )
 
-        mostrar_resumen_revision_delegacion(df_actual)
-
         st.dataframe(
-            vista_previa_registros_pumi(df_actual),
+            ocultar_columnas_internas(df_actual),
             use_container_width=True,
             hide_index=True
         )
