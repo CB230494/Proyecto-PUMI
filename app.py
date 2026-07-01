@@ -1118,13 +1118,19 @@ def actualizar_registro_session(id_registro, nuevos_datos):
     return True
 
 
-def vista_previa_registros_pumi(df):
+
+def ocultar_columnas_internas(df):
+    """Oculta columnas internas en vistas previas sin afectar el Excel ni la sesión."""
     if df is None or df.empty:
         return df
 
     columnas_ocultas = [
         "Responde a",
-        "Dirección Mapa"
+        "Dirección Mapa",
+        "Clave Regional",
+        "Clave Delegación",
+        "Clave Programa",
+        "Clave Actividad",
     ]
 
     return df.drop(
