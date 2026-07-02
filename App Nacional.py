@@ -104,7 +104,7 @@ COORDENADAS_REFERENCIA = {
     "SANTA CRUZ": [10.2600, -85.5850], "BAGACES": [10.5250, -85.2550], "CARRILLO": [10.4750, -85.5850],
     "CANAS": [10.4310, -85.0980], "ABANGARES": [10.2820, -84.9590], "TILARAN": [10.4670, -84.9670],
     "NANDAYURE": [9.9990, -85.2060], "LA CRUZ": [11.0730, -85.6320], "HOJANCHA": [10.0550, -85.4200],
-    "PUNTARENAS": [9.9763, -84.8384], "CHOMES": [10.0950, -84.9250], "JUDAS": [10.0950, -84.9250],
+    "PUNTARENAS": [9.9763, -84.8384], "CHOMES": [10.0950, -84.9250], "JUDAS": [10.0510, -84.8870],
     "ESPARZA": [9.9940, -84.6640], "BUENOS AIRES": [9.1667, -83.3333], "MONTES DE ORO": [10.0870, -84.7300],
     "OSA": [8.9590, -83.5230], "QUEPOS": [9.4319, -84.1617], "GOLFITO": [8.6390, -83.1660],
     "COTO BRUS": [8.8830, -82.9660], "PARRITA": [9.5200, -84.3200], "CORREDORES": [8.6420, -82.9460],
@@ -498,12 +498,91 @@ def mostrar_metricas(df, catalogo):
 def dataframe_visible(df):
     cols = ["Dirección Regional", "Delegación", "Programa", "Actividad", "Meta", "Avance", "Pendiente", "% Cumplimiento", "Estado"]
     out = df[[c for c in cols if c in df.columns]].copy()
-    if "% Cumplimiento" in out.columns:
-        out["% Cumplimiento"] = out["% Cumplimiento"].map(lambda x: f"{x:.1%}")
-    for c in ["Meta", "Avance", "Pendiente"]:
-        if c in out.columns:
-            out[c] = out[c].map(lambda x: f"{x:,.0f}")
     return out
+
+
+def leyenda_cumplimiento():
+    st.markdown(
+        f"""
+        <div class='status-legend'>
+          <div class='status-pill' style='background:#E8F7EF;color:#065F46;'><span class='status-dot' style='background:{COLOR_VERDE};'></span>Cumple: 50% o más</div>
+          <div class='status-pill' style='background:#FFF4DC;color:#92400E;'><span class='status-dot' style='background:{COLOR_NARANJA};'></span>En riesgo: 45% a 49.99%</div>
+          <div class='status-pill' style='background:#FFE4E6;color:#991B1B;'><span class='status-dot' style='background:{COLOR_ROJO};'></span>Crítico: menor al 45%</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def estilo_tabla_cumplimiento(df):
+    tabla = dataframe_visible(df).copy()
+
+    def formato_pct(v):
+        try:
+            return f"{float(v):.1%}"
+        except Exception:
+            return str(v)
+
+    def formato_num(v):
+        try:
+            return f"{float(v):,.0f}"
+        except Exception:
+            return str(v)
+
+    def estilo_fila(row):
+        estado = str(row.get("Estado", ""))
+        if estado == "Cumple":
+            bg = "#F0FDF4"
+            border = COLOR_VERDE
+        elif estado == "En riesgo":
+            bg = "#FFFBEB"
+            border = COLOR_NARANJA
+        else:
+            bg = "#FEF2F2"
+            border = COLOR_ROJO
+        estilos = [f"background-color:{bg}; color:#111827; border-bottom:1px solid #E5E7EB;" for _ in row]
+        if len(estilos) > 0:
+            estilos[0] += f" border-left:7px solid {border};"
+        return estilos
+
+    def estilo_estado(v):
+        estado = str(v)
+        if estado == "Cumple":
+            return f"background-color:{COLOR_VERDE}; color:white; font-weight:900; border-radius:10px; text-align:center;"
+        if estado == "En riesgo":
+            return f"background-color:{COLOR_NARANJA}; color:white; font-weight:900; border-radius:10px; text-align:center;"
+        return f"background-color:{COLOR_ROJO}; color:white; font-weight:900; border-radius:10px; text-align:center;"
+
+    def estilo_pct(v):
+        try:
+            val = float(v)
+        except Exception:
+            val = 0
+        color = COLOR_VERDE if val >= UMBRAL_CUMPLE else COLOR_NARANJA if val >= UMBRAL_RIESGO else COLOR_ROJO
+        return f"font-weight:900; color:{color};"
+
+    styler = tabla.style.apply(estilo_fila, axis=1)
+    if "Estado" in tabla.columns:
+        styler = styler.map(estilo_estado, subset=["Estado"])
+    if "% Cumplimiento" in tabla.columns:
+        styler = styler.map(estilo_pct, subset=["% Cumplimiento"])
+        styler = styler.format({"% Cumplimiento": formato_pct})
+    formatos = {c: formato_num for c in ["Meta", "Avance", "Pendiente", "Actividades", "Delegaciones"] if c in tabla.columns}
+    if formatos:
+        styler = styler.format(formatos)
+    styler = styler.set_table_styles([
+        {"selector": "th", "props": [("background-color", COLOR_AZUL), ("color", "white"), ("font-weight", "900"), ("text-align", "center")]},
+        {"selector": "td", "props": [("font-size", "14px"), ("vertical-align", "middle")]},
+    ])
+    return styler
+
+
+def mostrar_tabla_cumplimiento(df, height=480):
+    if df is None or df.empty:
+        st.info("No hay datos para mostrar.")
+        return
+    leyenda_cumplimiento()
+    st.dataframe(estilo_tabla_cumplimiento(df), use_container_width=True, hide_index=True, height=height)
 
 # ======================================================
 # GRÁFICOS
@@ -512,12 +591,13 @@ def dataframe_visible(df):
 def layout_fig(fig, height=520):
     fig.update_layout(
         title_x=0.5, paper_bgcolor="white", plot_bgcolor="white", height=height,
-        font=dict(color="#374151", size=13), title_font=dict(color=COLOR_AZUL, size=22),
-        legend=dict(orientation="h", y=1.10, x=0.5, xanchor="center"),
-        margin=dict(l=40, r=25, t=90, b=80)
+        font=dict(color="#374151", size=14), title_font=dict(color=COLOR_AZUL, size=23, family="Arial Black"),
+        legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center", bgcolor="rgba(255,255,255,.85)"),
+        margin=dict(l=35, r=30, t=95, b=45),
+        hoverlabel=dict(bgcolor="white", font_size=13, font_color="#111827")
     )
-    fig.update_xaxes(gridcolor="#E6EAF2", zerolinecolor="#D7DCE5")
-    fig.update_yaxes(gridcolor="#E6EAF2", zerolinecolor="#D7DCE5")
+    fig.update_xaxes(gridcolor="#E6EAF2", zerolinecolor="#D7DCE5", title_font=dict(color=COLOR_AZUL, size=15))
+    fig.update_yaxes(gridcolor="#E6EAF2", zerolinecolor="#D7DCE5", title_font=dict(color=COLOR_AZUL, size=15))
     return fig
 
 
@@ -526,52 +606,90 @@ def grafico_region(df):
     if res.empty:
         st.info("No hay datos para graficar.")
         return
+    res = res.sort_values("% Cumplimiento", ascending=True)
     fig = px.bar(
-        res.sort_values("% Cumplimiento", ascending=True),
-        x="% Cumplimiento", y="Dirección Regional", orientation="h", color="Estado",
+        res,
+        x="% Cumplimiento",
+        y="Dirección Regional",
+        orientation="h",
+        color="Estado",
         color_discrete_map={"Cumple": COLOR_VERDE, "En riesgo": COLOR_NARANJA, "Crítico": COLOR_ROJO},
-        text=res.sort_values("% Cumplimiento", ascending=True)["% Cumplimiento"].map(lambda x: f"{x:.1%}"),
-        title="Cumplimiento por Dirección Regional"
+        text=res["% Cumplimiento"].map(lambda x: f"{x:.1%}"),
+        title="Cumplimiento por Dirección Regional",
+        hover_data={"Meta": ":,.0f", "Avance": ":,.0f", "Pendiente": ":,.0f", "% Cumplimiento": ":.1%"},
     )
-    fig.add_vline(x=0.50, line_dash="dash", line_color=COLOR_AZUL, annotation_text="Referencia 50%")
-    fig.update_traces(textposition="outside")
-    fig.update_xaxes(tickformat=".0%", range=[0, max(0.55, min(1.05, res["% Cumplimiento"].max() + 0.10))])
-    st.plotly_chart(layout_fig(fig, 560), use_container_width=True)
+    fig.add_vline(x=UMBRAL_CUMPLE, line_dash="dash", line_color=COLOR_AZUL, line_width=4)
+    fig.add_annotation(x=UMBRAL_CUMPLE, y=1.03, xref="x", yref="paper", text="Referencia institucional 50%", showarrow=False, font=dict(color=COLOR_AZUL, size=14, family="Arial Black"))
+    fig.update_traces(textposition="outside", marker_line_color="white", marker_line_width=1.6, cliponaxis=False)
+    fig.update_xaxes(tickformat=".0%", range=[0, max(0.60, min(1.05, res["% Cumplimiento"].max() + 0.15))], title="% de cumplimiento")
+    fig.update_yaxes(title="", automargin=True)
+    st.plotly_chart(layout_fig(fig, max(520, 38 * len(res) + 160)), use_container_width=True)
 
 
 def grafico_programa(df):
     res = resumen_por_programa(df)
-    if res.empty: return
+    if res.empty:
+        return
+    res = res.sort_values("% Cumplimiento", ascending=True)
     fig = px.bar(
-        res, x="Programa", y="% Cumplimiento", color="Estado",
+        res,
+        x="% Cumplimiento",
+        y="Programa",
+        orientation="h",
+        color="Estado",
         color_discrete_map={"Cumple": COLOR_VERDE, "En riesgo": COLOR_NARANJA, "Crítico": COLOR_ROJO},
-        text=res["% Cumplimiento"].map(lambda x: f"{x:.1%}"), title="Cumplimiento por programa"
+        text=res["% Cumplimiento"].map(lambda x: f"{x:.1%}"),
+        title="Cumplimiento por programa",
+        hover_data={"Meta": ":,.0f", "Avance": ":,.0f", "Pendiente": ":,.0f", "% Cumplimiento": ":.1%"},
     )
-    fig.add_hline(y=0.50, line_dash="dash", line_color=COLOR_AZUL, annotation_text="50%")
-    fig.update_traces(textposition="outside")
-    fig.update_yaxes(tickformat=".0%", range=[0, max(0.55, min(1.05, res["% Cumplimiento"].max() + 0.12))])
-    st.plotly_chart(layout_fig(fig, 470), use_container_width=True)
+    fig.add_vline(x=UMBRAL_CUMPLE, line_dash="dash", line_color=COLOR_AZUL, line_width=4)
+    fig.add_annotation(x=UMBRAL_CUMPLE, y=1.04, xref="x", yref="paper", text="50%", showarrow=False, font=dict(color=COLOR_AZUL, size=14, family="Arial Black"))
+    fig.update_traces(textposition="outside", marker_line_color="white", marker_line_width=1.6, cliponaxis=False)
+    fig.update_xaxes(tickformat=".0%", range=[0, max(0.60, min(1.05, res["% Cumplimiento"].max() + 0.15))], title="% de cumplimiento")
+    fig.update_yaxes(title="", automargin=True)
+    st.plotly_chart(layout_fig(fig, 430), use_container_width=True)
 
 
 def grafico_delegaciones_por_region(df, filtros):
     regiones = filtros.get("Dirección Regional", [])
     delegs = filtros.get("Delegación", [])
     if not regiones and not delegs:
-        st.info("Seleccione una Dirección Regional para visualizar el gráfico de delegaciones sin saturar la pantalla.")
+        st.info("Seleccione una Dirección Regional o una delegación para visualizar el gráfico de delegaciones sin saturar la pantalla.")
         return
+
     res = resumen_por_delegacion(df)
     if res.empty:
         st.info("No hay delegaciones con datos para graficar.")
         return
-    res = res.sort_values("% Cumplimiento", ascending=False)
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=res["Delegación"], y=res["Meta"], name="Meta", marker_color="#DCE8FF", marker_line_color=COLOR_AZUL, marker_line_width=1.2))
-    fig.add_trace(go.Bar(x=res["Delegación"], y=res["Avance"], name="Avance", marker_color=COLOR_AZUL))
-    fig.add_trace(go.Bar(x=res["Delegación"], y=res["Pendiente"], name="Pendiente", marker_color=COLOR_ROJO))
-    max_meta = max(float(res["Meta"].max()), 1)
-    fig.add_trace(go.Scatter(x=res["Delegación"], y=[max_meta * UMBRAL_CUMPLE] * len(res), mode="lines", name="Línea 50%", line=dict(color=COLOR_DORADO, width=4, dash="dash")))
-    fig.update_layout(barmode="group", title="Meta, avance y pendiente por delegación", xaxis_tickangle=-35, yaxis_title="Cantidad")
-    st.plotly_chart(layout_fig(fig, 590), use_container_width=True)
+
+    res = res.sort_values("% Cumplimiento", ascending=True)
+
+    fig = px.bar(
+        res,
+        x="% Cumplimiento",
+        y="Delegación",
+        orientation="h",
+        color="Estado",
+        color_discrete_map={"Cumple": COLOR_VERDE, "En riesgo": COLOR_NARANJA, "Crítico": COLOR_ROJO},
+        text=res["% Cumplimiento"].map(lambda x: f"{x:.1%}"),
+        title="Cumplimiento por delegación",
+        hover_data={"Dirección Regional": True, "Meta": ":,.0f", "Avance": ":,.0f", "Pendiente": ":,.0f", "% Cumplimiento": ":.1%"},
+    )
+    fig.add_vline(x=UMBRAL_CUMPLE, line_dash="dash", line_color=COLOR_AZUL, line_width=4)
+    fig.add_annotation(x=UMBRAL_CUMPLE, y=1.035, xref="x", yref="paper", text="Límite 50%", showarrow=False, font=dict(color=COLOR_AZUL, size=14, family="Arial Black"))
+    fig.update_traces(textposition="outside", marker_line_color="white", marker_line_width=1.6, cliponaxis=False)
+    fig.update_xaxes(tickformat=".0%", range=[0, max(0.60, min(1.05, res["% Cumplimiento"].max() + 0.15))], title="% de cumplimiento")
+    fig.update_yaxes(title="", automargin=True)
+    st.plotly_chart(layout_fig(fig, max(480, 34 * len(res) + 150)), use_container_width=True)
+
+    st.markdown("### Comparativo operativo de la selección")
+    comparativo = res.sort_values("Pendiente", ascending=False).head(20) if len(res) > 20 else res.sort_values("Pendiente", ascending=False)
+    fig2 = go.Figure()
+    fig2.add_trace(go.Bar(y=comparativo["Delegación"], x=comparativo["Meta"], name="Meta", orientation="h", marker=dict(color="#E8F0FF", line=dict(color=COLOR_AZUL, width=1.4))))
+    fig2.add_trace(go.Bar(y=comparativo["Delegación"], x=comparativo["Avance"], name="Avance", orientation="h", marker_color=COLOR_AZUL))
+    fig2.add_trace(go.Bar(y=comparativo["Delegación"], x=comparativo["Pendiente"], name="Pendiente", orientation="h", marker_color=COLOR_ROJO))
+    fig2.update_layout(barmode="group", title="Meta, avance y pendiente por delegación", yaxis=dict(autorange="reversed"), xaxis_title="Cantidad")
+    st.plotly_chart(layout_fig(fig2, max(480, 34 * len(comparativo) + 160)), use_container_width=True)
 
     top = res.sort_values("% Cumplimiento", ascending=False).head(2)
     bajo = res.sort_values("% Cumplimiento", ascending=True).head(2)
@@ -579,31 +697,39 @@ def grafico_delegaciones_por_region(df, filtros):
     with c1:
         st.markdown("### Top 2 mejor posicionadas")
         for i, (_, row) in enumerate(top.iterrows(), start=1):
-            st.success(f"{i}. {row['Delegación']} - {row['% Cumplimiento']:.1%}")
+            st.success(f"{i}. {row['Delegación']} - {row['% Cumplimiento']:.1%} | Meta {row['Meta']:,.0f} | Avance {row['Avance']:,.0f}")
     with c2:
         st.markdown("### Top 2 con menor cumplimiento")
         for i, (_, row) in enumerate(bajo.iterrows(), start=1):
-            st.error(f"{i}. {row['Delegación']} - {row['% Cumplimiento']:.1%}")
+            st.error(f"{i}. {row['Delegación']} - {row['% Cumplimiento']:.1%} | Pendiente {row['Pendiente']:,.0f}")
 
 
-def grafico_pareto_pendiente(df, filtros):
+def grafico_brecha_pendiente(df, filtros):
+    """Sustituye el pareto: muestra las brechas de cumplimiento más relevantes sin línea acumulada."""
     res = resumen_por_delegacion(df)
-    if res.empty: return
-    # En nacional se muestran solo las 25 mayores pendientes. En región muestra todo lo de la región.
+    if res.empty:
+        return
     if not filtros.get("Dirección Regional") and not filtros.get("Delegación"):
-        res = res.sort_values("Pendiente", ascending=False).head(25)
-        titulo = "Pareto de pendientes - Top 25 delegaciones"
+        res = res.sort_values("Pendiente", ascending=False).head(12)
+        titulo = "Delegaciones con mayor pendiente nacional"
     else:
-        res = res.sort_values("Pendiente", ascending=False)
-        titulo = "Pareto de pendientes por delegación filtrada"
-    total = res["Pendiente"].sum()
-    res["% Acumulado"] = res["Pendiente"].cumsum() / total if total else 0
-    max_pend = max(float(res["Pendiente"].max()), 1)
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=res["Delegación"], y=res["Pendiente"], name="Pendiente", marker_color=COLOR_ROJO))
-    fig.add_trace(go.Scatter(x=res["Delegación"], y=res["% Acumulado"] * max_pend, name="% acumulado", mode="lines+markers", line=dict(color=COLOR_AZUL, width=3)))
-    fig.update_layout(title=titulo, xaxis_tickangle=-35, yaxis_title="Pendiente")
-    st.plotly_chart(layout_fig(fig, 560), use_container_width=True)
+        res = res.sort_values("Pendiente", ascending=False).head(15)
+        titulo = "Pendiente por delegación filtrada"
+    fig = px.bar(
+        res.sort_values("Pendiente", ascending=True),
+        x="Pendiente",
+        y="Delegación",
+        orientation="h",
+        color="Estado",
+        color_discrete_map={"Cumple": COLOR_VERDE, "En riesgo": COLOR_NARANJA, "Crítico": COLOR_ROJO},
+        text=res.sort_values("Pendiente", ascending=True)["Pendiente"].map(lambda x: f"{x:,.0f}"),
+        title=titulo,
+        hover_data={"Dirección Regional": True, "Meta": ":,.0f", "Avance": ":,.0f", "% Cumplimiento": ":.1%"},
+    )
+    fig.update_traces(textposition="outside", marker_line_color="white", marker_line_width=1.6, cliponaxis=False)
+    fig.update_xaxes(title="Pendiente")
+    fig.update_yaxes(title="", automargin=True)
+    st.plotly_chart(layout_fig(fig, max(480, 34 * len(res) + 160)), use_container_width=True)
 
 # ======================================================
 # MAPA DE MARCADORES
@@ -754,21 +880,21 @@ def pagina_dashboard(df, catalogo):
     st.markdown("## Gráfico por delegación")
     grafico_delegaciones_por_region(filtrado, filtros)
     st.markdown("---")
-    grafico_pareto_pendiente(filtrado, filtros)
+    grafico_brecha_pendiente(filtrado, filtros)
     st.markdown("---")
     st.markdown("## Registros filtrados")
-    st.dataframe(dataframe_visible(filtrado), use_container_width=True, hide_index=True, height=480)
+    mostrar_tabla_cumplimiento(filtrado, height=480)
 
 
 def pagina_mapa(df, catalogo):
     filtrado, filtros = aplicar_filtros(df, key="mapa")
     mostrar_metricas(filtrado, catalogo)
     st.markdown("## Mapa nacional de cumplimiento")
-    st.info("El mapa utiliza marcadores por delegación. Verde: 50% o más. Naranja: 45% a menos de 50%. Rojo: menor a 45%.")
+    st.info("El mapa utiliza marcadores por delegación según cumplimiento. Al hacer clic en una marca se muestra meta, avance, pendiente, porcentaje y estado. Las coordenadas se usan únicamente de forma interna.")
     mapa = crear_mapa_marcadores(filtrado)
     st_folium(mapa, height=650, use_container_width=True, key="mapa_marcadores_nacional")
     st.markdown("### Detalle del mapa")
-    st.dataframe(dataframe_visible(resumen_por_delegacion(filtrado)), use_container_width=True, hide_index=True, height=420)
+    mostrar_tabla_cumplimiento(resumen_por_delegacion(filtrado), height=420)
 
 
 def pagina_analisis(df, catalogo):
@@ -784,14 +910,14 @@ def pagina_analisis(df, catalogo):
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### Mejores delegaciones")
-        st.dataframe(dataframe_visible(deleg.sort_values("% Cumplimiento", ascending=False).head(10)), use_container_width=True, hide_index=True)
+        mostrar_tabla_cumplimiento(deleg.sort_values("% Cumplimiento", ascending=False).head(10), height=360)
     with c2:
         st.markdown("### Delegaciones críticas")
-        st.dataframe(dataframe_visible(deleg.sort_values("% Cumplimiento", ascending=True).head(10)), use_container_width=True, hide_index=True)
+        mostrar_tabla_cumplimiento(deleg.sort_values("% Cumplimiento", ascending=True).head(10), height=360)
     st.markdown("### Ranking por región")
-    st.dataframe(dataframe_visible(reg), use_container_width=True, hide_index=True)
+    mostrar_tabla_cumplimiento(reg, height=420)
     st.markdown("### Ranking por programa")
-    st.dataframe(dataframe_visible(prog), use_container_width=True, hide_index=True)
+    mostrar_tabla_cumplimiento(prog, height=320)
 
 
 def pagina_pdf(df, catalogo):
