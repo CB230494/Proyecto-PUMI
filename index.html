@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Nacional PUMI 2026</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand-card">
+      <div class="shield">🛡️</div>
+      <h2>PUMI 2026</h2>
+      <p>Dashboard Nacional</p>
+    </div>
+
+    <nav class="menu">
+      <button class="menu-btn active" data-section="inicio">Inicio</button>
+      <button class="menu-btn" data-section="dashboard">Dashboard</button>
+      <button class="menu-btn" data-section="tabla">Detalle nacional</button>
+      <button class="menu-btn" data-section="informe">Informe PDF</button>
+    </nav>
+
+    <div class="status-box">
+      <strong>Fuente de datos</strong>
+      <span>Excel regionales en el repositorio</span>
+      <small id="estadoCarga">Cargando archivos...</small>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top-header">
+      <div>
+        <h1>Dashboard Nacional PUMI 2026</h1>
+        <p>Visualización nacional de metas, avances y cumplimiento por región, delegación y programa.</p>
+      </div>
+      <button id="btnRecargar" class="primary-btn">Recargar datos</button>
+    </header>
+
+    <section id="inicio" class="section active">
+      <div class="hero-card">
+        <h2>Consolidación nacional automática</h2>
+        <p>
+          Esta herramienta lee los Excel regionales ubicados al mismo nivel de estos archivos web,
+          consolida la información nacional y permite identificar avances, pendientes y niveles críticos
+          de cumplimiento.
+        </p>
+        <div class="quick-grid">
+          <button class="quick-card" data-go="dashboard">📊 Ver dashboard</button>
+          <button class="quick-card" data-go="tabla">📋 Ver detalle</button>
+          <button class="quick-card" data-go="informe">📄 Generar informe</button>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-card blue">
+          <h3>Antes</h3>
+          <p>La información dependía de múltiples hojas de cálculo revisadas manualmente.</p>
+        </div>
+        <div class="info-card gold">
+          <h3>Ahora</h3>
+          <p>Los datos se consolidan y visualizan automáticamente desde los Excel oficiales del repositorio.</p>
+        </div>
+        <div class="info-card red">
+          <h3>Resultado</h3>
+          <p>Se identifican regiones, delegaciones y programas con cumplimiento favorable, medio o crítico.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboard" class="section">
+      <div class="panel">
+        <h2>Filtros nacionales</h2>
+        <div class="filters-grid">
+          <label>Dirección Regional<select id="filtroRegion"><option value="">Todas</option></select></label>
+          <label>Delegación<select id="filtroDelegacion"><option value="">Todas</option></select></label>
+          <label>Programa<select id="filtroPrograma"><option value="">Todos</option></select></label>
+          <label>Cumplimiento<select id="filtroEstado"><option value="">Todos</option><option value="verde">50% o más</option><option value="naranja">45% a menos de 50%</option><option value="rojo">Menor a 45%</option></select></label>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric"><span>Meta nacional</span><strong id="mMeta">0</strong></div>
+        <div class="metric"><span>Avance</span><strong id="mAvance">0</strong></div>
+        <div class="metric"><span>Pendiente</span><strong id="mPendiente">0</strong></div>
+        <div class="metric"><span>% cumplimiento</span><strong id="mPorcentaje">0%</strong></div>
+        <div class="metric"><span>Regiones</span><strong id="mRegiones">0</strong></div>
+        <div class="metric"><span>Delegaciones</span><strong id="mDelegaciones">0</strong></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">
+          <h2>Pareto nacional por delegación</h2>
+          <p>Comparativo de meta, avance y pendiente. La línea punteada representa el 50% de cumplimiento.</p>
+        </div>
+        <canvas id="graficoDelegaciones"></canvas>
+      </div>
+
+      <div class="ranking-grid">
+        <div class="ranking-card good">
+          <h3>Top 2 mejores posicionadas</h3>
+          <ol id="topMejores"></ol>
+        </div>
+        <div class="ranking-card bad">
+          <h3>Top 2 críticas</h3>
+          <ol id="topPeores"></ol>
+        </div>
+      </div>
+
+      <div class="chart-card two">
+        <div>
+          <h2>Cumplimiento por región</h2>
+          <canvas id="graficoRegiones"></canvas>
+        </div>
+        <div>
+          <h2>Cumplimiento por programa</h2>
+          <canvas id="graficoProgramas"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section id="tabla" class="section">
+      <div class="panel table-head">
+        <div>
+          <h2>Detalle nacional filtrado</h2>
+          <p>Los colores reflejan el nivel de cumplimiento: verde 50% o más, naranja entre 45% y menos de 50%, rojo menor a 45%.</p>
+        </div>
+        <button id="btnExportCsv" class="secondary-btn">Exportar CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table id="tablaDatos">
+          <thead>
+            <tr>
+              <th>Región</th>
+              <th>Delegación</th>
+              <th>Programa</th>
+              <th>Actividad</th>
+              <th>Meta</th>
+              <th>Avance</th>
+              <th>Pendiente</th>
+              <th>%</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="informe" class="section">
+      <div class="panel">
+        <h2>Generador de informe PDF</h2>
+        <p>El informe se genera con los mismos datos filtrados actualmente en el dashboard.</p>
+        <div class="report-actions">
+          <button id="btnGenerarPdf" class="primary-btn">Generar PDF filtrado</button>
+        </div>
+      </div>
+      <div class="report-preview" id="resumenInforme"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
