@@ -77,6 +77,43 @@ MAPA_REGION_ARCHIVO = {
     "DR12": "Dirección Regional 12 - Caribe",
 }
 
+REGIONES_OFICIALES_CORRECCION = {
+    "Dirección Regional 7 - Limón": "Dirección Regional 7 - Brunca",
+    "Direccion Regional 7 - Limon": "Dirección Regional 7 - Brunca",
+    "Dirección Regional 7 - Brunca": "Dirección Regional 7 - Brunca",
+    "Dirección Regional 8": "Dirección Regional 8 - Huetar Norte",
+    "Dirección Regional 8 - San Carlos": "Dirección Regional 8 - Huetar Norte",
+    "Dirección Regional 8 - Huetar Norte": "Dirección Regional 8 - Huetar Norte",
+    "Dirección Regional 9 - Limón": "Dirección Regional 9 - Huetar Atlántico",
+    "Direccion Regional 9 - Limon": "Dirección Regional 9 - Huetar Atlántico",
+    "Dirección Regional 9 - Huetar Atlántico": "Dirección Regional 9 - Huetar Atlántico",
+    "Dirección Regional 10": "Dirección Regional 10 - Brunca Sur",
+    "Dirección Regional 10 - Pérez Zeledón": "Dirección Regional 10 - Brunca Sur",
+    "Direccion Regional 10 - Perez Zeledon": "Dirección Regional 10 - Brunca Sur",
+    "Dirección Regional 10 - Brunca Sur": "Dirección Regional 10 - Brunca Sur",
+    "Dirección Regional 11": "Dirección Regional 11 - Chorotega Norte",
+    "Dirección Regional 11 - Liberia": "Dirección Regional 11 - Chorotega Norte",
+    "Dirección Regional 11 - Chorotega Norte": "Dirección Regional 11 - Chorotega Norte",
+    "Dirección Regional 12": "Dirección Regional 12 - Caribe",
+    "Dirección Regional 12 - Limón Caribe": "Dirección Regional 12 - Caribe",
+    "Direccion Regional 12 - Limon Caribe": "Dirección Regional 12 - Caribe",
+    "Dirección Regional 12 - Caribe": "Dirección Regional 12 - Caribe",
+    "DR1 C": "Dirección Regional 1 - San José Central",
+    "DR1 N": "Dirección Regional 1 - San José Norte",
+    "DR1 S": "Dirección Regional 1 - San José Sur",
+    "DR2": "Dirección Regional 2 - Alajuela",
+    "DR3": "Dirección Regional 3 - Cartago",
+    "DR4": "Dirección Regional 4 - Heredia",
+    "DR5": "Dirección Regional 5 - Chorotega",
+    "DR6": "Dirección Regional 6 - Puntarenas",
+    "DR7": "Dirección Regional 7 - Brunca",
+    "DR8": "Dirección Regional 8 - Huetar Norte",
+    "DR9": "Dirección Regional 9 - Huetar Atlántico",
+    "DR10": "Dirección Regional 10 - Brunca Sur",
+    "DR11": "Dirección Regional 11 - Chorotega Norte",
+    "DR12": "Dirección Regional 12 - Caribe",
+}
+
 # Coordenadas aproximadas para ubicar las delegaciones en el mapa. No se muestran en tablas ni PDF.
 COORDENADAS_REFERENCIA = {
     "CARMEN": [9.9365, -84.0750], "MERCED": [9.9386, -84.0828], "HOSPITAL": [9.9274, -84.0918],
@@ -228,13 +265,48 @@ def color_estado(estado):
     return {"Cumple": COLOR_VERDE, "En riesgo": COLOR_NARANJA, "Crítico": COLOR_ROJO}.get(estado, COLOR_GRIS)
 
 
+def nombre_region_oficial(valor):
+    texto = str(valor).strip()
+    if not texto or texto.lower() == "nan":
+        return texto
+    if texto in REGIONES_OFICIALES_CORRECCION:
+        return REGIONES_OFICIALES_CORRECCION[texto]
+    texto_norm = normalizar_texto(texto)
+    for origen, destino in REGIONES_OFICIALES_CORRECCION.items():
+        if normalizar_texto(origen) == texto_norm:
+            return destino
+    # Corrección mínima por número regional cuando el nombre venga contaminado.
+    if re.search(r"REGIONAL\s*7\b", texto_norm) or re.fullmatch(r"DR7", texto_norm):
+        return "Dirección Regional 7 - Brunca"
+    if re.search(r"REGIONAL\s*8\b", texto_norm) or re.fullmatch(r"DR8", texto_norm):
+        return "Dirección Regional 8 - Huetar Norte"
+    if re.search(r"REGIONAL\s*9\b", texto_norm) or re.fullmatch(r"DR9", texto_norm):
+        return "Dirección Regional 9 - Huetar Atlántico"
+    if re.search(r"REGIONAL\s*10\b", texto_norm) or re.fullmatch(r"DR10", texto_norm):
+        return "Dirección Regional 10 - Brunca Sur"
+    if re.search(r"REGIONAL\s*11\b", texto_norm) or re.fullmatch(r"DR11", texto_norm):
+        return "Dirección Regional 11 - Chorotega Norte"
+    if re.search(r"REGIONAL\s*12\b", texto_norm) or re.fullmatch(r"DR12", texto_norm):
+        return "Dirección Regional 12 - Caribe"
+    return texto
+
+
+def aplicar_nombres_regionales_oficiales(df):
+    if isinstance(df, pd.DataFrame) and "Dirección Regional" in df.columns:
+        df = df.copy()
+        df["Dirección Regional"] = df["Dirección Regional"].astype(str).apply(nombre_region_oficial)
+    return df
+
+
 def obtener_region_desde_archivo(nombre_archivo):
     nombre = str(nombre_archivo).upper().replace("_", " ")
     nombre = re.sub(r"\s+", " ", nombre).strip()
     for clave in sorted(MAPA_REGION_ARCHIVO.keys(), key=len, reverse=True):
-        if nombre.startswith(clave): return MAPA_REGION_ARCHIVO[clave]
+        if nombre.startswith(clave):
+            return nombre_region_oficial(MAPA_REGION_ARCHIVO[clave])
     m = re.match(r"(DR\d+)", nombre)
-    if m: return MAPA_REGION_ARCHIVO.get(m.group(1), m.group(1))
+    if m:
+        return nombre_region_oficial(MAPA_REGION_ARCHIVO.get(m.group(1), m.group(1)))
     return "Región no identificada"
 
 
@@ -276,6 +348,7 @@ def cargar_catalogo_delegaciones():
         out.columns = ["Dirección Regional", "Delegación"]
         out = out.fillna("").astype(str)
         out = out[(out["Delegación"].str.strip() != "")]
+        out = aplicar_nombres_regionales_oficiales(out)
         out = out.drop_duplicates()
         return out
     except Exception:
@@ -375,6 +448,7 @@ def cargar_metas_regionales():
     if not registros:
         return pd.DataFrame(columns=columnas)
     df = pd.DataFrame(registros)
+    df = aplicar_nombres_regionales_oficiales(df)
     df = df.sort_values(["Dirección Regional", "Delegación", "Programa", "Actividad"], key=lambda s: s.map(normalizar_texto)).reset_index(drop=True)
     return df
 
@@ -988,7 +1062,7 @@ menu = st.sidebar.radio("Menú", ["Inicio", "Dashboard Nacional", "Análisis est
 mostrar_encabezado()
 mostrar_titulo()
 
-df_metas = cargar_metas_regionales()
+df_metas = aplicar_nombres_regionales_oficiales(cargar_metas_regionales())
 catalogo = cargar_catalogo_delegaciones()
 
 if df_metas.empty:
