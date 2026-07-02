@@ -53,7 +53,7 @@ COLOR_GRIS = "#2F3542"
 COLOR_BLANCO = "#FFFFFF"
 
 UMBRAL_CUMPLE = 0.50
-UMBRAL_RIESGO = 0.45
+UMBRAL_RIESGO = 0.25
 
 MESES_META = [
     "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
@@ -506,8 +506,8 @@ def leyenda_cumplimiento():
         f"""
         <div class='status-legend'>
           <div class='status-pill' style='background:#E8F7EF;color:#065F46;'><span class='status-dot' style='background:{COLOR_VERDE};'></span>Cumple: 50% o más</div>
-          <div class='status-pill' style='background:#FFF4DC;color:#92400E;'><span class='status-dot' style='background:{COLOR_NARANJA};'></span>En riesgo: 45% a 49.99%</div>
-          <div class='status-pill' style='background:#FFE4E6;color:#991B1B;'><span class='status-dot' style='background:{COLOR_ROJO};'></span>Crítico: menor al 45%</div>
+          <div class='status-pill' style='background:#FFF4DC;color:#92400E;'><span class='status-dot' style='background:{COLOR_NARANJA};'></span>En riesgo: 25% a 49.99%</div>
+          <div class='status-pill' style='background:#FFE4E6;color:#991B1B;'><span class='status-dot' style='background:{COLOR_ROJO};'></span>Crítico: menor al 25%</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -914,7 +914,7 @@ def pagina_analisis(df, catalogo):
         return
     # Separación clara para no mezclar estados en las tablas ejecutivas.
     # Mejores: solo delegaciones que cumplen o están en riesgo.
-    # Críticas: únicamente delegaciones con cumplimiento menor al 45%.
+    # Críticas: únicamente delegaciones con cumplimiento menor al 25%.
     deleg_no_criticas = deleg[deleg["Estado"].isin(["Cumple", "En riesgo"])].copy()
     deleg_criticas = deleg[deleg["Estado"] == "Crítico"].copy()
 
