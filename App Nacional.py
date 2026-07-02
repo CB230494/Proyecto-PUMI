@@ -850,6 +850,65 @@ def crear_mapa_marcadores(df):
         pass
     return mapa
 
+
+def crear_mapa_marcadores_resumen(res):
+    """
+    Crea el mapa a partir de un resumen ya consolidado por delegación.
+    Esto evita que el filtro de cumplimiento recalculado a nivel de actividad
+    pinte todas las marcas del mismo color.
+    """
+    mapa = folium.Map(location=[9.7489, -83.7534], zoom_start=7, tiles="CartoDB positron")
+    if res is None or res.empty:
+        return mapa
+    for _, row in res.iterrows():
+        estado = row.get("Estado", "")
+        color = "green" if estado == "Cumple" else "orange" if estado == "En riesgo" else "red"
+        icono = "ok" if estado == "Cumple" else "warning-sign" if estado == "En riesgo" else "remove"
+        popup = f"""
+        <div style='font-family:Arial;width:310px;'>
+          <h4 style='color:#002B7F;margin:0 0 8px 0;'>{row['Delegación']}</h4>
+          <b>Dirección Regional:</b> {row['Dirección Regional']}<br>
+          <b>Meta:</b> {row['Meta']:,.0f}<br>
+          <b>Avance:</b> {row['Avance']:,.0f}<br>
+          <b>Pendiente:</b> {row['Pendiente']:,.0f}<br>
+          <b>Cumplimiento:</b> {row['% Cumplimiento']:.1%}<br>
+          <b>Estado:</b> <span style='color:{color};font-weight:bold'>{estado}</span><br>
+          <b>Actividades:</b> {row.get('Actividades', 0):,.0f}
+        </div>
+        """
+        folium.Marker(
+            location=[float(row["_lat"]), float(row["_lon"])],
+            tooltip=f"{row['Delegación']} | {row['% Cumplimiento']:.1%} | {estado}",
+            popup=folium.Popup(popup, max_width=340),
+            icon=folium.Icon(color=color, icon=icono)
+        ).add_to(mapa)
+    try:
+        bounds = [[res["_lat"].min(), res["_lon"].min()], [res["_lat"].max(), res["_lon"].max()]]
+        mapa.fit_bounds(bounds)
+    except Exception:
+        pass
+    return mapa
+
+
+def aplicar_filtros_para_mapa(df, filtros):
+    """
+    Aplica Región/Delegación/Programa a los registros, consolida por delegación
+    y luego aplica el filtro de Cumplimiento sobre el resultado consolidado.
+    Así el color de cada marcador representa el cumplimiento total real de la delegación.
+    """
+    base = df.copy()
+    if filtros.get("Dirección Regional"):
+        base = base[base["Dirección Regional"].isin(filtros["Dirección Regional"])]
+    if filtros.get("Delegación"):
+        base = base[base["Delegación"].isin(filtros["Delegación"])]
+    if filtros.get("Programa"):
+        base = base[base["Programa"].isin(filtros["Programa"])]
+
+    resumen = resumen_por_delegacion(base)
+    if filtros.get("Cumplimiento") and not resumen.empty:
+        resumen = resumen[resumen["Estado"].isin(filtros["Cumplimiento"])]
+    return resumen.reset_index(drop=True), base
+
 # ======================================================
 # PDF
 # ======================================================
@@ -979,14 +1038,29 @@ def pagina_dashboard(df, catalogo):
 
 
 def pagina_mapa(df, catalogo):
-    filtrado, filtros = aplicar_filtros(df, key="mapa")
-    mostrar_metricas(filtrado, catalogo)
+    # Primero mostramos los mismos filtros de siempre.
+    # Luego corregimos la lógica del filtro Cumplimiento para que opere sobre
+    # el resultado consolidado por delegación, no sobre filas individuales.
+    _, filtros = aplicar_filtros(df, key="mapa")
+    resumen_mapa, base_sin_estado = aplicar_filtros_para_mapa(df, filtros)
+
+    # Las tarjetas reflejan el universo territorial filtrado. Si se escogió un
+    # estado de cumplimiento, se toman solo las delegaciones que pertenecen a ese estado.
+    if filtros.get("Cumplimiento") and not resumen_mapa.empty:
+        delegaciones_visibles = resumen_mapa["Delegación"].dropna().unique().tolist()
+        datos_metricas = base_sin_estado[base_sin_estado["Delegación"].isin(delegaciones_visibles)].copy()
+    elif filtros.get("Cumplimiento") and resumen_mapa.empty:
+        datos_metricas = base_sin_estado.iloc[0:0].copy()
+    else:
+        datos_metricas = base_sin_estado.copy()
+
+    mostrar_metricas(datos_metricas, catalogo)
     st.markdown("## Mapa nacional de cumplimiento")
-    st.info("El mapa utiliza marcadores por delegación según cumplimiento. Al hacer clic en una marca se muestra meta, avance, pendiente, porcentaje y estado. Las coordenadas se usan únicamente de forma interna.")
-    mapa = crear_mapa_marcadores(filtrado)
+    st.info("El mapa utiliza marcadores por delegación según el cumplimiento total consolidado. Al hacer clic en una marca se muestra meta, avance, pendiente, porcentaje y estado. Las coordenadas se usan únicamente de forma interna.")
+    mapa = crear_mapa_marcadores_resumen(resumen_mapa)
     st_folium(mapa, height=650, use_container_width=True, key="mapa_marcadores_nacional")
     st.markdown("### Detalle del mapa")
-    mostrar_tabla_cumplimiento(resumen_por_delegacion(filtrado), height=420)
+    mostrar_tabla_cumplimiento(resumen_mapa, height=420)
 
 
 def pagina_analisis(df, catalogo):
