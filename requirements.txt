@@ -13,3 +13,4 @@ streamlit-folium
 geopy
 streamlit-js-eval
 kaleido==0.2.1
+arcgis
