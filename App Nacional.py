@@ -517,62 +517,69 @@ def leyenda_cumplimiento():
 def estilo_tabla_cumplimiento(df):
     tabla = dataframe_visible(df).copy()
 
-    def formato_pct(v):
-        try:
-            return f"{float(v):.1%}"
-        except Exception:
-            return str(v)
+    # Guardamos el porcentaje real para pintar la fila y luego mostramos el valor
+    # en formato institucional (ej. 45.1%) en lugar del decimal 0.451.
+    pct_real = None
+    if "% Cumplimiento" in tabla.columns:
+        pct_real = pd.to_numeric(tabla["% Cumplimiento"], errors="coerce").fillna(0)
 
-    def formato_num(v):
+    def formato_numero_visible(v):
         try:
             return f"{float(v):,.0f}"
         except Exception:
             return str(v)
 
-    def estilo_fila(row):
+    if "% Cumplimiento" in tabla.columns:
+        tabla["% Cumplimiento"] = pct_real.map(lambda x: f"{x:.1%}")
+
+    for col in ["Meta", "Avance", "Pendiente", "Actividades", "Delegaciones"]:
+        if col in tabla.columns:
+            tabla[col] = tabla[col].map(formato_numero_visible)
+
+    def obtener_color_estado(row):
         estado = str(row.get("Estado", ""))
         if estado == "Cumple":
-            bg = "#F0FDF4"
-            border = COLOR_VERDE
-        elif estado == "En riesgo":
-            bg = "#FFFBEB"
-            border = COLOR_NARANJA
-        else:
-            bg = "#FEF2F2"
-            border = COLOR_ROJO
-        estilos = [f"background-color:{bg}; color:#111827; border-bottom:1px solid #E5E7EB;" for _ in row]
+            return "#ECFDF3", COLOR_VERDE, "#065F46"
+        if estado == "En riesgo":
+            return "#FFF7E6", COLOR_NARANJA, "#92400E"
+        return "#FFF1F2", COLOR_ROJO, "#991B1B"
+
+    def estilo_fila(row):
+        bg, border, text = obtener_color_estado(row)
+        estilos = [
+            f"background-color:{bg}; color:#111827; border-bottom:1px solid #E5E7EB;"
+            for _ in row
+        ]
         if len(estilos) > 0:
-            estilos[0] += f" border-left:7px solid {border};"
+            estilos[0] += f" border-left:8px solid {border};"
         return estilos
 
     def estilo_estado(v):
         estado = str(v)
         if estado == "Cumple":
-            return f"background-color:{COLOR_VERDE}; color:white; font-weight:900; border-radius:10px; text-align:center;"
+            return f"background-color:{COLOR_VERDE}; color:white; font-weight:900; border-radius:14px; text-align:center;"
         if estado == "En riesgo":
-            return f"background-color:{COLOR_NARANJA}; color:white; font-weight:900; border-radius:10px; text-align:center;"
-        return f"background-color:{COLOR_ROJO}; color:white; font-weight:900; border-radius:10px; text-align:center;"
+            return f"background-color:{COLOR_NARANJA}; color:white; font-weight:900; border-radius:14px; text-align:center;"
+        return f"background-color:{COLOR_ROJO}; color:white; font-weight:900; border-radius:14px; text-align:center;"
 
-    def estilo_pct(v):
+    def estilo_pct_visible(v):
+        txt = str(v).replace('%','').strip()
         try:
-            val = float(v)
+            val = float(txt) / 100
         except Exception:
             val = 0
         color = COLOR_VERDE if val >= UMBRAL_CUMPLE else COLOR_NARANJA if val >= UMBRAL_RIESGO else COLOR_ROJO
-        return f"font-weight:900; color:{color};"
+        return f"font-weight:900; color:{color}; font-size:15px;"
 
     styler = tabla.style.apply(estilo_fila, axis=1)
     if "Estado" in tabla.columns:
         styler = styler.map(estilo_estado, subset=["Estado"])
     if "% Cumplimiento" in tabla.columns:
-        styler = styler.map(estilo_pct, subset=["% Cumplimiento"])
-        styler = styler.format({"% Cumplimiento": formato_pct})
-    formatos = {c: formato_num for c in ["Meta", "Avance", "Pendiente", "Actividades", "Delegaciones"] if c in tabla.columns}
-    if formatos:
-        styler = styler.format(formatos)
+        styler = styler.map(estilo_pct_visible, subset=["% Cumplimiento"])
+
     styler = styler.set_table_styles([
-        {"selector": "th", "props": [("background-color", COLOR_AZUL), ("color", "white"), ("font-weight", "900"), ("text-align", "center")]},
-        {"selector": "td", "props": [("font-size", "14px"), ("vertical-align", "middle")]},
+        {"selector": "th", "props": [("background-color", COLOR_AZUL), ("color", "white"), ("font-weight", "900"), ("text-align", "center"), ("font-size", "14px")]},
+        {"selector": "td", "props": [("font-size", "14px"), ("vertical-align", "middle"), ("padding", "8px 10px")]},
     ])
     return styler
 
@@ -866,8 +873,6 @@ def pagina_inicio(df, catalogo):
     </div>
     """, unsafe_allow_html=True)
     mostrar_metricas(df, catalogo)
-    st.markdown("### Lectura automática")
-    st.info("La app toma los archivos tipo DR1 C AVANCE JUNIO.xlsx, DR1 N AVANCE JUNIO.xlsx, DR2 AVANCE JUNIO.xlsx, etc., directamente desde el repositorio.")
 
 
 def pagina_dashboard(df, catalogo):
