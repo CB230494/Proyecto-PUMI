@@ -877,6 +877,19 @@ def pagina_inicio(df, catalogo):
 
 def pagina_dashboard(df, catalogo):
     filtrado, filtros = aplicar_filtros(df, key="dash")
+
+    # Cuando el usuario aplica cualquier filtro, esta vista se convierte en una
+    # consulta directa: se muestra únicamente la tabla filtrada para evitar
+    # saturación visual y confusión con gráficos que ya no representan el
+    # universo nacional completo.
+    hay_filtros_activos = any(bool(v) for v in filtros.values())
+
+    if hay_filtros_activos:
+        st.markdown("## Registros filtrados")
+        mostrar_tabla_cumplimiento(filtrado, height=620)
+        return
+
+    # Sin filtros, se muestra el dashboard nacional completo.
     mostrar_metricas(filtrado, catalogo)
     st.markdown("---")
     grafico_region(filtrado)
