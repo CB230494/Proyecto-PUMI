@@ -912,13 +912,31 @@ def pagina_analisis(df, catalogo):
     if deleg.empty:
         st.info("No hay datos para analizar.")
         return
+    # Separación clara para no mezclar estados en las tablas ejecutivas.
+    # Mejores: solo delegaciones que cumplen o están en riesgo.
+    # Críticas: únicamente delegaciones con cumplimiento menor al 45%.
+    deleg_no_criticas = deleg[deleg["Estado"].isin(["Cumple", "En riesgo"])].copy()
+    deleg_criticas = deleg[deleg["Estado"] == "Crítico"].copy()
+
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("### Mejores delegaciones")
-        mostrar_tabla_cumplimiento(deleg.sort_values("% Cumplimiento", ascending=False).head(10), height=360)
+        st.markdown("### Delegaciones con cumplimiento aceptable o cercano")
+        if deleg_no_criticas.empty:
+            st.info("No hay delegaciones en estado Cumple o En riesgo con los filtros aplicados.")
+        else:
+            mostrar_tabla_cumplimiento(
+                deleg_no_criticas.sort_values("% Cumplimiento", ascending=False).head(10),
+                height=360
+            )
     with c2:
         st.markdown("### Delegaciones críticas")
-        mostrar_tabla_cumplimiento(deleg.sort_values("% Cumplimiento", ascending=True).head(10), height=360)
+        if deleg_criticas.empty:
+            st.success("No hay delegaciones críticas con los filtros aplicados.")
+        else:
+            mostrar_tabla_cumplimiento(
+                deleg_criticas.sort_values("% Cumplimiento", ascending=True).head(10),
+                height=360
+            )
     st.markdown("### Ranking por región")
     mostrar_tabla_cumplimiento(reg, height=420)
     st.markdown("### Ranking por programa")
