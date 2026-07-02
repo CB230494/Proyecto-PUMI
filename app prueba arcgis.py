@@ -28,18 +28,16 @@ def obtener_capa():
     item = gis.content.get(st.secrets["ARCGIS_ITEM_ID"])
 
     if item is None:
-        st.error("No se encontró el item de ArcGIS. Revise el ARCGIS_ITEM_ID.")
+        st.error("No se encontró la capa. Revise ARCGIS_ITEM_ID.")
         st.stop()
 
-    # Si es Feature Layer con capas:
     if item.layers:
         return item.layers[0]
 
-    # Si es tabla:
     if item.tables:
         return item.tables[0]
 
-    st.error("El item no tiene capas ni tablas disponibles.")
+    st.error("El elemento no tiene capas ni tablas.")
     st.stop()
 
 
@@ -124,12 +122,16 @@ if st.button("Guardar en ArcGIS"):
 
 st.divider()
 
-st.subheader("Registros guardados")
+st.subheader("Registros guardados en ArcGIS")
 
 @st.cache_data(ttl=30)
 def cargar_registros():
     capa = obtener_capa()
-    resultado = capa.query(where="1=1", out_fields="*", return_geometry=False)
+    resultado = capa.query(
+        where="1=1",
+        out_fields="*",
+        return_geometry=False
+    )
     datos = [feature.attributes for feature in resultado.features]
     return pd.DataFrame(datos)
 
@@ -138,7 +140,7 @@ df = cargar_registros()
 if df.empty:
     st.info("Aún no hay registros.")
 else:
-    columnas_mostrar = [
+    columnas = [
         col for col in [
             "OBJECTID",
             "nombre",
@@ -150,7 +152,7 @@ else:
     ]
 
     st.dataframe(
-        df[columnas_mostrar],
+        df[columnas],
         use_container_width=True,
         hide_index=True
     )
