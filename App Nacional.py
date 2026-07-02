@@ -937,8 +937,19 @@ def pagina_analisis(df, catalogo):
                 deleg_criticas.sort_values("% Cumplimiento", ascending=True).head(10),
                 height=360
             )
-    st.markdown("### Ranking por región")
-    mostrar_tabla_cumplimiento(reg, height=420)
+    # Ranking ejecutivo dinámico:
+    # - Sin filtros territoriales: ranking completo por región.
+    # - Si se filtra una región o delegación: ranking completo por delegación
+    #   dentro del universo filtrado, para no confundir al usuario.
+    if filtros.get("Dirección Regional") or filtros.get("Delegación"):
+        st.markdown("### Ranking por delegación")
+        ranking_delegacion = deleg.sort_values("% Cumplimiento", ascending=False).reset_index(drop=True)
+        mostrar_tabla_cumplimiento(ranking_delegacion, height=520)
+    else:
+        st.markdown("### Ranking por región")
+        ranking_region = reg.sort_values("% Cumplimiento", ascending=False).reset_index(drop=True)
+        mostrar_tabla_cumplimiento(ranking_region, height=520)
+
     st.markdown("### Ranking por programa")
     mostrar_tabla_cumplimiento(prog, height=320)
 
