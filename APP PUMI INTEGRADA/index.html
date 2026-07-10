@@ -1,1 +1,339 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PUMI 2026</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.31/"></script>
+</head>
+<body>
+  <div id="app">
+    <section id="loginView" class="login-shell">
+      <div class="login-card">
+        <div class="brand-block">
+          <div class="brand-mark">PUMI</div>
+          <h1>Proceso Unificado para el Manejo de la Información</h1>
+          <p>Registro, revisión regional, validación nacional y seguimiento institucional.</p>
+        </div>
+
+        <div class="login-panel">
+          <h2>Ingreso al sistema</h2>
+          <p class="muted">Autenticación institucional mediante ArcGIS Online.</p>
+          <button id="btnLoginArcGIS" class="btn btn-primary btn-block">Ingresar con ArcGIS</button>
+          <div class="divider"><span>o</span></div>
+          <button id="btnDemo" class="btn btn-secondary btn-block">Abrir modo demostración</button>
+          <p class="security-note">La aplicación no almacena contraseñas en GitHub Pages.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="mainView" class="hidden">
+      <header class="topbar">
+        <div>
+          <h1>PUMI 2026</h1>
+          <span id="currentScope" class="scope-text"></span>
+        </div>
+        <div class="topbar-actions">
+          <button id="btnNotifications" class="icon-btn" title="Notificaciones">
+            🔔 <span id="notificationBadge" class="badge hidden">0</span>
+          </button>
+          <div class="user-box">
+            <strong id="userName">Usuario</strong>
+            <small id="userRole">Rol</small>
+          </div>
+          <button id="btnLogout" class="btn btn-outline">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-brand">PUMI</div>
+        <nav id="mainNav"></nav>
+      </aside>
+
+      <main class="content">
+        <section id="dashboardSection" class="section active">
+          <div class="section-header">
+            <div>
+              <h2>Panel principal</h2>
+              <p>Resumen actualizado según su perfil de acceso.</p>
+            </div>
+            <button id="btnRefresh" class="btn btn-secondary">Actualizar datos</button>
+          </div>
+
+          <div id="kpiGrid" class="kpi-grid"></div>
+
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <h3>Avance por programa</h3>
+              </div>
+              <div id="programChart" class="chart-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Estado de registros</h3>
+              </div>
+              <div id="statusChart" class="chart-list"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Mapa de actividades</h3>
+            </div>
+            <div id="dashboardMap" class="map"></div>
+          </div>
+        </section>
+
+        <section id="registerSection" class="section">
+          <div class="section-header">
+            <div>
+              <h2>Registrar actividad</h2>
+              <p>La actividad será enviada automáticamente a revisión regional.</p>
+            </div>
+          </div>
+
+          <form id="activityForm" class="card form-card">
+            <div class="form-grid">
+              <label>Fecha de actividad
+                <input type="date" name="fecha_actividad" required>
+              </label>
+              <label>Hora
+                <input type="time" name="hora_actividad" required>
+              </label>
+              <label>Programa
+                <select name="programa" id="programSelect" required></select>
+              </label>
+              <label>Actividad
+                <select name="actividad" id="activitySelect" required></select>
+              </label>
+              <label>Provincia
+                <select name="provincia" id="provinceSelect" required></select>
+              </label>
+              <label>Cantón
+                <select name="canton" id="cantonSelect" required></select>
+              </label>
+              <label>Distrito
+                <select name="distrito" id="districtSelect" required></select>
+              </label>
+              <label>Tipo de lugar
+                <select name="tipo_lugar">
+                  <option>Centro educativo</option>
+                  <option>Comunidad</option>
+                  <option>Institución pública</option>
+                  <option>Instalación policial</option>
+                  <option>Otro</option>
+                </select>
+              </label>
+              <label class="span-2">Lugar
+                <input type="text" name="lugar" required>
+              </label>
+              <label>Responsable
+                <input type="text" name="responsable" required>
+              </label>
+              <label>Avance realizado
+                <input type="number" name="avance" min="0" value="1" required>
+              </label>
+              <label>Participantes
+                <input type="number" name="participantes" min="0" value="0" required>
+              </label>
+              <label>Hombres
+                <input type="number" name="hombres" min="0" value="0">
+              </label>
+              <label>Mujeres
+                <input type="number" name="mujeres" min="0" value="0">
+              </label>
+              <label>Edad 10 a 18
+                <input type="number" name="edad_10_18" min="0" value="0">
+              </label>
+              <label>Edad 19 a 30
+                <input type="number" name="edad_19_30" min="0" value="0">
+              </label>
+              <label>Edad 31 a 45
+                <input type="number" name="edad_31_45" min="0" value="0">
+              </label>
+              <label>Edad 46 en adelante
+                <input type="number" name="edad_46_mas" min="0" value="0">
+              </label>
+              <label>Latitud
+                <input type="number" step="any" name="latitud" id="latitudeInput">
+              </label>
+              <label>Longitud
+                <input type="number" step="any" name="longitud" id="longitudeInput">
+              </label>
+              <label class="span-2">Instituciones participantes
+                <input type="text" name="instituciones">
+              </label>
+              <label>Número de referencia
+                <input type="text" name="numero_referencia">
+              </label>
+              <label>Expediente de referencia
+                <input type="text" name="expediente_referencia">
+              </label>
+              <label class="span-2">Observaciones
+                <textarea name="observaciones" rows="4"></textarea>
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" id="btnLocation" class="btn btn-secondary">Usar ubicación actual</button>
+              <button type="reset" class="btn btn-outline">Limpiar</button>
+              <button type="submit" class="btn btn-primary">Guardar y enviar a revisión</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="reviewSection" class="section">
+          <div class="section-header">
+            <div>
+              <h2 id="reviewTitle">Bandeja de revisión</h2>
+              <p id="reviewSubtitle">Registros pendientes según su nivel de acceso.</p>
+            </div>
+          </div>
+
+          <div class="card filters">
+            <select id="filterRegion"></select>
+            <select id="filterDelegation"></select>
+            <select id="filterProgram"></select>
+            <select id="filterStatus"></select>
+            <button id="btnApplyFilters" class="btn btn-secondary">Aplicar filtros</button>
+          </div>
+
+          <div class="card table-card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Fecha</th>
+                    <th>Región</th>
+                    <th>Delegación</th>
+                    <th>Programa</th>
+                    <th>Actividad</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="reviewTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="nationalSection" class="section">
+          <div class="section-header">
+            <div>
+              <h2>Vista nacional</h2>
+              <p>Consolidado de actividades validadas nacionalmente.</p>
+            </div>
+          </div>
+          <div id="nationalKpis" class="kpi-grid"></div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Mapa nacional</h3>
+            </div>
+            <div id="nationalMap" class="map"></div>
+          </div>
+          <div class="card table-card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Región</th>
+                    <th>Delegación</th>
+                    <th>Programa</th>
+                    <th>Actividad</th>
+                    <th>Meta</th>
+                    <th>Avance</th>
+                    <th>Pendiente</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody id="nationalTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="usersSection" class="section">
+          <div class="section-header">
+            <div>
+              <h2>Administración de usuarios</h2>
+              <p>Alta y control de permisos institucionales.</p>
+            </div>
+          </div>
+          <form id="userForm" class="card form-card">
+            <div class="form-grid">
+              <label>Usuario ArcGIS
+                <input type="text" name="usuario" required>
+              </label>
+              <label>Nombre completo
+                <input type="text" name="nombre" required>
+              </label>
+              <label>Rol
+                <select name="rol" required>
+                  <option>Delegación</option>
+                  <option>Regional</option>
+                  <option>Coordinador Nacional</option>
+                  <option>Nacional</option>
+                  <option>Administrador</option>
+                </select>
+              </label>
+              <label>Dirección Regional
+                <input type="text" name="direccion_regional">
+              </label>
+              <label>Delegación
+                <input type="text" name="delegacion">
+              </label>
+              <label>Programa
+                <input type="text" name="programa">
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Crear usuario autorizado</button>
+            </div>
+          </form>
+        </section>
+      </main>
+
+      <div id="notificationPanel" class="drawer hidden">
+        <div class="drawer-header">
+          <h3>Notificaciones</h3>
+          <button id="btnCloseNotifications" class="icon-btn">✕</button>
+        </div>
+        <div id="notificationList"></div>
+      </div>
+
+      <div id="reviewModal" class="modal hidden">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>Revisión del registro</h3>
+            <button id="btnCloseModal" class="icon-btn">✕</button>
+          </div>
+          <div id="reviewDetail"></div>
+          <form id="reviewForm">
+            <input type="hidden" name="objectid">
+            <label>Decisión
+              <select name="decision" required></select>
+            </label>
+            <label>Observaciones
+              <textarea name="observaciones" rows="4"></textarea>
+            </label>
+            <div class="form-actions">
+              <button type="button" id="btnCancelReview" class="btn btn-outline">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Guardar revisión</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </section>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
 
