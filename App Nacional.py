@@ -498,27 +498,107 @@ def tarjetas(items):
 def aplicar_filtros(df, key="general"):
     if df.empty:
         return df, {}
+
     st.markdown("## Filtros")
+
     c1, c2, c3, c4 = st.columns(4)
+
     with c1:
-        regiones = sorted(df["Dirección Regional"].dropna().unique().tolist(), key=orden_region)
-        filtro_region = st.multiselect("Dirección Regional", regiones, key=f"{key}_region")
-    base_deleg = df[df["Dirección Regional"].isin(filtro_region)] if filtro_region else df
+        regiones = sorted(
+            df["Dirección Regional"].dropna().unique().tolist(),
+            key=orden_region
+        )
+        filtro_region = st.multiselect(
+            "Dirección Regional",
+            regiones,
+            key=f"{key}_region"
+        )
+
+    base_deleg = (
+        df[df["Dirección Regional"].isin(filtro_region)]
+        if filtro_region else df
+    )
+
     with c2:
-        delegaciones = sorted(base_deleg["Delegación"].dropna().unique().tolist(), key=orden_delegacion)
-        filtro_delegacion = st.multiselect("Delegación", delegaciones, key=f"{key}_delegacion")
+        delegaciones = sorted(
+            base_deleg["Delegación"].dropna().unique().tolist(),
+            key=orden_delegacion
+        )
+        filtro_delegacion = st.multiselect(
+            "Delegación",
+            delegaciones,
+            key=f"{key}_delegacion"
+        )
+
+    base_programa = base_deleg.copy()
+    if filtro_delegacion:
+        base_programa = base_programa[
+            base_programa["Delegación"].isin(filtro_delegacion)
+        ]
+
     with c3:
-        programas = sorted(df["Programa"].dropna().unique().tolist(), key=normalizar_texto)
-        filtro_programa = st.multiselect("Programa", programas, key=f"{key}_programa")
+        programas = sorted(
+            base_programa["Programa"].dropna().unique().tolist(),
+            key=normalizar_texto
+        )
+        filtro_programa = st.multiselect(
+            "Programa",
+            programas,
+            key=f"{key}_programa"
+        )
+
     with c4:
-        filtro_estado = st.multiselect("Cumplimiento", ["Cumple", "En riesgo", "Crítico"], key=f"{key}_estado")
+        filtro_estado = st.multiselect(
+            "Cumplimiento",
+            ["Cumple", "En riesgo", "Crítico"],
+            key=f"{key}_estado"
+        )
+
+    # El catálogo de actividades se ajusta a la región, delegación y programa
+    # seleccionados para mostrar únicamente actividades que realmente competen.
+    base_actividad = base_programa.copy()
+    if filtro_programa:
+        base_actividad = base_actividad[
+            base_actividad["Programa"].isin(filtro_programa)
+        ]
+
+    actividades = sorted(
+        base_actividad["Actividad"].dropna().unique().tolist(),
+        key=normalizar_texto
+    )
+
+    filtro_actividad = st.multiselect(
+        "Actividad",
+        actividades,
+        key=f"{key}_actividad",
+        placeholder="Seleccione una o varias actividades"
+    )
 
     out = df.copy()
-    if filtro_region: out = out[out["Dirección Regional"].isin(filtro_region)]
-    if filtro_delegacion: out = out[out["Delegación"].isin(filtro_delegacion)]
-    if filtro_programa: out = out[out["Programa"].isin(filtro_programa)]
-    if filtro_estado: out = out[out["Estado"].isin(filtro_estado)]
-    filtros = {"Dirección Regional": filtro_region, "Delegación": filtro_delegacion, "Programa": filtro_programa, "Cumplimiento": filtro_estado}
+
+    if filtro_region:
+        out = out[out["Dirección Regional"].isin(filtro_region)]
+
+    if filtro_delegacion:
+        out = out[out["Delegación"].isin(filtro_delegacion)]
+
+    if filtro_programa:
+        out = out[out["Programa"].isin(filtro_programa)]
+
+    if filtro_actividad:
+        out = out[out["Actividad"].isin(filtro_actividad)]
+
+    if filtro_estado:
+        out = out[out["Estado"].isin(filtro_estado)]
+
+    filtros = {
+        "Dirección Regional": filtro_region,
+        "Delegación": filtro_delegacion,
+        "Programa": filtro_programa,
+        "Actividad": filtro_actividad,
+        "Cumplimiento": filtro_estado,
+    }
+
     st.session_state["filtros_pdf"] = filtros
     return out, filtros
 
@@ -892,7 +972,7 @@ def crear_mapa_marcadores_resumen(res):
 
 def aplicar_filtros_para_mapa(df, filtros):
     """
-    Aplica Región/Delegación/Programa a los registros, consolida por delegación
+    Aplica Región/Delegación/Programa/Actividad a los registros, consolida por delegación
     y luego aplica el filtro de Cumplimiento sobre el resultado consolidado.
     Así el color de cada marcador representa el cumplimiento total real de la delegación.
     """
@@ -903,6 +983,8 @@ def aplicar_filtros_para_mapa(df, filtros):
         base = base[base["Delegación"].isin(filtros["Delegación"])]
     if filtros.get("Programa"):
         base = base[base["Programa"].isin(filtros["Programa"])]
+    if filtros.get("Actividad"):
+        base = base[base["Actividad"].isin(filtros["Actividad"])]
 
     resumen = resumen_por_delegacion(base)
     if filtros.get("Cumplimiento") and not resumen.empty:
